@@ -560,3 +560,113 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
   /* 止まった輪は「終わっている」と読まれる。文言の「Installing…」だけで足りる。 */
   #install[disabled]::after { display: none; }
 }
+
+
+/* --- 検知の小さな演出 -------------------------------------------------
+ * 自動検知はブラウザ拡張の主役なので、カードが「見つけた」ことだけ一度伝える。
+ * transform/opacity のみで描画し、reduced-motion では完全に止める。
+ */
+@keyframes detected-bloom {
+  0% { opacity: 0; transform: translateY(7px) scale(0.975); }
+  68% { opacity: 1; transform: translateY(-1px) scale(1.008); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes sparkle-left {
+  0%, 18% { opacity: 0; transform: translate(-3px, 4px) scale(0.45) rotate(-18deg); }
+  48% { opacity: 0.9; transform: translate(0, 0) scale(1.12) rotate(4deg); }
+  100% { opacity: 0; transform: translate(4px, -6px) scale(0.72) rotate(18deg); }
+}
+
+@keyframes sparkle-right {
+  0%, 28% { opacity: 0; transform: translate(3px, 5px) scale(0.4) rotate(18deg); }
+  58% { opacity: 0.8; transform: translate(0, 0) scale(1) rotate(-4deg); }
+  100% { opacity: 0; transform: translate(-3px, -6px) scale(0.7) rotate(-16deg); }
+}
+
+#found.detected-pop .card {
+  position: relative;
+  animation: detected-bloom 0.42s var(--ease) both;
+}
+
+#found.detected-pop .card::before,
+#found.detected-pop .card::after {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  color: var(--brand);
+  font-size: 14px;
+  line-height: 1;
+  text-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 34%, transparent);
+}
+
+#found.detected-pop .card::before {
+  content: "✦";
+  top: 8px;
+  right: 14px;
+  animation: sparkle-left 0.72s 0.06s var(--ease) both;
+}
+
+#found.detected-pop .card::after {
+  content: "·";
+  top: 23px;
+  right: 31px;
+  font-size: 20px;
+  color: var(--brand-2);
+  animation: sparkle-right 0.68s 0.14s var(--ease) both;
+}
+
+/* インストール前の透明性。情報を増やしてもフォームに見えすぎないよう薄い面で束ねる。 */
+.permission-note,
+.security-summary {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.permission-note strong,
+.security-summary strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
+  font-size: 11.5px;
+}
+
+.permission-note p { margin: 0; }
+
+.security-summary ul {
+  display: grid;
+  gap: 4px;
+  margin: 5px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.security-summary li {
+  position: relative;
+  padding-left: 16px;
+}
+
+.security-summary li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+#found-card[aria-busy="true"] .security-summary,
+#found-card[aria-busy="true"] .permission-note {
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #found.detected-pop .card,
+  #found.detected-pop .card::before,
+  #found.detected-pop .card::after {
+    animation: none !important;
+  }
+}
