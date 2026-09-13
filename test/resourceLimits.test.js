@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { gzipSync } = require("node:zlib");
 const { ArchiveError, readTarGz } = require("../out/core/archive.js");
 const { readTree, TreeReadLimitError } = require("../out/web/browser/fs.js");
+const { BROWSER_ROLLBACK_LIMIT, EXTRACTED_SIZE_LIMIT } = require("../out/core/limits.js");
 
 const BLOCK = 512;
 function header(name, size, flag) {
@@ -84,4 +85,10 @@ test("既存ツリーの件数と合計サイズを制限する", async () => {
       { entries: 10, single: 10, total: 5 }),
     error => error instanceof TreeReadLimitError && error.kind === "total",
   );
+});
+
+
+test("ブラウザの上書き退避は展開上限より小さいメモリ上限を使う", () => {
+  assert.equal(BROWSER_ROLLBACK_LIMIT, 64 * 1024 * 1024);
+  assert.ok(BROWSER_ROLLBACK_LIMIT < EXTRACTED_SIZE_LIMIT);
 });
