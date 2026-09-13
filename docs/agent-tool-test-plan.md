@@ -16,7 +16,17 @@ Node.js `node:test` で TypeScript モジュールと VS Code API モックを�
 | 台帳の WriteGuard | 実体が無い台帳、`.agent-tool` の外、名前が不正なものを消さない |
 | 実体を失った entry | 走査できたルートの分だけ除き、開いていないプロジェクトを残す |
 
-ブラウザ拡張は `core/` の純粋関数を同じ `node:test` で検証する。
+ブラウザ拡張は `core/` の純粋関数と、File System Access API / IndexedDB を
+メモリ実装（`test/fakeFs.js` / `test/fakeIdb.js`）へ差し替えた書き込み経路を
+同じ `node:test` で検証する。
+
+| 対象 | 確認内容 |
+|---|---|
+| 書き込み（`writeTree` / `readTree` / `reserve`） | 置き場の下へ書き、展開先の外を指すパスを拒み、作れない名前を取得の前に落とす |
+| 導入（`install`） | 実体・台帳・収集一覧が揃う。上書きは重ねず置き換える |
+| 導入の失敗 | 取得に失敗しても既存に触れない。確保しただけの置き場を片付ける。書ける名前かを消す前に見る |
+| 上書きの巻き戻し | 書き込みが途中で落ちたら旧版へ戻す（API に rename が無いため退避 → 削除 → 書き込みの順になる） |
+| 削除（`remove`） | 導入時の実体ツリー hash と一致するときだけ消し、台帳 1 件も落とす。手で直されたものは消さない |
 
 | 対象 | 確認内容 |
 |---|---|
@@ -44,7 +54,8 @@ skills.sh・Agents Directory の公開一覧からランダムに選んだ URL �
 
 | 届かないもの | 理由 |
 |---|---|
-| File System Access API の書き込み・権限・symlink の不可視 | ブラウザでしか動かない |
+| ピッカーと権限ダイアログ（`configHandle` / `requestPermission`） | ネイティブ UI で、拡張から操作できない |
+| symlink が実在しても `getDirectoryHandle` に見えないこと | ブラウザと OS の組み合わせでしか起きない（メモリ実装では `blocked` で模す） |
 | DOM から読む JSON-LD（`content.ts`） | スクリプトが見るのは `fetch` したサーバ HTML で、読み出し元が違う |
 | SPA 遷移（`onHistoryStateUpdated` → `rescan`） | ブラウザのイベント |
 
