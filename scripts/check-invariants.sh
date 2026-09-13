@@ -6,6 +6,28 @@ cd "$(dirname "$0")/.."
 status=0
 fail() { echo "::error::$1"; shift; printf '%s\n' "$@"; status=1; }
 
+# VS Code 自身にも未信頼/virtual workspace の制約を宣言する。runtime guard だけに依存しない。
+MANIFEST_CHECK=$(node -e '
+const p = require("./package.json");
+const c = p.capabilities ?? {};
+if (c.untrustedWorkspaces?.supported !== "limited") console.log("capabilities.untrustedWorkspaces.supported must be limited");
+if (c.virtualWorkspaces !== false) console.log("capabilities.virtualWorkspaces must be false");
+if (!Array.isArray(p.extensionKind) || !p.extensionKind.includes("ui")) console.log("extensionKind must include ui");
+')
+if [ -n "$MANIFEST_CHECK" ]; then
+    fail "VS Code の workspace capability 宣言が安全側ではありません" "$MANIFEST_CHECK"
+else
+    echo "✓ VS Code manifest は未信頼/virtual workspace を制限しています"
+fi
+
+# ブラウザ上書きは旧版をメモリに退避する。展開上限をそのまま使うと新旧を同時保持して
+# popup のメモリを急増させるため、専用の低い上限を必ず通す。
+if ! grep -q 'BROWSER_ROLLBACK_LIMIT' browser/install.ts; then
+    fail "ブラウザ上書きが専用 rollback メモリ上限を使っていません"
+else
+    echo "✓ ブラウザ上書きは専用 rollback メモリ上限を使っています"
+fi
+
 # 実体とリンクはwriteGuard.ts、registry.jsonはregistry.ts、mcp.jsonはmcpScanner.tsだけが書く。
 # fetcher.tsはOSの一時領域にだけ書く。`./env`を読み込まないので、ホームやglobalStorageの
 # パスを組み立てられない = 利用者のデータには到達できない（下で検査する）。
