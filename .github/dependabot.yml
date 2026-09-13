@@ -8,13 +8,14 @@ updates:
       time: "09:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
     groups:
-      development-dependencies:
-        dependency-type: development
-      runtime-dependencies:
-        dependency-type: production
+      npm:
+        patterns:
+          - "*"
+    ignore:
+      # @types/vscode は package.json の engines.vscode と同じ版に固定する。
+      # 上げると宣言と型が食い違うので、engines を上げるときに手で揃える。
+      - dependency-name: "@types/vscode"
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -24,5 +25,7 @@ updates:
       time: "09:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
+    groups:
+      actions:
+        patterns:
+          - "*"
