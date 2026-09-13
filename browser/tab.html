@@ -36,7 +36,7 @@
 
       <!-- 検知したとき。出すのは種類と名前だけ。取得元と導入先は次の段で見せる。 -->
       <section id="found" hidden>
-        <div class="card">
+        <div id="found-card" class="card" aria-busy="false">
           <div class="found-head">
             <span id="found-kind" class="kind"></span>
             <h2 id="found-name"></h2>
@@ -49,10 +49,22 @@
               <select id="target"></select>
             </div>
             <code id="target-path" class="repo" translate="no"></code>
+            <div class="permission-note" role="note">
+              <strong data-i18n="tabPermissionTitle"></strong>
+              <p id="permission-note"></p>
+            </div>
+            <div class="security-summary" aria-labelledby="security-title">
+              <strong id="security-title" data-i18n="tabSecurityTitle"></strong>
+              <ul>
+                <li id="security-source"></li>
+                <li data-i18n="tabSecurityPaths"></li>
+                <li data-i18n="tabSecurityRollback"></li>
+              </ul>
+            </div>
             <p id="picker-hint" class="hint"></p>
           </div>
 
-          <p id="status" class="status" role="status"></p>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
 
           <div class="actions">
             <button id="install" class="primary" type="button" data-i18n="tabInstall"></button>
@@ -75,7 +87,7 @@
           </div>
           <code id="index-path" class="repo" translate="no"></code>
           <p id="index-hint" class="hint"></p>
-          <p id="index-status" class="status" role="status"></p>
+          <p id="index-status" class="status" role="status" aria-live="polite"></p>
           <ul id="index-list"></ul>
           <div class="actions">
             <button id="index-dismiss" type="button" data-i18n="tabDismiss"></button>
@@ -100,7 +112,7 @@
         <h2 data-i18n="settingsTitle"></h2>
         <p id="hint" class="hint"></p>
         <div id="roots"></div>
-        <p id="settings-status" class="status" role="status"></p>
+        <p id="settings-status" class="status" role="status" aria-live="polite"></p>
 
         <div id="prefs">
           <label class="switch">
