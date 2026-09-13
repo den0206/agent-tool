@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { ChildProcessByStdio, spawn } from "node:child_process";
+import { Readable } from "node:stream";
 import { AgentToolError } from "../core/errors";
 import { redact } from "./mcpServer";
 
@@ -7,23 +8,52 @@ export const OUTPUT_LIMIT = 2 * 1024 * 1024;
 export const TIMEOUT_MS = 180_000;
 
 /**
- * `cmd.exe` に解釈される文字。Windows は `.cmd` / `.bat` を起動するために
- * `shell: true` が要るが、Node はこのとき引数を一切クォートしない。
- * MCP の起動コマンドと引数は貼り付けられた JSON 由来なので、ここを素通しにすると
- * `{"args":["x & calc"]}` がそのまま実行される。呼び出し側ごとではなく実行の入口で塞ぐ。
+ * `cmd.exe` が**引用符の中でも**解釈してしまう文字。
+ *
+ * Windows は `.cmd` / `.bat` を起動するために `cmd.exe` を経由する必要がある。
+ * `& | < > ^` は引用符で囲めば literal になるので、`cmdLine` でクォートして通す
+ * （MCP の URL に含まれる `?a=1&b=2` や、空白を含むヘッダ値は実在する）。
+ *
+ * 残すのはクォートでは無力化できないものだけ:
+ *   `%VAR%`  … 引用符の中でも展開される
+ *   `!VAR!`  … 遅延展開が有効な環境では引用符の中でも展開される
+ *   `"`      … CreateProcess 側の引数分割と二重にかかり、安全に埋め込めない
+ *   改行・NUL … コマンド行を分割する
  */
-const SHELL_SYNTAX = /[&|<>^"%!]|\r|\n/;
+const SHELL_SYNTAX = /["%!\0]|\r|\n/;
 
 /** 純粋関数にして全 OS でテストする（実行時に効くのは win32 だけ）。 */
-export const hasShellSyntax = (command: string[]): boolean =>
+export const hasShellSyntax = (command: readonly string[]): boolean =>
   command.some(part => SHELL_SYNTAX.test(part));
 
-function assertNoShellSyntax(command: string[]): void {
+function assertNoShellSyntax(command: readonly string[]): void {
   if (hasShellSyntax(command)) {
     throw new AgentToolError("INVALID_NAME",
       "this command cannot be run on Windows because it contains shell syntax");
   }
 }
+
+/**
+ * `cmd.exe` に渡す 1 トークン。引用符で囲めば空白も `cmd` のメタ文字も literal になる。
+ * 囲むのは必要なときだけにする — 素で足りるトークンを囲むと差分が読みにくい。
+ */
+export function quoteForCmd(token: string): string {
+  if (token === "") return "\"\"";
+  // 空白は CreateProcess が、`& | < > ^ ( )` は cmd.exe が区切りとして読む。
+  if (!/[\s&|<>^()]/.test(token)) return token;
+  // 閉じ引用符の直前の `\` は CreateProcess が引用符のエスケープと読む。二重化する。
+  return `"${token.replace(/(\\+)$/, "$1$1")}"`;
+}
+
+/**
+ * `cmd.exe /d /s /c` に渡す 1 本の文字列。`/s` は外側の引用符 1 組を剥がすので、
+ * 全体を包んでおけば中のトークンのクォートがそのまま CLI へ届く。
+ *
+ * `shell: true` は使わない。Node はそのときトークンを空白で連結するだけで
+ * クォートしないため、`-H "Authorization: Bearer a b"` が 4 引数に割れる。
+ */
+export const cmdLine = (command: readonly string[]): string =>
+  `"${command.map(quoteForCmd).join(" ")}"`;
 
 /**
  * 外部コマンドを 1 回実行して標準出力を返す。
@@ -34,20 +64,25 @@ export function run(command: string[],
   Promise<string> {
   const [file, ...args] = command;
   if (file === undefined) return Promise.resolve("");
-  if (process.platform === "win32") assertNoShellSyntax(command);
+  const onWindows = process.platform === "win32";
+  if (onWindows) assertNoShellSyntax(command);
 
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, {
+    const shared = {
       cwd: options.cwd,
       // PATH を明示できるようにする。GUI から起動されたプロセスの PATH は
       // ログインシェルのものと違い、Homebrew 配下の CLI が 1 つも見つからない。
       // 互換検査は資格情報を引き継がせないため、環境そのものを差し替える。
       env: options.envOverride
         ?? (options.path === undefined ? process.env : { ...process.env, PATH: options.path }),
-      stdio: ["ignore", "pipe", "pipe"],
-      // Windows では .cmd / .bat も実行対象になるため shell 解決を許す。
-      shell: process.platform === "win32",
-    });
+    };
+    // Windows では .cmd / .bat も実行対象になるため cmd.exe を経由する。
+    // `shell: true` ではなく自分でクォートした 1 本を渡し、`windowsVerbatimArguments`
+    // で Node の再クォートを止める — こうしないと空白を含む引数が割れる。
+    const child: ChildProcessByStdio<null, Readable, Readable> = onWindows
+      ? spawn(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", cmdLine(command)],
+        { ...shared, stdio: ["ignore", "pipe", "pipe"], windowsVerbatimArguments: true })
+      : spawn(file, args, { ...shared, stdio: ["ignore", "pipe", "pipe"] });
 
     let stdout = "";
     let stderr = "";
