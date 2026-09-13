@@ -21,7 +21,7 @@ below.
 
 | Data | Where | Why |
 |---|---|---|
-| Directory handles you grant via the File System Access API | Your browser's local IndexedDB | So the browser extension can write into the folders you picked without asking again every time |
+| Directory handles you grant via the File System Access API | Your browser's local IndexedDB | So the browser extension can reuse the folders you picked when browser permission is still available |
 | A list of what the browser extension has installed (name, source, install path, timestamp) | Your browser's local IndexedDB | So installed items can be shown, updated, and removed later |
 | An auto-open and a theme preference | Your browser's local IndexedDB | Two on/off settings you control from the popup |
 | `registry.json` (pinned/disabled state, cached metadata) | Your local `globalStorageUri` (the Cursor/VS Code extension's own data folder) | So the IDE extension does not need to re-scan on every view |
@@ -49,8 +49,6 @@ listed in its manifest's `host_permissions`.
 - **File System Access API** (browser extension): used only for folders you
   pick yourself through the browser's native folder picker. The extension
   cannot read or write anywhere else.
-- **`unlimitedStorage`** (browser extension): lifts IndexedDB's default quota
-  so the installed-items list and directory handles are not evicted.
 - **`webNavigation`** (browser extension): used only to notice when a
   single-page app changes its URL, so detection reruns on the new page. No
   browsing history is read or stored.
