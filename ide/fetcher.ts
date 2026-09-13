@@ -40,7 +40,7 @@ const fail = (message: string): never => {
 
 /** 一時領域だけを使う。成功・失敗・キャンセルの全経路で消す。 */
 export const discard = (staging: { root: string }): void =>
-  rmSync(staging.root, { recursive: true, force: true });
+  rmSync(staging.root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 
 /**
  * カタログページを 1 枚読む。呼び出し側は本文を JSON-LD の抽出にだけ使い、
@@ -107,7 +107,7 @@ export async function stage(source: GitHubSource, options: {
     }
     return { root, source, candidates, resolvedSha: options.resolvedSha };
   } catch (error) {
-    rmSync(root, { recursive: true, force: true });
+    discard({ root });
     throw error;
   }
 }
