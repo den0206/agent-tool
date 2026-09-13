@@ -18,7 +18,7 @@ import {
   autoOpenEnabled, forgetAll, loadCollection, setAutoOpenEnabled, setTheme, Theme, theme,
 } from "./store.js";
 import {
-  animateDetection, applyI18n, applyTheme, byId, clearStatus, setBusy, showStatus,
+  animateDetection, applyI18n, applyLang, applyTheme, byId, clearStatus, setBusy, showStatus,
 } from "./popupUi.js";
 import { rootStates, targetSet, TargetOption } from "./targets.js";
 
@@ -49,6 +49,7 @@ void theme().then(value => {
   for (const input of themePick.querySelectorAll("input")) input.checked = input.value === value;
 });
 
+applyLang(chrome.i18n.getUILanguage());
 applyI18n(t);
 byId<HTMLInputElement>("url").placeholder = t("tabUrlPlaceholder");
 
@@ -700,5 +701,9 @@ void (async () => {
   if (typeof candidate?.url === "string" && candidate.url !== "") {
     byId<HTMLInputElement>("url").value = candidate.url;
     await showLead(candidate.url, true);
+    return;
   }
+  // バッジはタブに残るが、候補は service worker のメモリにしかない（MV3 は数十秒で
+  // 停止する）。押しても何も出ないバッジを残さないよう、ここで下ろす。
+  await send({ type: "dismiss" });
 })();

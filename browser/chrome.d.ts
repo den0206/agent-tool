@@ -16,6 +16,8 @@ declare namespace chrome {
   }
   namespace i18n {
     function getMessage(key: string, substitutions?: string | string[]): string;
+    /** BCP 47（`ja` / `en-US`）。`<html lang>` にそのまま入れる。 */
+    function getUILanguage(): string;
   }
   namespace action {
     function setBadgeText(details: { text: string; tabId?: number }): Promise<void>;
