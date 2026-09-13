@@ -1,14 +1,8 @@
 {
   "extension.description": "Find Skills, Install Easily!",
-  "command.toggleTool": "Enable or Disable Tool",
   "command.addSkill": "Add Skill from GitHub",
-  "command.removeTool": "Remove Tool",
   "command.addMcp": "Add MCP Server",
-  "command.previewUpdate": "Preview Update",
-  "command.applyUpdate": "Apply Update",
   "command.refreshInventory": "Reload Tools",
-  "command.togglePin": "Pin or Unpin Tool",
   "command.checkUpdates": "Check for Updates",
-  "command.openToolActions": "Manage Tool",
   "capabilities.untrustedWorkspaces": "Agent Tool allows read-only inventory in untrusted workspaces; changes require workspace trust."
 }

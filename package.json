@@ -57,38 +57,13 @@
     },
     "commands": [
       {
-        "command": "agent-tool.toggleTool",
-        "title": "%command.toggleTool%",
-        "category": "Agent Tool"
-      },
-      {
         "command": "agent-tool.addSkill",
         "title": "%command.addSkill%",
         "category": "Agent Tool"
       },
       {
-        "command": "agent-tool.removeTool",
-        "title": "%command.removeTool%",
-        "category": "Agent Tool"
-      },
-      {
         "command": "agent-tool.addMcp",
         "title": "%command.addMcp%",
-        "category": "Agent Tool"
-      },
-      {
-        "command": "agent-tool.previewUpdate",
-        "title": "%command.previewUpdate%",
-        "category": "Agent Tool"
-      },
-      {
-        "command": "agent-tool.applyUpdate",
-        "title": "%command.applyUpdate%",
-        "category": "Agent Tool"
-      },
-      {
-        "command": "agent-tool.togglePin",
-        "title": "%command.togglePin%",
         "category": "Agent Tool"
       },
       {
@@ -99,11 +74,6 @@
       {
         "command": "agent-tool.checkUpdates",
         "title": "%command.checkUpdates%",
-        "category": "Agent Tool"
-      },
-      {
-        "command": "agent-tool.openToolActions",
-        "title": "%command.openToolActions%",
         "category": "Agent Tool"
       }
     ],

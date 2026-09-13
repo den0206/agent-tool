@@ -258,7 +258,9 @@ Tree View 上部に候補カードを表示する:
 
 ---
 
-## 6. コマンドパレット一覧
+## 6. コマンド一覧
+
+パレットに出すのは、引数なしで実行できる 4 つだけにする。
 
 | コマンド ID | タイトル（日本語） | 説明 |
 |---|---|---|
@@ -266,12 +268,21 @@ Tree View 上部に候補カードを表示する:
 | `agent-tool.addMcp` | MCPサーバーを追加 | JSON・HTTP URL・起動コマンドから追加 |
 | `agent-tool.refreshInventory` | ツールを再読み込み | キャッシュを破棄して再走査 |
 | `agent-tool.checkUpdates` | 更新を確認 | 取得元の最新 SHA を引き、更新バッジを立てる |
-| `agent-tool.toggleTool` | ツールの有効・無効を切り替え | user スコープのみ |
-| `agent-tool.togglePin` | 更新の固定を切り替え | 固定中は更新を追わない |
-| `agent-tool.removeTool` | ツールを削除 | 確認あり |
-| `agent-tool.previewUpdate` | 更新をプレビュー | Diff Editor を開く |
-| `agent-tool.applyUpdate` | 更新を適用 | 確認あり |
-| `agent-tool.openToolActions` | ツールを管理 | カードの `•••` から呼ぶ操作一覧 |
+
+残りは**選んだツール**を引数に取るので `contributes.commands` に出さない。パレットからは
+引数が来ず、押しても無反応になるためである。呼ぶのはカードの `•••`（`openToolActions`）と
+Webview だけにする。
+
+| コマンド ID | 説明 |
+|---|---|
+| `agent-tool.openToolActions` | カードの `•••` から呼ぶ操作一覧 |
+| `agent-tool.toggleTool` | ツールの有効・無効を切り替え（user スコープのみ） |
+| `agent-tool.togglePin` | 更新の固定を切り替え（固定中は更新を追わない） |
+| `agent-tool.removeTool` | ツールを削除（確認あり） |
+| `agent-tool.previewUpdate` | 更新をプレビュー（Diff Editor を開く） |
+| `agent-tool.applyUpdate` | 更新を適用（確認あり） |
+| `agent-tool.installPreview` | 確認画面から導入する。成否を返す |
+| `agent-tool.inventory.focus` | Dashboard を開く。Status Bar のバッジから呼ぶ |
 
 CLI の再検出は手動更新（`refreshInventory`）に含める。MCP のプロセス情報は表示中の
 3 秒ポーリングで出すので、専用コマンドは持たない。
