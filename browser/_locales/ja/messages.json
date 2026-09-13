@@ -277,5 +277,39 @@
         "example": "20"
       }
     }
+  },
+  "tabPermissionTitle": {
+    "message": "フォルダへのアクセス"
+  },
+  "tabPermissionNote": {
+    "message": "$CONFIG$ を選んでください。Agent Tool がこの項目を書き込むのは $TARGET$ の中だけです。ブラウザから確認できるのはフォルダ名までで、完全なパスは検証できません。",
+    "placeholders": {
+      "config": {
+        "content": "$1"
+      },
+      "target": {
+        "content": "$2"
+      }
+    }
+  },
+  "tabSecurityTitle": {
+    "message": "導入前の確認"
+  },
+  "tabSecuritySource": {
+    "message": "$REPO$ を公開 GitHub 取得元として解決しています。",
+    "placeholders": {
+      "repo": {
+        "content": "$1"
+      }
+    }
+  },
+  "tabSecurityPaths": {
+    "message": "危険なアーカイブパスや対象内のリンクは、書き込み前に拒否します。"
+  },
+  "tabSecurityRollback": {
+    "message": "置き換え前に、上限付きの rollback 退避で既存内容を保護します。"
+  },
+  "tabRequestingPermission": {
+    "message": "フォルダへのアクセスを待っています…"
   }
 }
