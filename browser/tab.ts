@@ -4,7 +4,7 @@ import { skillIndex, ToolLead, verifiedPage } from "../core/detect.js";
 import { GitHubSource, needsPage, SUPPORTED_SITES } from "../core/github.js";
 import { PAGE_LIMIT } from "../core/limits.js";
 import {
-  placement, Placement, rootOf, RootState, splitRoot, targets,
+  CONFIG_DIRS, placement, Placement, rootOf, RootState, splitRoot, targets,
 } from "../core/placement.js";
 import {
   clearRoot, configHandle, exists, PickerError, pickerHint, pickerUnavailable, placeHandle,
@@ -20,7 +20,7 @@ import {
 import {
   animateDetection, applyI18n, applyTheme, byId, clearStatus, setStage, showStatus,
 } from "./popupUi.js";
-import { targetSet, TargetOption } from "./targets.js";
+import { rootStates, targetSet, TargetOption } from "./targets.js";
 
 const t = (key: string, ...args: string[]): string => chrome.i18n.getMessage(key, args);
 /** `.claude` → `agentClaude`。設定画面と同じ言葉を使う。 */
@@ -588,7 +588,7 @@ function setSettings(open: boolean): void {
 }
 
 async function renderRoots(): Promise<void> {
-  const roots = await readRoots();
+  const roots = await rootStates();
   const box = byId("roots");
   box.replaceChildren();
 
