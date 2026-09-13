@@ -12,6 +12,14 @@ export function applyI18n(t: (key: string, ...args: string[]) => string): void {
   }
 }
 
+/**
+ * 文書の言語を宣言する（WCAG 3.1.1）。無いとスクリーンリーダーが日本語の UI を
+ * 英語の音声で読む。`getUILanguage` は `ja` / `en-US` のような BCP 47 を返す。
+ */
+export function applyLang(language: string): void {
+  if (language !== "") document.documentElement.lang = language;
+}
+
 export function applyTheme(value: string): void {
   document.documentElement.style.colorScheme = value;
 }

@@ -115,8 +115,10 @@ async function announce(tabId: number, text: string): Promise<void> {
   await chrome.action.setBadgeText({ text, tabId }).catch(() => { /* タブが閉じた */ });
   // popup の `--accent` と同じ紫。バッジはアイコンの上に出るので、そこで色がずれない。
   await chrome.action.setBadgeBackgroundColor({ color: "#5b4bd6", tabId }).catch(() => { /* 同上 */ });
-  // 設定が ON なら popup を開く。開けない場合（Chrome の版や操作の文脈による）は
-  // バッジだけにする。**別ウィンドウは作らない** — 見ていたページが隠れる。
+  // 設定が ON なら popup を開く。`openPopup` は Chrome 127 以降で、それ未満と
+  // 操作の文脈によっては開けない。そのときはバッジだけにする（manifest の
+  // `minimum_chrome_version` は `light-dark()` が要る 123 に置く。これは必須ではない）。
+  // **別ウィンドウは作らない** — 見ていたページが隠れる。
   await chrome.action.openPopup().catch(() => { /* バッジで足りる */ });
 }
 
