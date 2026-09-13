@@ -32,7 +32,27 @@ export type Layout = {
   readonly linkKind: "dir" | "file";
 };
 
-export function layout(name: string, kind: KindId, env: Env, place: Place = USER): Layout {
+/**
+ * 実体のルート（ホーム相対、`/` 区切り）を絶対パスに直す。
+ * `..` で外へ出るものは受けない — registry は利用者が手で書き換えられるファイルである。
+ */
+const rootPath = (env: Env, root: string): string | null => {
+  const parts = root.split("/").filter(part => part !== "" && part !== ".");
+  if (parts.length === 0 || parts.some(part => part === ".." || part.includes("\\"))) return null;
+  return join(env.home, ...parts);
+};
+
+/**
+ * 実体とリンクの置き場を決める。
+ *
+ * `root` は registry が記録した実体のルート（ホーム相対）。既定の管理ストアと違う場所を
+ * 指しているとき（ブラウザ拡張が `~/.claude/skills` へ直接書いた分）は、そこを実体として
+ * 扱い、**リンクは張らない** — 実体はもうエージェントが読む場所にあるので、
+ * 足すと自分自身を指すリンクや、利用者が選んでいないエージェントへの配布になる。
+ * 退避先だけは管理ストアのものを使う（プロジェクトと違い、退避先が要る）。
+ */
+export function layout(name: string, kind: KindId, env: Env, place: Place = USER,
+                       root?: string): Layout {
   // MCP と Plugin はこちらの管理ストアに実体を持たない。ここを素通りさせると
   // `~/.agents/skills/<name>` を指してしまい、同名の Skill を消しにいく。
   if (kind !== "skill" && kind !== "subagent") {
@@ -45,14 +65,30 @@ export function layout(name: string, kind: KindId, env: Env, place: Place = USER
       ? { store: join(place.path, ".claude", "agents", `${name}.md`), links: [], linkKind: "file" }
       : { store: join(place.path, ".claude", "skills", name), links: [], linkKind: "dir" };
   }
+  const recorded = root === undefined ? null : rootPath(env, root);
   if (kind === "subagent") {
+    const store = join(agentStore(env), `${name}.md`);
+    if (recorded !== null && !guard.isSamePath(recorded, agentStore(env))) {
+      return {
+        store: join(recorded, `${name}.md`),
+        parked: join(disabledAgentStore(env), `${name}.md`),
+        links: [], linkKind: "file",
+      };
+    }
     return {
-      store: join(agentStore(env), `${name}.md`),
+      store,
       parked: join(disabledAgentStore(env), `${name}.md`),
       // Subagent は共有ルートの慣習が無いのでリンクが 2 本要る。
       links: [join(env.home, ".claude", "agents", `${name}.md`),
               join(env.home, ".cursor", "agents", `${name}.md`)],
       linkKind: "file",
+    };
+  }
+  if (recorded !== null && !guard.isSamePath(recorded, skillStore(env))) {
+    return {
+      store: join(recorded, name),
+      parked: join(disabledStore(env), name),
+      links: [], linkKind: "dir",
     };
   }
   return {
@@ -63,6 +99,18 @@ export function layout(name: string, kind: KindId, env: Env, place: Place = USER
     linkKind: "dir",
   };
 }
+
+/**
+ * registry が記録した実体のルート。取り込んだものは管理ストアの外にあるので、
+ * 実体を触る操作はすべてこれを通して `layout` を組む。
+ */
+const recordedRoot = (registry: Registry, name: string, kind: KindId, place: Place):
+  string | undefined => place.scope === "project" ? undefined : entry(registry, name, kind)?.root;
+
+/** その名前・種別の置き場。registry が記録したルートを反映する。 */
+const planFor = (name: string, kind: KindId, env: Env, registry: Registry,
+                 place: Place = USER): Layout =>
+  layout(name, kind, env, place, recordedRoot(registry, name, kind, place));
 
 /** 有効化・無効化は退避先がある user だけ。プロジェクト内に隠し退避先を作らない。 */
 const parkedOf = (plan: Layout, name: string): string => {
@@ -89,7 +137,7 @@ const entryFor = (registry: Registry, name: string, kind: KindId): Entry =>
 /** 実体へのリンクを張り直す。既に別のものがある位置は上書きしない。 */
 export function link(name: string, kind: KindId, env: Env, registry: Registry): void {
   guard.assertValidName(name);
-  const plan = layout(name, kind, env);
+  const plan = planFor(name, kind, env, registry);
 
   const previous = new Map<string, string>();
   for (const path of plan.links) {
@@ -130,7 +178,7 @@ export function link(name: string, kind: KindId, env: Env, registry: Registry): 
 /** 実体を置き場に戻し、リンクを張り直す。 */
 export function enable(name: string, kind: KindId, env: Env, registry: Registry): void {
   guard.assertValidName(name);
-  const plan = layout(name, kind, env);
+  const plan = planFor(name, kind, env, registry);
   const parked = parkedOf(plan, name);
   const wasParked = !guard.exists(plan.store);
 
@@ -168,11 +216,12 @@ export function enable(name: string, kind: KindId, env: Env, registry: Registry)
  */
 export function disable(name: string, kind: KindId, env: Env, registry: Registry): void {
   guard.assertValidName(name);
-  const plan = layout(name, kind, env);
+  const plan = planFor(name, kind, env, registry);
   const parked = parkedOf(plan, name);
 
   if (!guard.exists(plan.store)) notFound(name);
-  guard.assertMutable(plan.store, env, registry);
+  // 実体は管理ストアの外にあることがある（取り込んだ分）。信頼の根で振り分ける。
+  guard.assertBody(plan.store, kind, env, registry, USER);
   if (guard.exists(parked)) {
     throw new AgentToolError("ALREADY_EXISTS", `${parked} already holds something else; not overwriting`);
   }
@@ -207,18 +256,20 @@ export function disable(name: string, kind: KindId, env: Env, registry: Registry
 export function remove(name: string, kind: KindId, env: Env, registry: Registry,
                        place: Place = USER): void {
   guard.assertValidName(name);
-  const plan = layout(name, kind, env, place);
+  const plan = planFor(name, kind, env, registry, place);
 
   // `disable` と同じ理由で、検査を全部先に済ませてから壊す。
   const links = plan.links.filter(path => guard.isManagedLink(path, plan.store) || guard.isLink(path));
   const bodies = [plan.store, plan.parked]
     .filter((path): path is string => path !== undefined && guard.exists(path));
   if (bodies.length === 0) notFound(name);
-  // プロジェクトの実体はホームの管理ルートの外にある。信頼の根が違うので別のガードを通す。
-  for (const path of [...links, ...bodies]) {
+  // リンクは必ず管理ストアを指す。実体はプロジェクトや取り込んだルートにもあるので
+  // `assertBody` が信頼の根で振り分ける。
+  for (const path of links) {
     if (place.scope === "project") guard.assertProjectArtifact(path, kind, place.path, env);
     else guard.assertMutable(path, env, registry);
   }
+  for (const path of bodies) guard.assertBody(path, kind, env, registry, place);
 
   for (const path of links) guard.removeLink(path);
   for (const path of bodies) guard.remove(path);

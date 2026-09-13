@@ -36,6 +36,9 @@ export const isInside = (path: string, root: string): boolean =>
 
 const isSame = (a: string, b: string): boolean => key(a) === key(b);
 
+/** 同じ場所を指すか。Windows の大文字小文字も畳んで比べる。 */
+export const isSamePath = isSame;
+
 export const isDenied = (path: string): boolean =>
   DENIED_NAMES.has(basename(path)) || DENIED_EXTENSIONS.has(extname(path).slice(1));
 
@@ -225,6 +228,42 @@ export const projectRoots = (kind: KindId, project: string): string[] =>
  */
 export function assertProjectArtifact(path: string, kind: KindId, project: string, env: Env): void {
   assertArtifact(path, kind, projectRoots(kind, project), project, env);
+}
+
+/**
+ * registry が実体のルートを記録している entry の実体（設計決定 D-14 の取り込み分）。
+ * ブラウザ拡張が書いた実体は管理ストアの外にあり、`assertMutable` の根では検証できない。
+ * 代わりに「走査ホワイトリストの既知ルート**直下**」と「registry に載っている」の
+ * 2 つで許す。どちらも `assertMutable` が見ているものと同じ強さの条件である。
+ */
+export function assertRecordedArtifact(path: string, kind: KindId, env: Env,
+                                       registry: Registry): void {
+  assertReadable(env);
+  const target = resolve(path);
+  const name = kind === "subagent" ? basename(target, ".md") : basename(target);
+  if (!entry(registry, name, kind)) {
+    throw new AgentToolError("NOT_IN_REGISTRY", `${name} is managed by another tool`);
+  }
+  assertUserArtifact(target, kind, env);
+}
+
+/**
+ * 実体 1 件を触ってよいか。置き場ごとに信頼の根が違うので、ここで振り分ける。
+ * 呼び出し側が分岐を持つと、経路が増えたときに片方だけ漏れる。
+ */
+export function assertBody(path: string, kind: KindId, env: Env, registry: Registry,
+                           place: { readonly scope: "user" }
+                                | { readonly scope: "project"; readonly path: string }): void {
+  if (place.scope === "project") {
+    assertProjectArtifact(path, kind, place.path, env);
+    return;
+  }
+  // 管理ストアの中にあるものは、registry との同一性まで見る `assertMutable` で通す。
+  if (managedRoots(env).some(root => isInside(path, root))) {
+    assertMutable(path, env, registry);
+    return;
+  }
+  assertRecordedArtifact(path, kind, env, registry);
 }
 
 function assertArtifact(path: string, kind: KindId, roots: string[], anchor: string, env: Env): void {

@@ -71,6 +71,24 @@ project スコープの実体は `managedRoots` の外（ワークスペース�
 
 プロジェクト内には退避先を作らない。したがって project スコープに有効化・無効化は無い。
 
+### 2.2.1.1 取り込んだ実体（`assertRecordedArtifact`）
+
+ブラウザ拡張が書いた実体は自分が許可されたルート（`~/.claude/skills` など）にあり、
+`managedRoots` の外なので `assertMutable` は通らない。registry の `Entry.root` が
+その場所を記録しているので、置き場と registry の 2 つで許す:
+
+- `userRoots` の**直下**にあること（`assertUserArtifact` と同じ条件。リンクは辿らない）
+- 同じ名前・種別が `registry.json` に載っていること
+
+`assertBody` が置き場で 3 つを振り分ける。呼び出し側に分岐を持たせない
+（経路が増えたときに片方だけ検査が漏れるのを防ぐ）:
+
+| 実体の場所 | 通すガード |
+|---|---|
+| ワークスペース内 | `assertProjectArtifact` |
+| `managedRoots` の配下 | `assertMutable` |
+| それ以外（`Entry.root` が記録したルート） | `assertRecordedArtifact` |
+
 ### 2.2.2 取得元の台帳（`assertLedger`）
 
 ブラウザ拡張が残した `<導入先ルート>/.agent-tool/<name>.json` を、取り込み後に削除する。
@@ -223,6 +241,21 @@ Bearer <value>        → Bearer [REDACTED]
 - `capabilities.virtualWorkspaces: false` — ファイルシステム前提の操作を virtual workspace へ広げない
 - ネットワークアクセス: GitHub API（公開エンドポイント）のみ。外部サービスに認証情報を送らない
 - テレメトリ: 一切収集しない
+
+### 9.1 外部コマンドの起動（`exec.ts`）
+
+外部コマンドはプロセス一覧取得・PATH 解決・各エージェント CLI への委譲だけに使う。
+起動コマンドと引数は貼り付けられた JSON 由来なので、シェルに解釈させない。
+
+- macOS / Linux は引数配列のまま `spawn` する。シェルを経由しない
+- Windows は `.cmd` / `.bat` を起動するため `cmd.exe /d /s /c` を経由する。
+  `shell: true` は使わない（Node はそのとき引数を空白で連結するだけでクォートせず、
+  `-H "Authorization: Bearer a b"` が 4 引数に割れる）。`cmdLine` が各トークンを
+  クォートし、`windowsVerbatimArguments` で Node の再クォートを止める
+- 引用符で無力化できない文字（`%` `!` `"`・改行・NUL）を含むコマンドは実行しない。
+  `& | < > ^ ( )` と空白はクォートして通す（MCP の URL の `&` や、空白を含む
+  ヘッダ値は実在する）
+- 出力は各 2 MB、実行は 180 秒で打ち切る。失敗メッセージの引数は `redact` を通す
 
 ---
 

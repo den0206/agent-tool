@@ -4,8 +4,12 @@ const { join } = require("node:path");
 const { test } = require("node:test");
 const { absorb, key, prune, scan } = require("../out/ide/ledger.js");
 const { LEDGER_DIR } = require("../out/core/ledger.js");
-const { empty, upsert } = require("../out/ide/registry.js");
-const { assertLedger, removeLedger } = require("../out/ide/writeGuard.js");
+const { empty, entry, upsert } = require("../out/ide/registry.js");
+const { assertLedger, assertRecordedArtifact, removeLedger } = require("../out/ide/writeGuard.js");
+const { disable, enable, layout, link, remove: removeManaged, USER } = require("../out/ide/skillManager.js");
+const { install } = require("../out/ide/installer.js");
+
+const code = expected => error => error.code === expected;
 const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
 
 /** ブラウザ拡張が置いた状態を偽のホームに作る。 */
@@ -82,9 +86,10 @@ test("取り込むと registry に載り、台帳は消える", () => {
   const registry = empty();
 
   absorb(f.env, registry, scan(f.env));
+  // `root` まで載せる。実体は管理ストアではなくブラウザ拡張が許可されたルートにある。
   assert.deepEqual(registry.resources, [{
     name: "pdf", kind: "skill", repo: "owner/repo", sha: "abc",
-    pinned: false, disabled: false,
+    root: ".claude/skills", pinned: false, disabled: false,
   }]);
   assert.equal(existsSync(file), false);
   // 実体には触れない
@@ -99,7 +104,7 @@ test("取得元の任意キーは持っていた分だけ移す", () => {
   const registry = empty();
   absorb(f.env, registry, scan(f.env));
   assert.deepEqual(Object.keys(registry.resources[0]).sort(),
-    ["disabled", "kind", "name", "pinned", "repo"]);
+    ["disabled", "kind", "name", "pinned", "repo", "root"]);
 });
 
 test("同じ名前を二度取り込んでも 1 件のまま", () => {
@@ -237,7 +242,13 @@ test("実体の無い台帳は取り込まない", () => {
   assert.deepEqual(scan(f.env).map(item => item.ledger.name), ["pdf"]);
 });
 
-test("読めないルートがあるときは entry を落とさない", { skip: process.platform === "win32" }, async () => {
+/**
+ * `chmod 000` で「読めない」を作るので、権限検査を素通りする実行者では成立しない。
+ * Windows に POSIX の権限が無いのと同じ理由で、root でも飛ばす（Docker / devcontainer）。
+ */
+const cannotRevokeRead = process.platform === "win32" || process.getuid?.() === 0;
+
+test("読めないルートがあるときは entry を落とさない", { skip: cannotRevokeRead }, async () => {
   // 権限・退避されたクラウド同期・切れたネットワークホームでは走査が空になる。
   // これを「消えた」と扱うと、実体が残っているのに pinned / disabled / 取得元を失う。
   const f = fixture();
@@ -265,4 +276,130 @@ test("実体の無い台帳があっても registry は安定する", async () =
     assert.deepEqual(load(f.env).resources, []);
   }
   assert.equal(existsSync(join(f.root, LEDGER_DIR, "ghost.json")), true);  // 消しはしない
+});
+
+// --- 取り込んだ実体の操作 -----------------------------------------------
+// 取り込みは registry へ `root` を載せる。載せないと `layout` が管理ストアを指し、
+// 実体はブラウザ拡張が許可されたルートにあるので操作が届かない。
+
+/** 取り込み済みの状態にして、registry を返す。 */
+const absorbed = async f => {
+  await inventory({ env: f.env, projectPath: null, run: async () => "", writable: true });
+  return load(f.env);
+};
+
+test("取り込んだ実体は、あるルートから削除できる", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = await absorbed(f);
+  assert.equal(entry(registry, "pdf", "skill").root, ".claude/skills");
+
+  removeManaged("pdf", "skill", f.env, registry);
+  assert.equal(existsSync(join(f.root, "pdf")), false);
+  assert.equal(entry(registry, "pdf", "skill"), undefined);
+});
+
+test("取り込んだ Subagent も、あるルートから削除できる", async () => {
+  const f = fixture();
+  f.subagent("reviewer");
+  const registry = await absorbed(f);
+  assert.equal(entry(registry, "reviewer", "subagent").root, ".claude/agents");
+
+  removeManaged("reviewer", "subagent", f.env, registry);
+  assert.equal(existsSync(join(f.env.home, ".claude", "agents", "reviewer.md")), false);
+});
+
+test("取り込んだ実体を無効化し、元のルートへ戻せる", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = await absorbed(f);
+
+  disable("pdf", "skill", f.env, registry);
+  assert.equal(existsSync(join(f.root, "pdf")), false);
+  assert.equal(existsSync(join(f.env.appSupport, "disabled-skills", "pdf", "SKILL.md")), true);
+  assert.equal(entry(registry, "pdf", "skill").disabled, true);
+
+  enable("pdf", "skill", f.env, registry);
+  // 管理ストアではなく、**取り込んだルート**へ戻ること。
+  assert.equal(existsSync(join(f.root, "pdf", "SKILL.md")), true);
+  assert.equal(existsSync(join(f.env.home, ".agents", "skills", "pdf")), false);
+  assert.equal(entry(registry, "pdf", "skill").disabled, false);
+});
+
+test("取り込んだ実体にはリンクを張らない（自分自身を指すリンクを作らない）", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = await absorbed(f);
+  assert.deepEqual(layout("pdf", "skill", f.env, USER, ".claude/skills").links, []);
+  // 既定の置き場のままなら、これまでどおり Claude 用のリンクを張る。
+  assert.deepEqual(layout("pdf", "skill", f.env, USER, ".agents/skills").links,
+    [join(f.env.home, ".claude", "skills", "pdf")]);
+  assert.deepEqual(layout("pdf", "skill", f.env, USER).links,
+    [join(f.env.home, ".claude", "skills", "pdf")]);
+  link("pdf", "skill", f.env, registry);
+  assert.equal(existsSync(join(f.env.home, ".agents", "skills", "pdf")), false);
+});
+
+test("更新の宛先は取り込んだルートの実体になる（二重化しない）", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = await absorbed(f);
+  const plan = layout("pdf", "skill", f.env, USER, entry(registry, "pdf", "skill").root);
+  assert.equal(plan.store, join(f.root, "pdf"));
+  assert.notEqual(plan.store, join(f.env.home, ".agents", "skills", "pdf"));
+});
+
+test("取り込んだものは、同じ名前で二度入らない", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = await absorbed(f);
+  const staging = { root: makeDir(join(f.env.home, "staging")), source: { repo: "owner/repo" } };
+  const candidate = {
+    kind: "skill", name: "pdf",
+    localPath: writeFileIn(join(staging.root, "pdf", "SKILL.md"), "---\nname: pdf\n---\n")
+      .replace(/[\\/]SKILL\.md$/, ""),
+  };
+  assert.throws(() => install(candidate, staging, f.env, registry), code("ALREADY_EXISTS"));
+});
+
+test("取り込み直しで pinned を解除しない", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = empty();
+  absorb(f.env, registry, scan(f.env));
+  upsert(registry, { ...entry(registry, "pdf", "skill"), pinned: true });
+
+  f.skill("pdf", { name: "pdf", kind: "skill", repo: "owner/repo", sha: "def" });
+  absorb(f.env, registry, scan(f.env));
+  assert.equal(entry(registry, "pdf", "skill").pinned, true);
+  assert.equal(entry(registry, "pdf", "skill").sha, "def");
+});
+
+test("registry の root が外を指していても管理ストアに落ちる", () => {
+  const f = fixture();
+  for (const root of ["../outside", "..", "", "./", "a\\b"]) {
+    assert.equal(layout("pdf", "skill", f.env, USER, root).store,
+      join(f.env.home, ".agents", "skills", "pdf"));
+  }
+});
+
+test("registry に無い名前は、既知ルート直下でも触れない", () => {
+  const f = fixture();
+  f.skill("pdf");
+  assert.throws(() => assertRecordedArtifact(join(f.root, "pdf"), "skill", f.env, empty()),
+    code("NOT_IN_REGISTRY"));
+});
+
+test("記録されたルートでも、既知ルート直下でなければ触れない", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = await absorbed(f);
+  // registry には載っているが、`~/.claude/skills/pdf/pdf` は既知ルートの直下ではない。
+  assert.throws(
+    () => assertRecordedArtifact(join(f.root, "pdf", "pdf"), "skill", f.env, registry),
+    code("WRITE_GUARD_DENIED"));
+  // ホワイトリストに無いルートの直下も通さない。
+  assert.throws(
+    () => assertRecordedArtifact(join(f.env.home, "elsewhere", "pdf"), "skill", f.env, registry),
+    code("WRITE_GUARD_DENIED"));
 });

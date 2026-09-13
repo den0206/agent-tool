@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { Env } from "./env";
 import { AgentToolError } from "../core/errors";
 import { Candidate, Staging } from "./fetcher";
-import { Registry, upsert } from "./registry";
+import { entry, Registry, upsert } from "./registry";
 import { enable, layout, Place, USER } from "./skillManager";
 import * as guard from "./writeGuard";
 
@@ -29,8 +29,14 @@ export function install(candidate: Candidate, staging: Staging, env: Env, regist
   guard.assertValidName(candidate.name);
   assertStaged(candidate, staging);
 
+  const project = place.scope === "project" ? place.path : undefined;
   const plan = layout(candidate.name, candidate.kind, env, place);
   if (guard.exists(plan.store)) {
+    throw new AgentToolError("ALREADY_EXISTS", `${candidate.name} is already installed`);
+  }
+  // 取り込んだ entry は実体が管理ストアの外にある。`plan.store` の不在だけで判断すると、
+  // 同じものを別の場所にもう 1 つ作ってしまう。
+  if (entry(registry, candidate.name, candidate.kind, project)?.root !== undefined) {
     throw new AgentToolError("ALREADY_EXISTS", `${candidate.name} is already installed`);
   }
 
@@ -55,7 +61,7 @@ export function install(candidate: Candidate, staging: Staging, env: Env, regist
     sha: staging.resolvedSha,
     pinned: false,
     disabled: false,
-    project: place.scope === "project" ? place.path : undefined,
+    project,
   });
   try {
     // プロジェクトの実体は一覧が読む場所にそのまま置くので、リンクは張らない。
