@@ -116,7 +116,7 @@ test("退避しきれない既存実体は、消さずに専用の理由で止�
       lead: { url: "https://example.test", source: { repo: "owner/repo", branch: "main" },
               kind: "skill", name: "pdf", proofs: [] },
       agent: "claude",
-      placement: { configDir: ".claude", segments: ["skills"], entry: "pdf", isDirectory: true },
+      placement: { configDir: ".claude", sub: "skills", entry: "pdf", isDirectory: true },
       root,
       overwrite: true,
       fetchFiles: async () => ({
