@@ -66,6 +66,8 @@
   "Bundled": "Bundled",
   "Show less": "Show less",
   "Running": "Running",
+  "Pin the version": "Pin the version",
+  "{0} is pinned to @latest, so it can change without notice.": "{0} is pinned to @latest, so it can change without notice.",
   "Stopped": "Stopped",
   "No tools are installed for any AI agent. Add one from the URL field above.": "No tools are installed for any AI agent. Add one from the URL field above.",
   "No tools match this filter.": "No tools match this filter.",

@@ -1,7 +1,7 @@
 import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ScopeId, skillRoots, subagentRoots } from "../core/agent";
 import { agentStore, disabledAgentStore, disabledStore, Env, Run, skillStore } from "./env";
 import * as mcp from "./mcpScanner";
-import { MCPScope, summary as mcpSummary } from "./mcpServer";
+import { floatingPackage, MCPScope, MCPServer, summary as mcpSummary } from "./mcpServer";
 import * as plugins from "./pluginScanner";
 import { projectSkillRoots, projectSubagentRoot } from "./projectScan";
 import { Entry, load, Registry, update } from "./registry";
@@ -27,12 +27,26 @@ export type InventoryItem = {
   readonly summary?: string;
   /** MCP の登録先。削除コマンドの `-s` になるので `scope` に潰さず持つ。 */
   readonly mcpScope?: MCPScope;
+  /**
+   * `@latest` 指定のパッケージ名。起動のたびに最新を取るので、こちらが更新を
+   * 管理する余地が無く黙って壊れうる。ピン留めを促すために一覧へ出す。
+   */
+  readonly floating?: string;
   /** Plugin の登録先。Claude の削除コマンドの `-s` になる。 */
   readonly pluginScope?: "user" | "project" | "local";
 };
 
 /** 無効化して退避したものの擬似ルート。どのエージェントからも見えない。 */
 export const PARKED = "(disabled)";
+
+/**
+ * `@latest` 指定を一覧へ載せる。判定は `mcpServer.floatingPackage` が持っていて、
+ * ここで拾わないと「黙って壊れうる」と分かっているものを利用者に見せられない。
+ */
+const floatingOf = (server: MCPServer): { floating?: string } => {
+  const found = floatingPackage(server);
+  return found === null ? {} : { floating: found };
+};
 
 const byName = (a: InventoryItem, b: InventoryItem): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
@@ -139,6 +153,7 @@ export async function inventory(params: {
         enabled: server.enabled,
         origin: server.isProtected ? "bundled" as const : "user" as const,
         hasUpdate: false, pinned: false, summary: mcpSummary(server), mcpScope: "user" as const,
+        ...floatingOf(server),
       }))).sort(byName);
   }
 
@@ -163,6 +178,7 @@ export async function inventory(params: {
       name, kind: "mcp", scope: "project", agents: ["claude" as AgentId],
       enabled: server.enabled, origin: server.isProtected ? "bundled" : "user",
       hasUpdate: false, pinned: false, summary: `${scope} · ${mcpSummary(server)}`, mcpScope: scope,
+      ...floatingOf(server),
     }));
 
   const items = [

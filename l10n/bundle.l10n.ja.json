@@ -66,6 +66,8 @@
   "Bundled": "同梱",
   "Show less": "折りたたむ",
   "Running": "実行中",
+  "Pin the version": "版を固定してください",
+  "{0} is pinned to @latest, so it can change without notice.": "{0} は @latest 指定です。起動のたびに中身が変わり、黙って壊れることがあります。",
   "Stopped": "停止中",
   "No tools are installed for any AI agent. Add one from the URL field above.": "どのAIエージェントにもツールが導入されていません。上のURL欄から追加してください。",
   "No tools match this filter.": "この条件に一致するツールはありません。",
