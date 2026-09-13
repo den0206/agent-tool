@@ -1,4 +1,5 @@
 import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ScopeId, skillRoots, subagentRoots } from "../core/agent";
+import { sourceKey } from "../core/github";
 import { agentStore, disabledAgentStore, disabledStore, Env, Run, skillStore } from "./env";
 import * as mcp from "./mcpScanner";
 import { floatingPackage, MCPScope, MCPServer, summary as mcpSummary } from "./mcpServer";
@@ -54,7 +55,7 @@ const byName = (a: InventoryItem, b: InventoryItem): number =>
 /** 更新の有無は registry.json だけで決まる。固定中は数えない。 */
 export function hasUpdate(entry: Entry | undefined, registry: Registry): boolean {
   if (!entry || entry.pinned || !entry.repo) return false;
-  const latest = registry.repos[`${entry.repo}#${entry.branch ?? "main"}`]?.latestSha;
+  const latest = registry.repos[sourceKey({ repo: entry.repo, branch: entry.branch })]?.latestSha;
   return latest !== undefined && latest !== entry.sha;
 }
 

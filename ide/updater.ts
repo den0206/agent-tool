@@ -4,7 +4,7 @@ import { KindId } from "../core/agent";
 import { Env } from "./env";
 import { AgentToolError } from "../core/errors";
 import { Candidate, discard, stage, Staging } from "./fetcher";
-import { GitHubSource } from "../core/github";
+import { DEFAULT_REF, GitHubSource, sourceKey } from "../core/github";
 import { Entry, Registry, update as updateRegistry, upsert } from "./registry";
 import { layout, Place, USER } from "./skillManager";
 import * as guard from "./writeGuard";
@@ -51,19 +51,21 @@ const defaultHttp: Http = async (url, headers) => {
 };
 
 export const repoKey = (entry: Entry): string | null =>
-  entry.repo === undefined ? null : `${entry.repo}#${entry.branch ?? "main"}`;
+  entry.repo === undefined ? null : sourceKey({ repo: entry.repo, branch: entry.branch });
 
-/** 最新のコミット SHA を引く。取得と適用で同じ revision を掴むために使う。 */
-export async function resolveSha(source: GitHubSource, http: Http = defaultHttp,
-                                 defaultBranch = "main"): Promise<string> {
-  const branch = encodeURIComponent(source.branch ?? defaultBranch);
+/**
+ * 最新のコミット SHA を引く。取得と適用で同じ revision を掴むために使う。
+ * ブランチ未指定は `HEAD` で引く。既定ブランチ名は推測しない（`DEFAULT_REF`）。
+ */
+export async function resolveSha(source: GitHubSource, http: Http = defaultHttp): Promise<string> {
+  const branch = source.branch === undefined ? DEFAULT_REF : encodeURIComponent(source.branch);
   const result = await http(`https://api.github.com/repos/${source.repo}/commits/${branch}`,
     { Accept: "application/vnd.github+json" });
   if (result.status === 403 || result.status === 429) {
     throw new AgentToolError("FETCH_FAILED", "GitHub rate limit reached; try again later");
   }
   if (result.status === 404) {
-    throw new AgentToolError("NOT_FOUND", `${source.repo}#${source.branch ?? defaultBranch} was not found`);
+    throw new AgentToolError("NOT_FOUND", `${sourceKey(source)} was not found`);
   }
   if (result.status !== 200) {
     throw new AgentToolError("FETCH_FAILED", `GitHub responded with HTTP ${result.status}`);

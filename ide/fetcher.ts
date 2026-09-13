@@ -73,14 +73,13 @@ export async function fetchPage(url: string, fetchImpl: typeof fetch = fetch): P
 
 /** zip を落として展開し、中身から種別を判定する。`git clone` は使わない。 */
 export async function stage(source: GitHubSource, options: {
-  defaultBranch?: string;
   resolvedSha?: string;
   fetchImpl?: typeof fetch;
 } = {}): Promise<Staging> {
   const root = mkdtempSync(join(tmpdir(), "agent-tool-fetch-"));
   try {
     const archive = join(root, "archive.zip");
-    await download(archiveUrl(source, options.defaultBranch ?? "main", options.resolvedSha),
+    await download(archiveUrl(source, options.resolvedSha),
       archive, source.repo, options.fetchImpl ?? fetch);
 
     const unpacked = join(root, "unpacked");

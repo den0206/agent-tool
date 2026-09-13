@@ -1,4 +1,4 @@
-import { GitHubSource } from "./github.js";
+import { DEFAULT_REF, GitHubSource } from "./github.js";
 import { TreeFile } from "./hash.js";
 import { ENTRY_LIMIT, EXTRACTED_SIZE_LIMIT, SINGLE_FILE_LIMIT } from "./limits.js";
 
@@ -30,13 +30,13 @@ export type GetBytes = (url: string, limit: number) => Promise<Uint8Array | null
 /** 部分木の指定。`<ref>:<パス>` は git の記法で、tree API がそのまま受ける。 */
 const treeUrl = (source: GitHubSource, subdir: string): string =>
   `https://api.github.com/repos/${source.repo}/git/trees/`
-  + `${source.branch ?? "HEAD"}:${encodePath(subdir)}?recursive=1`;
+  + `${source.branch ?? DEFAULT_REF}:${encodePath(subdir)}?recursive=1`;
 
 const encodePath = (path: string): string =>
   path.split("/").map(encodeURIComponent).join("/");
 
 const rawUrl = (source: GitHubSource, path: string): string =>
-  `https://raw.githubusercontent.com/${source.repo}/${source.branch ?? "HEAD"}/`
+  `https://raw.githubusercontent.com/${source.repo}/${source.branch ?? DEFAULT_REF}/`
   + encodePath(path);
 
 type Node = { path: string; type: string; size?: number };

@@ -168,7 +168,7 @@ test("他プロジェクトの Plugin は今見ているプロジェクトに混
 // --- 更新判定 ---
 
 test("最新 SHA が登録済みと違えば更新あり", () => {
-  const registry = { repos: { "https://example.com/x#main": { latestSha: "b" } } };
+  const registry = { repos: { "https://example.com/x#HEAD": { latestSha: "b" } } };
   const entry = { name: "x", kind: "skill", repo: "https://example.com/x", sha: "a", pinned: false };
   assert.equal(hasUpdate(entry, registry), true);
   assert.equal(hasUpdate({ ...entry, sha: "b" }, registry), false);
@@ -176,7 +176,7 @@ test("最新 SHA が登録済みと違えば更新あり", () => {
 
 /** 固定中は遅れていても数えない。更新しないと利用者が決めたもの。 */
 test("固定中は更新ありにしない", () => {
-  const registry = { repos: { "https://example.com/x#main": { latestSha: "b" } } };
+  const registry = { repos: { "https://example.com/x#HEAD": { latestSha: "b" } } };
   assert.equal(hasUpdate(
     { name: "x", kind: "skill", repo: "https://example.com/x", sha: "a", pinned: true }, registry), false);
 });
