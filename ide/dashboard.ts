@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
 import { basename, dirname } from 'node:path';
 import * as agentTool from './agentTool';
 
@@ -359,7 +360,8 @@ const webviewText = (): Record<string, string> => ({
  * そうしないと数字と一覧が食い違う。
  */
 function dashboardHtml(webview: vscode.Webview): string {
-  const nonce = String(Date.now());
+  // 推測できない値にする。`Date.now()` は当てられるので nonce の意味が薄い。
+  const nonce = randomUUID().replace(/-/g, '');
   // `</script>` で閉じられないよう `<` を退避してから埋め込む。
   const text0 = webviewText();
   const text = JSON.stringify(text0).replace(/</g, "\\u003c");
@@ -430,7 +432,7 @@ function dashboardHtml(webview: vscode.Webview): string {
     const metric=document.querySelector('#updates-metric'); if(metric) { const toggle=()=>{ onlyUpdates=!onlyUpdates; hideDetail(); render(); }; metric.onclick=toggle; metric.onkeydown=e=>{ if(e.key==='Enter'||e.key===' ') { e.preventDefault(); toggle(); } }; }
     renderBanner();
     document.querySelector('#agents').innerHTML=agents.length?agents.map(a=>'<button class="agent '+(a===agent?'active':'')+'" data-agent="'+a+'" role="tab" aria-selected="'+(a===agent)+'"><span class="agent-dot"></span><span>'+agentNames[a]+'</span><span class="agent-count">'+items.filter(x=>x.agents.includes(a)).length+'</span></button>').join(''):(loaded?'<p class="empty">'+esc(T.noAgents)+'</p>':''); const _cnt=items.filter(x=>x.agents.includes(agent)).length;const _ab=document.querySelector('#agent-badge');if(_ab)_ab.innerHTML=agent?'<span class="badge-pip" data-agent="'+agent+'"></span><span class="badge-name">'+agentNames[agent]+'</span><span class="badge-count">'+_cnt+' tool'+(_cnt===1?'':'s')+'</span>':'';
-    const filters=[['user',T.userGlobal],['project',projectName]]; document.querySelector('#filters').innerHTML=filters.map(([v,n])=>'<button class="filter '+(v===scope?'active':'')+'" data-filter="'+v+'">'+n+'</button>').join('');
+    const filters=[['user',T.userGlobal],['project',projectName]]; document.querySelector('#filters').innerHTML=filters.map(([v,n])=>'<button class="filter '+(v===scope?'active':'')+'" data-filter="'+v+'">'+esc(n)+'</button>').join('');
     const yours=visible.filter(x=>x.origin!=='bundled'); const yourGroups=Object.entries(kinds).map(([value,title])=>[title,yours.filter(x=>x.kind===value),value]).filter(([,rows])=>rows.length); const bundled=visible.filter(x=>x.origin==='bundled'); document.querySelector('#content').innerHTML=!loaded?'<div class="loading"><span class="spinner"></span>'+esc(T.loading)+'</div>':visible.length?yourGroups.map(([title,rows,kv])=>{const exp=sectionExpanded[kv]; const shown=exp?rows:rows.slice(0,5); const rest=rows.length-shown.length; const tog=rows.length>5?'<button class="section-toggle" data-kind="'+kv+'">'+(exp?'⏄ '+esc(T.showLess):'› '+rest+' more')+'</button>':''; return '<div class="section">'+title+'</div>'+rowsHtml(shown)+tog;}).join('')+(bundled.length?(()=>{const exp=sectionExpanded['bundled']; const shown=exp?bundled:[]; const rest=bundled.length; const tog='<button class="section-toggle" data-kind="bundled">'+(exp?'⏄ '+esc(T.showLess):'› '+rest+' more')+'</button>'; return '<div class="section">'+esc(T.bundled)+'</div>'+rowsHtml(shown)+tog;})():''):'<div class="empty">'+esc(T.noMatch)+'</div>';
     document.querySelectorAll('[data-agent]').forEach(b=>b.onclick=()=>{agent=b.dataset.agent; onlyUpdates=false; hideDetail(); render();}); document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{scope=b.dataset.filter; onlyUpdates=false; hideDetail(); render();}); bindRows(document.querySelectorAll('#content .item[data-index]'), node=>items[Number(node.dataset.index)]); document.querySelectorAll('.action').forEach(b=>b.onclick=e=>{e.stopPropagation(); vscode.postMessage({type:'actions',item:items[Number(b.dataset.index)]});}); document.querySelectorAll('.section-toggle').forEach(b=>b.onclick=()=>{sectionExpanded[b.dataset.kind]=!sectionExpanded[b.dataset.kind]; render();}); renderOthers(); }
   function renderBanner() { const box=document.querySelector('#banner');
