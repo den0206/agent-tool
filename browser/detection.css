@@ -20,13 +20,16 @@
   100% { opacity: 0; transform: translate(-3px, -6px) scale(0.7) rotate(-16deg); }
 }
 
-#found.detected-pop .card {
+#found.detected-pop .card,
+#index.detected-pop .card {
   position: relative;
   animation: detected-bloom 0.42s var(--ease) both;
 }
 
 #found.detected-pop .card::before,
-#found.detected-pop .card::after {
+#found.detected-pop .card::after,
+#index.detected-pop .card::before,
+#index.detected-pop .card::after {
   position: absolute;
   z-index: 1;
   pointer-events: none;
@@ -36,14 +39,16 @@
   text-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 34%, transparent);
 }
 
-#found.detected-pop .card::before {
+#found.detected-pop .card::before,
+#index.detected-pop .card::before {
   content: "✦";
   top: 8px;
   right: 14px;
   animation: sparkle-left 0.72s 0.06s var(--ease) both;
 }
 
-#found.detected-pop .card::after {
+#found.detected-pop .card::after,
+#index.detected-pop .card::after {
   content: "·";
   top: 23px;
   right: 31px;
@@ -102,7 +107,10 @@
 @media (prefers-reduced-motion: reduce) {
   #found.detected-pop .card,
   #found.detected-pop .card::before,
-  #found.detected-pop .card::after {
+  #found.detected-pop .card::after,
+  #index.detected-pop .card,
+  #index.detected-pop .card::before,
+  #index.detected-pop .card::after {
     animation: none !important;
   }
 }
