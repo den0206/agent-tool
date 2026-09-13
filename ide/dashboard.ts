@@ -19,6 +19,8 @@ export type DashboardItem = {
   running?: boolean;
   /** MCP の登録先。削除コマンドの `-s` に載る。 */
   mcpScope?: 'user' | 'project' | 'local';
+  /** `@latest` 指定のパッケージ名。起動のたびに中身が変わるので警告を出す。 */
+  floating?: string;
 };
 
 /** 書き込みを拒む理由。空文字なら書ける。表示と可否の判定を 1 か所にする。 */
@@ -330,6 +332,8 @@ const webviewText = (): Record<string, string> => ({
   bundled: vscode.l10n.t("Bundled"),
   showLess: vscode.l10n.t("Show less"),
   running: vscode.l10n.t("Running"),
+  floating: vscode.l10n.t("Pin the version"),
+  floatingWhy: vscode.l10n.t("{0} is pinned to @latest, so it can change without notice."),
   stopped: vscode.l10n.t("Stopped"),
   noAgents: vscode.l10n.t("No tools are installed for any AI agent. Add one from the URL field above."),
   noMatch: vscode.l10n.t("No tools match this filter."),
@@ -412,7 +416,7 @@ function dashboardHtml(webview: vscode.Webview): string {
   const vscode = acquireVsCodeApi(); const T = ${text}; let items = []; let issues = []; let loadError = ''; let agent = ''; let scope = 'project'; let projectName = 'Current Project'; let sectionExpanded = {}; let onlyUpdates = false; let loaded = false; let selected = ''; let projects = []; let otherPath = ''; let otherItems = []; let otherLoading = false; let otherError = ''; let lastPreview = null; let environment = []; let readOnly = ''; let otherIssues = [];
   const kinds = {skill:'Skill',subagent:'Subagent',mcp:'MCP',plugin:'Plugin'}; const icons = {skill:'<svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor"><path d="M2 0h10v14H2V0zm2 3h6v1.5H4V3zm0 3h6v1.5H4V6zm0 3h4v1.5H4V9z"/></svg>',subagent:'<svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor"><circle cx="7" cy="4" r="3"/><path d="M1 13.5c0-3.3 2.7-6 6-6s6 2.7 6 6H1z"/></svg>',mcp:'<svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor"><rect x="1" y="0" width="12" height="5" rx="1.5"/><rect x="1" y="7" width="12" height="5" rx="1.5"/></svg>',plugin:'<svg viewBox="0 0 14 14" width="13" height="13" fill="currentColor"><path d="M5 0h1.5v3H5zm3.5 0H10v3H8.5zM2.5 3h9v2.5a4.5 4.5 0 01-3.5 4.4V14h-2v-3.6A4.5 4.5 0 012.5 5.5V3z"/></svg>'}; const agentNames = {claude:'Claude Code',cursor:'Cursor',codex:'Codex',gemini:'Gemini CLI'};
   const esc = s => String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-  function rowsHtml(rows, other) { return '<div class="list">'+rows.map((x,i)=>{ const meta=esc(x.agents.join(' · '))+' · '+kinds[x.kind]+(!other&&x.kind==='mcp'?' · '+esc(x.running?T.running:T.stopped):'')+(x.pinned?' · 📌 '+esc(T.pinned):'')+(x.hasUpdate?' · <span class="state update">'+esc(T.updates)+'</span>':''); const tail=other?'':'<button class="icon action" data-index="'+items.indexOf(x)+'" title="'+esc(T.actions)+'">•••</button>'; const at=other?' data-other="'+i+'"':' data-index="'+items.indexOf(x)+'"'; return '<div class="item"'+at+' role="button" tabindex="0" aria-expanded="'+(selected===keyOf(x))+'"><div class="glyph" data-kind="'+x.kind+'">'+icons[x.kind]+'</div><div><div class="name">'+esc(x.name)+'</div><div class="meta">'+meta+'</div></div>'+tail+'</div>'+(selected===keyOf(x)?detailHtml(x):''); }).join('')+'</div>'; }
+  function rowsHtml(rows, other) { return '<div class="list">'+rows.map((x,i)=>{ const meta=esc(x.agents.join(' · '))+' · '+kinds[x.kind]+(!other&&x.kind==='mcp'?' · '+esc(x.running?T.running:T.stopped):'')+(x.floating?' · <span class="state update">'+esc(T.floating)+'</span>':'')+(x.pinned?' · 📌 '+esc(T.pinned):'')+(x.hasUpdate?' · <span class="state update">'+esc(T.updates)+'</span>':''); const tail=other?'':'<button class="icon action" data-index="'+items.indexOf(x)+'" title="'+esc(T.actions)+'">•••</button>'; const at=other?' data-other="'+i+'"':' data-index="'+items.indexOf(x)+'"'; return '<div class="item"'+at+' role="button" tabindex="0" aria-expanded="'+(selected===keyOf(x))+'"><div class="glyph" data-kind="'+x.kind+'">'+icons[x.kind]+'</div><div><div class="name">'+esc(x.name)+'</div><div class="meta">'+meta+'</div></div>'+tail+'</div>'+(selected===keyOf(x)?detailHtml(x):''); }).join('')+'</div>'; }
   function bindRows(nodes, pick) { nodes.forEach(node=>{ const open=()=>toggleDetail(pick(node)); node.onclick=open; node.onkeydown=e=>{ if(e.key==='Enter'||e.key===' ') { e.preventDefault(); open(); } }; }); }
   const shortName = p => String(p).split(/[\\\\/]/).filter(Boolean).pop() || String(p);
   function renderOthers() { const box=document.querySelector('#others'); if(scope!=='user'||!projects.length||onlyUpdates) { box.innerHTML=''; box.dataset.list=''; return; }
@@ -444,7 +448,7 @@ function dashboardHtml(webview: vscode.Webview): string {
   const keyOf = x => x.name+'|'+x.kind+'|'+x.scope+'|'+(x.sourcePath||'');
   function hideDetail() { selected=''; }
   function toggleDetail(x) { selected = selected===keyOf(x) ? '' : keyOf(x); render(); }
-  function detailHtml(x) { const usage=esc({skill:T.useSkill,subagent:T.useSubagent,mcp:T.useMcp,plugin:T.usePlugin}[x.kind]||''); return '<div class="detail"><div class="detail-label">'+esc(T.description)+'</div><p>'+esc(x.summary||T.noDescription)+'</p><div class="detail-label">'+esc(T.howToUse)+'</div><p>'+usage+'</p>'+(x.sourcePath?'<div class="detail-label">'+esc(T.location)+'</div><p class="detail-path">'+esc(x.sourcePath)+'</p>':'')+(x.repoUrl?'<div class="detail-label">'+esc(T.source)+'</div><p class="detail-path">'+esc(x.repoUrl)+'</p>':'')+'</div>'; }
+  function detailHtml(x) { const usage=esc({skill:T.useSkill,subagent:T.useSubagent,mcp:T.useMcp,plugin:T.usePlugin}[x.kind]||''); return '<div class="detail"><div class="detail-label">'+esc(T.description)+'</div><p>'+esc(x.summary||T.noDescription)+'</p><div class="detail-label">'+esc(T.howToUse)+'</div><p>'+usage+'</p>'+(x.sourcePath?'<div class="detail-label">'+esc(T.location)+'</div><p class="detail-path">'+esc(x.sourcePath)+'</p>':'')+(x.repoUrl?'<div class="detail-label">'+esc(T.source)+'</div><p class="detail-path">'+esc(x.repoUrl)+'</p>':'')+(x.floating?'<p class="state update">'+esc(T.floatingWhy.replace('{0}',x.floating))+'</p>':'')+'</div>'; }
   function showClipboard(url) { const box=document.querySelector('#clip'); box.innerHTML='<button class="icon" id="clip-close" title="'+esc(T.close)+'">×</button><h2>'+esc(T.clipboard)+'</h2><p class="detail-path">'+esc(url)+'</p><button id="clip-use">'+esc(T.analyzeIt)+'</button>'; box.classList.remove('hidden');
     document.querySelector('#clip-close').onclick=()=>box.classList.add('hidden');
     document.querySelector('#clip-use').onclick=()=>{ box.classList.add('hidden'); document.querySelector('#tool-url').value=url; vscode.postMessage({type:'analyzeTool',url}); }; }

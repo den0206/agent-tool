@@ -92,6 +92,28 @@ test("MCP サーバーを設定ファイルから読む", async () => {
   assert.equal(item.kind, "mcp");
   assert.deepEqual(item.agents, ["cursor"]);
   assert.equal(item.summary, "npx -y figma");
+  assert.equal(item.floating, undefined);       // 版が固定されているものに警告は出さない
+});
+
+/**
+ * `@latest` は起動のたびに最新を取るので、こちらが更新を管理する余地が無い。
+ * 判定は `floatingPackage` が持っているので、一覧まで届いていることを確かめる。
+ */
+test("@latest 指定の MCP を一覧で警告する", async () => {
+  const env = fakeEnv();
+  writeFileIn(join(env.home, ".cursor/mcp.json"),
+    '{"mcpServers":{"chrome":{"command":"npx","args":["-y","chrome-devtools-mcp@latest"]}}}');
+  const item = find((await inventory({ env, projectPath: null })).items, "chrome");
+  assert.equal(item.floating, "chrome-devtools-mcp");
+});
+
+test("プロジェクトの MCP でも @latest を警告する", async () => {
+  const env = fakeEnv();
+  const project = makeDir(join(env.home, "proj"));
+  writeFileIn(join(project, ".mcp.json"),
+    '{"mcpServers":{"shared":{"command":"npx","args":["-y","pkg@latest"]}}}');
+  const item = find((await inventory({ env, projectPath: project })).items, "shared");
+  assert.equal(item.floating, "pkg");
 });
 
 /** 走査に失敗したエージェントで一覧全体を落とさない。 */
