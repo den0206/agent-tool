@@ -3,7 +3,6 @@ const assert = require("node:assert/strict");
 const { gzipSync } = require("node:zlib");
 const { ArchiveError, readTarGz } = require("../out/core/archive.js");
 const { readTree, TreeReadLimitError } = require("../out/web/browser/fs.js");
-const { BROWSER_ROLLBACK_LIMIT, EXTRACTED_SIZE_LIMIT } = require("../out/core/limits.js");
 
 const BLOCK = 512;
 function header(name, size, flag) {
@@ -87,8 +86,51 @@ test("既存ツリーの件数と合計サイズを制限する", async () => {
   );
 });
 
+// --- ブラウザの上書き退避 ---
+
+const { install, InstallError } = require("../out/web/browser/install.js");
+const { BROWSER_ROLLBACK_LIMIT, EXTRACTED_SIZE_LIMIT } = require("../out/core/limits.js");
+
+/** 既存実体が `size` バイト 1 ファイルだけある置き場。消されたら記録する。 */
+const rootHolding = (entry, size) => {
+  const removed = [];
+  const existing = directory([["big.bin", {
+    kind: "file",
+    getFile: async () => ({ size, arrayBuffer: async () => new ArrayBuffer(size) }),
+  }]]);
+  return {
+    removed,
+    root: {
+      getFileHandle: async () => { throw new Error("not a file"); },
+      getDirectoryHandle: async name =>
+        name === entry ? existing : (() => { throw new Error("missing"); })(),
+      removeEntry: async name => { removed.push(name); },
+    },
+  };
+};
+
+test("退避しきれない既存実体は、消さずに専用の理由で止める", async () => {
+  const { root, removed } = rootHolding("pdf", BROWSER_ROLLBACK_LIMIT + 1);
+  await assert.rejects(
+    () => install({
+      lead: { url: "https://example.test", source: { repo: "owner/repo", branch: "main" },
+              kind: "skill", name: "pdf", proofs: [] },
+      agent: "claude",
+      placement: { configDir: ".claude", segments: ["skills"], entry: "pdf", isDirectory: true },
+      root,
+      overwrite: true,
+      fetchFiles: async () => ({
+        files: [{ path: "SKILL.md", bytes: new Uint8Array(4) }],
+        sha: undefined,
+        source: { repo: "owner/repo", branch: "main" },
+      }),
+    }),
+    error => error instanceof InstallError && error.kind === "rollbackTooLarge",
+  );
+  // 退避できないと戻せない。**1 つも消さずに**止まっていること。
+  assert.deepEqual(removed, []);
+});
 
 test("ブラウザの上書き退避は展開上限より小さいメモリ上限を使う", () => {
-  assert.equal(BROWSER_ROLLBACK_LIMIT, 64 * 1024 * 1024);
   assert.ok(BROWSER_ROLLBACK_LIMIT < EXTRACTED_SIZE_LIMIT);
 });

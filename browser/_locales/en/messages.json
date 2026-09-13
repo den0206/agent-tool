@@ -206,6 +206,14 @@
   "errorTooLarge": {
     "message": "The download went over the size limit and was stopped."
   },
+  "errorRollbackTooLarge": {
+    "message": "$PATH$ is already there and is too large to hold in memory while it is replaced, so nothing was changed. Remove it yourself, or pick another destination.",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
   "errorNotFound": {
     "message": "That skill was not found in the repository."
   },

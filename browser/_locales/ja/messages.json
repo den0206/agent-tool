@@ -206,6 +206,14 @@
   "errorTooLarge": {
     "message": "取得が上限を超えたため中止しました。"
   },
+  "errorRollbackTooLarge": {
+    "message": "$PATH$ が既にあり、置き換えの間メモリに退避するには大きすぎるため、何も変更していません。手動で削除するか、別の置き場を選んでください。",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
   "errorNotFound": {
     "message": "そのスキルはリポジトリの中に見つかりませんでした。"
   },

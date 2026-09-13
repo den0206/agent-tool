@@ -7,7 +7,9 @@ import { ledger, ledgerPath } from "../core/ledger.js";
 import { BROWSER_ROLLBACK_LIMIT, CATALOG_EXTRACT_LIMIT, ENTRY_LIMIT, SINGLE_FILE_LIMIT, SIZE_LIMIT } from "../core/limits.js";
 import { Placement, rootOf } from "../core/placement.js";
 import { fetchFiles, listFiles, SkillEntry, TreeFetchError } from "../core/tree.js";
-import { exists, readTree, removeEntry, removeLedgerFile, reserve, writeTree } from "./fs.js";
+import {
+  exists, readTree, removeEntry, removeLedgerFile, reserve, TreeReadLimitError, writeTree,
+} from "./fs.js";
 import { collect, forget } from "./store.js";
 import { fetchJson } from "./fetch.js";
 
@@ -38,7 +40,8 @@ export async function commitSha(source: GitHubSource): Promise<string | undefine
 
 export class InstallError extends Error {
   constructor(
-    readonly kind: "tooLarge" | "fetchFailed" | "notFound" | "blocked" | "unusableName",
+    readonly kind:
+      | "tooLarge" | "rollbackTooLarge" | "fetchFailed" | "notFound" | "blocked" | "unusableName",
     message: string,
   ) {
     super(message);
@@ -308,8 +311,10 @@ export async function install(request: InstallRequest): Promise<Collected> {
         total: BROWSER_ROLLBACK_LIMIT,
       });
     } catch (error) {
-      throw new InstallError("tooLarge",
-        `the existing item is too large to safely back up in memory: ${error instanceof Error ? error.message : String(error)}`);
+      // 退避できない = 消したら戻せない。取得の失敗と混ぜず、別の理由として返す。
+      // 上限以外（途中の許可失効など）はそのまま上げる。塗り潰すと原因が分からなくなる。
+      if (!(error instanceof TreeReadLimitError)) throw error;
+      throw new InstallError("rollbackTooLarge", placement.entry);
     }
   }
   if (taken && previous === null) throw new InstallError("blocked", placement.entry);

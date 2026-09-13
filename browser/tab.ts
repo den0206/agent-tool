@@ -308,6 +308,9 @@ const message = (error: unknown, where: Placement): string => {
   }
   if (error instanceof InstallError) {
     if (error.kind === "tooLarge") return t("errorTooLarge");
+    if (error.kind === "rollbackTooLarge") {
+      return t("errorRollbackTooLarge", `~/${rootOf(where)}/${where.entry}`);
+    }
     if (error.kind === "notFound") return t("errorNotFound");
     if (error.kind === "blocked") return t("errorBlocked", `~/${rootOf(where)}/${where.entry}`);
     if (error.kind === "unusableName") return t("errorUnusableName", error.message);
