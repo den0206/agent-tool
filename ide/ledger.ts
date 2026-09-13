@@ -1,10 +1,10 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { KindId } from "../core/agent";
 import { decode as decodeLedger, Ledger, LEDGER_DIR } from "../core/ledger";
 import { SINGLE_FILE_LIMIT } from "../core/limits";
 import { Env } from "./env";
-import { Entry, Registry, upsert } from "./registry";
+import { entry, Entry, Registry, upsert } from "./registry";
 import { relativePath, SKILL_SOURCES, SUBAGENT_SOURCES, sourcePath } from "./source";
 import { removeLedger } from "./writeGuard";
 
@@ -55,22 +55,39 @@ export function scan(env: Env): Found[] {
   return found;
 }
 
-const toEntry = (ledger: Ledger): Entry => ({
+/**
+ * 実体があるルートをホーム相対（`/` 区切り）で返す。ホームの外なら `undefined` —
+ * 管理ストア（`appSupport` 配下）に在るものは `layout` の既定がそのまま正しい。
+ */
+export const homeRelativeRoot = (env: Env, root: string): string | undefined => {
+  const rel = relative(env.home, root);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return undefined;
+  return rel.split(sep).join("/");
+};
+
+const toEntry = (ledger: Ledger, root: string | undefined): Entry => ({
   name: ledger.name, kind: ledger.kind as KindId,
   repo: ledger.repo,
   ...(ledger.branch === undefined ? {} : { branch: ledger.branch }),
   ...(ledger.subdir === undefined ? {} : { subdir: ledger.subdir }),
   ...(ledger.sha === undefined ? {} : { sha: ledger.sha }),
+  ...(root === undefined ? {} : { root }),
   pinned: false, disabled: false,
 });
 
 /**
  * registry へ足して台帳を消す。呼び出し側がロックの中で呼ぶ。
  * 台帳の削除に失敗しても registry の更新は残す — 次回に同じものを入れ直すだけで害はない。
+ *
+ * 実体のあるルートまで記録する。持たないと `layout` が管理ストアを指し、削除・無効化が
+ * 実体を見失い、更新適用は別の場所へ新版を書いて実体を二重化する。
  */
 export function absorb(env: Env, registry: Registry, found: readonly Found[]): void {
   for (const item of found) {
-    upsert(registry, toEntry(item.ledger));
+    const kind = item.ledger.kind as KindId;
+    // `pinned` は利用者が決めたこと。入れ直しで黙って解除しない。
+    const pinned = entry(registry, item.ledger.name, kind)?.pinned === true;
+    upsert(registry, { ...toEntry(item.ledger, homeRelativeRoot(env, item.root)), pinned });
     try {
       removeLedger(item.file, item.root, env);
     } catch {

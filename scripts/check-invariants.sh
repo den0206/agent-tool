@@ -59,8 +59,12 @@ else
     echo "✓ 取得と更新の作業領域はOSの一時領域に限定されています"
 fi
 
+# `assertBody`も数える。これはwriteGuard.ts内の振り分けで、実体の置き場に応じて
+# `assertMutable`（管理ストア）/ `assertProjectArtifact`（ワークスペース）/
+# `assertRecordedArtifact`（registryが記録したルート）のいずれかを必ず通す。
+# 呼び出し側に分岐を持たせないための関数なので、検査を飛ばす経路は増えない。
 for file in skillManager installer updater; do
-    grep -q 'assertMutable\|assertValidName' "ide/$file.ts" \
+    grep -q 'assertMutable\|assertBody\|assertValidName' "ide/$file.ts" \
         || fail "ide/$file.tsがWriteGuardの検査を呼んでいません"
 done
 echo "✓ 取得物の名前と可変性は作成前に検査されています"

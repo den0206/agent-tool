@@ -110,7 +110,9 @@ const placeOf = (entry: Entry): Place =>
   entry.project === undefined ? USER : { scope: "project", path: entry.project };
 
 const destinationFor = (entry: Entry, env: Env): string => {
-  const plan = layout(entry.name, entry.kind, env, placeOf(entry));
+  // `root` を渡さないと、取り込んだ実体（`~/.claude/skills` など）の隣ではなく
+  // 管理ストアへ新版を書き、実体が 2 つになる。
+  const plan = layout(entry.name, entry.kind, env, placeOf(entry), entry.root);
   // project は退避先を持たないので、実体はつねに置き場にある。
   return entry.disabled && plan.parked !== undefined ? plan.parked : plan.store;
 };
@@ -215,13 +217,10 @@ export async function updateApply(params: {
   let keepBackup = false;
 
   try {
-    // プロジェクトの実体はホームの管理ルートの外にある。信頼の根が違うので別のガードを通す。
+    // プロジェクトの実体も、取り込んだ実体も、ホームの管理ルートの外にある。
+    // 信頼の根が違うので `assertBody` に振り分けさせる。
     const place = placeOf(entry);
-    if (place.scope === "project") {
-      guard.assertProjectArtifact(destination, entry.kind, place.path, env);
-    } else {
-      guard.assertMutable(destination, env, params.registry);
-    }
+    guard.assertBody(destination, entry.kind, env, params.registry, place);
     guard.prepare(destination, join(destination, ".."), place.scope === "project" ? place.path
       : guard.isInside(destination, env.home) ? env.home : env.appSupport);
 

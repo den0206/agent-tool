@@ -20,6 +20,15 @@ export type Entry = {
   disabled: boolean;
   /** project スコープで入れたプロジェクトの絶対パス。未設定は user スコープ。 */
   project?: string;
+  /**
+   * 実体があるルート（ホーム相対、`/` 区切り）。未設定は管理ストア（`layout` の既定）。
+   *
+   * ブラウザ拡張は自分が許可されたルート（`~/.claude/skills` など）へ直接書くので、
+   * 取り込んだ entry の実体は管理ストアに無い。ここを持たないと `layout` が
+   * `~/.agents/skills/<name>` を指し、削除・無効化が実体を見失い、更新適用は
+   * 別の場所に新版を書いて実体を二重化する。
+   */
+  root?: string;
 };
 
 export type RepoState = { etag?: string; latestSha?: string; checkedAt?: string };
@@ -70,6 +79,7 @@ export function decode(raw: unknown): Registry {
         subdir: str(entry.subdir), sha: str(entry.sha),
         pinned: entry.pinned === true, disabled: entry.disabled === true,
         project: str(entry.project),
+        root: str(entry.root),
       }];
     }),
     repos: Object.fromEntries(Object.entries(obj(root.repos)).map(([key, value]) => {
