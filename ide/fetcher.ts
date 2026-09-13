@@ -234,6 +234,20 @@ export function singleTopLevel(dir: string): string {
 }
 
 /**
+ * Subagent の `.md` か。
+ *
+ * `tools:` は見ない — **省略できる**（省略は「全ツールを継承」の意味で、実在する
+ * Subagent の多くが持たない）。持っていることを条件にすると、ブラウザ拡張は
+ * パスで拾えるものが IDE 拡張では 1 つも入らない、という食い違いになる。
+ *
+ * 代わりに `name` と `description` を条件にする。これは Subagent が必ず持つもので、
+ * README や設計文書のような**ただの `.md` は frontmatter を持たない**ので混ざらない。
+ */
+export const isSubagentMatter = (matter: frontmatter.Frontmatter): boolean =>
+  matter.tools !== undefined
+  || (matter.name !== undefined && matter.description !== undefined);
+
+/**
  * 取得した中身を見て決める。README のテキストからは推測しない。
  * symlink を含む候補は `stage` が落とすので、ここでは種別だけを見る。
  */
@@ -264,7 +278,7 @@ export function identify(base: string): Candidate[] {
     }];
   }
 
-  // `.md` に frontmatter の `tools:` があれば Subagent。
+  // frontmatter を持つ `.md` は Subagent。
   const markdown = (() => {
     try {
       return readdirSync(base).filter(name => name.endsWith(".md") && !name.startsWith(".")).sort();
@@ -274,7 +288,7 @@ export function identify(base: string): Candidate[] {
   })();
   const subagents = markdown.flatMap((file): Candidate[] => {
     const result = frontmatter.read(join(base, file));
-    if (result.status !== "parsed" || result.matter.tools === undefined) return [];
+    if (result.status !== "parsed" || !isSubagentMatter(result.matter)) return [];
     return [{
       kind: "subagent", name: file.slice(0, -3), localPath: join(base, file),
       description: result.matter.description,
