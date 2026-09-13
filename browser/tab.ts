@@ -379,8 +379,10 @@ async function showIndex(at: SkillIndex): Promise<void> {
   setMode(true);
   byId("found").hidden = true;
   byId("index").hidden = false;
+  animateDetection(byId("index"));
   byId("index-title").textContent = t("tabIndexTitle", String(at.entries.length));
   byId("index-repo").textContent = `${at.source.repo}/${at.subdir}`;
+  byId("index-security-source").textContent = t("tabSecuritySource", at.source.repo);
   byId("index-status").textContent = "";
   byId("index-status").className = "status";
   await renderIndexTargets(at.entries[0].name);
