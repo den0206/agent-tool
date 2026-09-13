@@ -80,6 +80,7 @@ export type InventoryItem = {
   pinned: boolean;         // 更新を追わないと利用者が決めたもの
   summary?: string;        // frontmatter の先頭 4 KB から取得
   mcpScope?: 'user' | 'project' | 'local';    // MCP の登録先。削除コマンドの -s に載る
+  floating?: string;       // `@latest` 指定のパッケージ名。版を固定できていない MCP
   pluginScope?: 'user' | 'project' | 'local'; // Plugin の登録先
 };
 
@@ -346,6 +347,11 @@ export function preview(params: {
   `SKILL.md` があるかを HEAD 1 回で確かめ、**当たったときだけ** subdir を載せる。外れたら
   何も足さず、従来どおりアーカイブ全体から `locateSkill` / `identify` で探す
 - 返す `url` は解決後のもの。`add` に渡すと同じページを読み直さない
+- 種別は取得した中身で決める。`SKILL.md` があれば Skill、`.claude-plugin/plugin.json` が
+  あれば Plugin、frontmatter を持つ `.md` は Subagent。`tools:` の有無は見ない —
+  省略できる指定（省略は全ツール継承）で、実在する Subagent の多くが持たないため、
+  条件にするとブラウザ拡張が拾えるものが IDE 拡張では入らなくなる。
+  代わりに `name` と `description` を見る（README などの `.md` は frontmatter を持たない）
 
 ---
 

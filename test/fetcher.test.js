@@ -3,7 +3,7 @@ const { existsSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 const { test } = require("node:test");
-const { discard, extract, fetchPage, identify, safeJoin, singleTopLevel, stage } = require("../out/ide/fetcher.js");
+const { discard, extract, fetchPage, identify, isSubagentMatter, safeJoin, singleTopLevel, stage } = require("../out/ide/fetcher.js");
 const { PAGE_LIMIT } = require("../out/core/limits.js");
 const { archiveUrl, catalog, fromJsonLd, narrowToSkill, needsPage, parseUrl, skillHint } = require("../out/core/github.js");
 const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
@@ -216,8 +216,44 @@ test("tools を持つ .md は Subagent として拾う", () => {
   const env = fakeEnv();
   const base = makeDir(join(env.home, "agents"));
   writeFileIn(join(base, "reviewer.md"), "---\nname: reviewer\ntools: Read\n---\n");
-  writeFileIn(join(base, "README.md"), "---\nname: readme\n---\n");   // tools 無しは候補にしない
   assert.deepEqual(identify(base).map(c => [c.kind, c.name]), [["subagent", "reviewer"]]);
+});
+
+/**
+ * `tools:` は省略できる（省略 = 全ツール継承）。持っていることを条件にすると、
+ * 実在する Subagent の多くが IDE 拡張から入らない。
+ */
+test("tools を省略した .md も Subagent として拾う", () => {
+  const env = fakeEnv();
+  const base = makeDir(join(env.home, "agents"));
+  writeFileIn(join(base, "reviewer.md"),
+    "---\nname: reviewer\ndescription: reviews code\nmodel: sonnet\n---\n本文\n");
+  assert.deepEqual(identify(base).map(c => [c.kind, c.name, c.description]),
+    [["subagent", "reviewer", "reviews code"]]);
+});
+
+test("frontmatter を持たない .md は候補にしない", () => {
+  const env = fakeEnv();
+  const base = makeDir(join(env.home, "agents"));
+  writeFileIn(join(base, "README.md"), "# 使い方\n\nここに説明を書く。\n");
+  writeFileIn(join(base, "CONTRIBUTING.md"), "---\n見出しではない区切り\n");
+  assert.deepEqual(identify(base), []);
+});
+
+test("description の無い frontmatter だけでは Subagent にしない", () => {
+  const env = fakeEnv();
+  const base = makeDir(join(env.home, "docs"));
+  // 文書の先頭に title だけを置く形式は Subagent ではない。
+  writeFileIn(join(base, "notes.md"), "---\ntitle: 設計メモ\nname: notes\n---\n");
+  assert.deepEqual(identify(base), []);
+});
+
+test("Subagent の判定は純粋関数で、両拡張の条件を揃える", () => {
+  assert.equal(isSubagentMatter({ tools: "Read" }), true);
+  assert.equal(isSubagentMatter({ name: "x", description: "d" }), true);
+  assert.equal(isSubagentMatter({ name: "x" }), false);
+  assert.equal(isSubagentMatter({ description: "d" }), false);
+  assert.equal(isSubagentMatter({}), false);
 });
 
 test("skills/<category>/<name> の配置まで辿る", () => {
