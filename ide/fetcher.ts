@@ -293,9 +293,13 @@ export function identify(base: string): Candidate[] {
       description: result.matter.description,
     }];
   });
-  if (subagents.length > 0) return [...found, ...subagents];
+  // Skill が見つかるなら、そちらを採る。`name` と `description` を持つ `.md` は
+  // Subagent とは限らず（frontmatter 付きの文書は普通にある）、ここで打ち切ると
+  // `skills/` の中身が 1 つも出てこない。文書 1 枚で全 Skill が隠れる方が害が大きい。
+  const skills = skillsUnder(base, 3);
+  if (subagents.length > 0 && skills.length === 0) return [...found, ...subagents];
 
-  return [...found, ...skillsUnder(base, 3)];
+  return [...found, ...skills];
 }
 
 function pluginSelector(base: string): string | undefined {

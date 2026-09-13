@@ -264,6 +264,21 @@ test("Subagent の判定は純粋関数で、両拡張の条件を揃える", ()
   assert.equal(isSubagentMatter({}), false);
 });
 
+/**
+ * `name` と `description` を持つ `.md` は Subagent とは限らない。frontmatter 付きの
+ * 文書は普通にあるので、1 枚あるだけで `skills/` の中身が隠れてはいけない。
+ */
+test("frontmatter を持つ文書があっても skills/ の中身を隠さない", () => {
+  const env = fakeEnv();
+  const base = makeDir(join(env.home, "repo"));
+  writeFileIn(join(base, "skills", "pdf", "SKILL.md"), "---\nname: pdf\ndescription: PDF\n---\n");
+  writeFileIn(join(base, "skills", "csv", "SKILL.md"), "---\nname: csv\ndescription: CSV\n---\n");
+  writeFileIn(join(base, "CONTRIBUTING.md"),
+    "---\nname: contributing\ndescription: how to help\n---\n# Hi\n");
+  assert.deepEqual(identify(base).map(c => [c.kind, c.name]),
+    [["skill", "csv"], ["skill", "pdf"]]);
+});
+
 test("skills/<category>/<name> の配置まで辿る", () => {
   const env = fakeEnv();
   const base = makeDir(join(env.home, "repo"));
