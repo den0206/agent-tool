@@ -12,7 +12,7 @@ test("popup package exposes install safety and accessible live status", () => {
 });
 
 test("detected tool animation respects reduced motion", () => {
-  const css = readFileSync(join(__dirname, "..", "browser", "tab.css"), "utf8");
+  const css = readFileSync(join(__dirname, "..", "browser", "detection.css"), "utf8");
   assert.match(css, /@keyframes detected-bloom/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(css, /#found\.detected-pop \.card/);
