@@ -18,6 +18,16 @@ const check = (path, why) => {
 
 const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
 
+// --- 権限の最小化 ---
+// ブラウザ拡張は対応サイトの SPA 遷移検知だけに webNavigation を使う。
+// 新しい権限は用途とストア審査への影響を確認してから明示的に許可する。
+const allowedPermissions = new Set(["webNavigation"]);
+for (const permission of manifest.permissions ?? []) {
+  if (!allowedPermissions.has(permission)) {
+    problems.push(`permissions: 想定外の権限 ${permission} が追加されています`);
+  }
+}
+
 // --- manifest が指すもの ---
 check(manifest.background.service_worker, "background");
 for (const script of manifest.content_scripts.flatMap(entry => entry.js)) {
