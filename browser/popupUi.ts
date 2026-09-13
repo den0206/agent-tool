@@ -3,16 +3,11 @@
  * Keep this module free of network, storage, and file-system access.
  */
 
-export type PopupStage = "idle" | "resolving" | "permission" | "installing" | "done" | "error";
-
 export const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
 
-export function applyI18n(
-  t: (key: string, ...args: string[]) => string,
-  root: ParentNode = document,
-): void {
-  for (const node of root.querySelectorAll<HTMLElement>("[data-i18n]")) {
+export function applyI18n(t: (key: string, ...args: string[]) => string): void {
+  for (const node of document.querySelectorAll<HTMLElement>("[data-i18n]")) {
     node.textContent = t(node.dataset.i18n ?? "");
   }
 }
@@ -31,13 +26,15 @@ export function animateDetection(section: HTMLElement): void {
   section.classList.add("detected-pop");
 }
 
-export function setStage(
+/**
+ * 導入中はボタンを押せなくし、支援技術にも「処理中」を伝える。
+ * 見た目の段階は status の文言が持つので、ここでは busy かどうかだけを扱う。
+ */
+export function setBusy(
   container: HTMLElement,
   button: HTMLButtonElement | null,
-  stage: PopupStage,
+  busy: boolean,
 ): void {
-  container.dataset.stage = stage;
-  const busy = stage === "resolving" || stage === "permission" || stage === "installing";
   container.setAttribute("aria-busy", String(busy));
   if (button !== null) button.disabled = busy;
 }

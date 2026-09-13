@@ -11,11 +11,6 @@ export type TargetOption = {
   readonly state: RootState;
 };
 
-export type TargetSet = {
-  readonly options: TargetOption[];
-  readonly shared: boolean;
-};
-
 export async function rootStates(): Promise<Map<string, RootState>> {
   const pairs = await Promise.all(
     CONFIG_DIRS.map(async configDir => [configDir, await rootState(configDir)] as const),
@@ -23,7 +18,9 @@ export async function rootStates(): Promise<Map<string, RootState>> {
   return new Map(pairs);
 }
 
-export async function targetSet(kind: DetectKind, name: string): Promise<TargetSet> {
+export async function targetSet(
+  kind: DetectKind, name: string,
+): Promise<{ options: TargetOption[]; shared: boolean }> {
   const roots = await rootStates();
   const stateOf = (configDir: string): RootState =>
     roots.get(configDir) ?? { kind: "unset" };
