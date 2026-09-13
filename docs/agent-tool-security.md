@@ -257,11 +257,11 @@ Bearer <value>        → Bearer [REDACTED]
     "https://raw.githubusercontent.com/*",
     "https://codeload.github.com/*"
   ],
-  "permissions": ["unlimitedStorage"]
+  "permissions": ["webNavigation"]
 }
 ```
 
-- `<all_urls>` を要求しない。検知は github.com / skills.sh / agentsdirectory.dev だけで動く。
+- `<all_urls>` と `unlimitedStorage` を要求しない。検知は github.com / skills.sh / agentsdirectory.dev だけで動く。永続化するのは小さな IndexedDB メタデータとディレクトリハンドルだけで、通常の拡張ストレージ枠に収める。
 - 取得のために `raw.githubusercontent.com`（実在確認）、`api.github.com`（commit SHA）、
   `codeload.github.com`（アーカイブ）へ通信する。IDE 拡張と同じ公開エンドポイントだけを使う。
 - commit SHA を台帳に載せないと、IDE 拡張が取り込んだ直後に全件が「更新あり」に見える
