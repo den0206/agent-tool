@@ -26,6 +26,13 @@
   "extensionKind": [
     "ui"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Agent Tool allows read-only inventory in untrusted workspaces; changes require workspace trust."
+    },
+    "virtualWorkspaces": false
+  },
   "activationEvents": [
     "onView:agent-tool.inventory"
   ],
