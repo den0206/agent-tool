@@ -300,6 +300,14 @@
       }
     }
   },
+  "tabPermissionNoteReady": {
+    "message": "Agent Tool がこの項目を書き込むのは $TARGET$ の中だけです。ブラウザから確認できるのはフォルダ名までで、完全なパスは検証できません。",
+    "placeholders": {
+      "target": {
+        "content": "$1"
+      }
+    }
+  },
   "tabSecurityTitle": {
     "message": "導入前の確認"
   },

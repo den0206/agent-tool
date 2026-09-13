@@ -123,9 +123,11 @@ function showTarget(): void {
   path.className = "repo";
   hint.className = "hint";
   hint.textContent = "";
-  permission.textContent = picked === undefined ? "" : t(
-    "tabPermissionNote", `~/${picked.where.configDir}`, `~/${rootOf(picked.where)}`,
-  );
+  // 既に許可があるフォルダに「選んでください」と言わない。書き込み先だけを示す。
+  permission.textContent =
+    picked === undefined ? ""
+    : picked.state.kind === "ok" ? t("tabPermissionNoteReady", `~/${rootOf(picked.where)}`)
+    : t("tabPermissionNote", `~/${picked.where.configDir}`, `~/${rootOf(picked.where)}`);
   if (picked === undefined || picked.state.kind === "ok") return;
 
   if (picked.state.kind === "unset") {
@@ -179,7 +181,6 @@ async function resolve(raw: string, vetted: boolean): Promise<ToolLead | null> {
 function setMode(detected: boolean): void {
   document.body.classList.toggle("detected", detected);
   byId("found").hidden = !detected;
-  if (detected && !byId("found").hidden) animateDetection(byId("found"));
 }
 
 async function showLead(raw: string, vetted = false): Promise<void> {
@@ -210,6 +211,7 @@ async function showLead(raw: string, vetted = false): Promise<void> {
   byId("found-repo").textContent = found.source.repo;
   byId("security-source").textContent = t("tabSecuritySource", found.source.repo);
   byId("destination").hidden = true;             // 導入を押してから出す
+  animateDetection(byId("found"));
 }
 
 /** 検知の表示をやめて通常の画面に戻す。導入後とタブを移ったときに呼ぶ。 */

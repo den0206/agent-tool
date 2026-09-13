@@ -300,6 +300,14 @@
       }
     }
   },
+  "tabPermissionNoteReady": {
+    "message": "Agent Tool writes this item only inside $TARGET$. Your browser exposes only the folder name, so the full path cannot be verified.",
+    "placeholders": {
+      "target": {
+        "content": "$1"
+      }
+    }
+  },
   "tabSecurityTitle": {
     "message": "Before install"
   },

@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A light / dark / system theme setting in the browser extension's popup.
 - A unified `release/Ver_<semver>` workflow that gives both extensions the same version, packages and checksums their artifacts, and attaches them to one GitHub Release, plus a privacy policy (`PRIVACY.md`) and a Chrome Web Store listing checklist (`docs/browser-store-listing.md`).
 - Conditional Chrome Web Store submission from that workflow, skipped until all of its required GitHub Secrets are configured; submit the approved zip to Edge Add-ons manually.
+- The browser extension's popup explains what happens before it writes: which folder the item goes into, that your browser only reveals the folder's name rather than its full path, that the source resolves to a public GitHub repository, and that unsafe archive paths and links are refused.
 
 ### Changed
 
