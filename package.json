@@ -125,7 +125,7 @@
     "package:browser": "./scripts/package-browser.sh"
   },
   "devDependencies": {
-    "@types/node": "26.4.1",
+    "@types/node": "26.5.1",
     "@types/vscode": "1.90.0",
     "@types/yauzl": "3.4.0",
     "@vscode/vsce": "3.9.2",
