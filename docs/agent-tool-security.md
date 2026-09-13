@@ -219,6 +219,8 @@ Bearer <value>        → Bearer [REDACTED]
 ```
 
 - `extensionKind: ["ui"]` — ローカル UI Extension として動作。Remote Host では起動しない
+- `capabilities.untrustedWorkspaces.supported: "limited"` — VS Code 自身にも未信頼時の制約を宣言し、runtime guard と二重化する
+- `capabilities.virtualWorkspaces: false` — ファイルシステム前提の操作を virtual workspace へ広げない
 - ネットワークアクセス: GitHub API（公開エンドポイント）のみ。外部サービスに認証情報を送らない
 - テレメトリ: 一切収集しない
 
@@ -281,6 +283,8 @@ Bearer <value>        → Bearer [REDACTED]
 - 書く直前に同名の実体を確認し、あれば上書きの確認を求める。記録ではなく実態を見る。
 - 上書きは**取得できてから**旧実体を消し、その後に書く。重ねて書くと旧版にしか無いファイルが
   残り、新旧の混ざったものになる。取得に失敗した時点では旧実体はまだ消していない。
+- 上書き時の rollback 用旧実体はメモリへ退避するため **64 MB** を上限とする。これを超える実体は旧版を消さずに停止し、
+  展開上限 200 MB をそのまま rollback に使って新旧ツリーを同時保持しない。
 - `skills` / `agents` を作るのは導入のときだけにする。許可を貰うだけ・一覧を確かめるだけの
   場面で、使うか分からないフォルダを利用者のディレクトリに作らない。
 - 削除前に収集一覧の実体ツリー SHA-256 を再計算し、一致する場合だけ削除する。手動変更・
