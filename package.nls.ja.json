@@ -1,14 +1,8 @@
 {
   "extension.description": "Skillを見つけて、かんたん導入！",
-  "command.toggleTool": "ツールを有効化または無効化",
   "command.addSkill": "GitHubからSkillを追加",
-  "command.removeTool": "ツールを削除",
   "command.addMcp": "MCPサーバーを追加",
-  "command.previewUpdate": "更新をプレビュー",
-  "command.applyUpdate": "更新を適用",
   "command.refreshInventory": "再読み込み",
-  "command.togglePin": "更新の固定を切り替え",
   "command.checkUpdates": "更新確認",
-  "command.openToolActions": "ツールを管理",
   "capabilities.untrustedWorkspaces": "Agent Tool は未信頼のワークスペースでは一覧の表示だけを行います。変更にはワークスペースの信頼が必要です。"
 }
