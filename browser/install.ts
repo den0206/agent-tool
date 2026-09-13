@@ -4,7 +4,7 @@ import { locateSkill, ToolLead } from "../core/detect.js";
 import { GitHubSource, narrowToSkill } from "../core/github.js";
 import { treeHash, TreeFile } from "../core/hash.js";
 import { ledger, ledgerPath } from "../core/ledger.js";
-import { CATALOG_EXTRACT_LIMIT, ENTRY_LIMIT, SINGLE_FILE_LIMIT, SIZE_LIMIT } from "../core/limits.js";
+import { BROWSER_ROLLBACK_LIMIT, CATALOG_EXTRACT_LIMIT, ENTRY_LIMIT, SINGLE_FILE_LIMIT, SIZE_LIMIT } from "../core/limits.js";
 import { Placement, rootOf } from "../core/placement.js";
 import { fetchFiles, listFiles, SkillEntry, TreeFetchError } from "../core/tree.js";
 import { exists, readTree, removeEntry, removeLedgerFile, reserve, writeTree } from "./fs.js";
@@ -299,7 +299,19 @@ export async function install(request: InstallRequest): Promise<Collected> {
   // 新旧の混ざったものができる。File System Access API には rename がないため、旧版を
   // 退避してから置換し、失敗時は戻す。
   // ponytail: 退避はメモリ上。ブラウザ API に原子的な rename が入れば一時ファイルへ替える。
-  const previous = taken ? await readTree(root, placement.entry, placement.isDirectory) : null;
+  let previous: TreeFile[] | null = null;
+  if (taken) {
+    try {
+      previous = await readTree(root, placement.entry, placement.isDirectory, {
+        entries: ENTRY_LIMIT,
+        single: SINGLE_FILE_LIMIT,
+        total: BROWSER_ROLLBACK_LIMIT,
+      });
+    } catch (error) {
+      throw new InstallError("tooLarge",
+        `the existing item is too large to safely back up in memory: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   if (taken && previous === null) throw new InstallError("blocked", placement.entry);
   let removed = false;
   try {
