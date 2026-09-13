@@ -4,11 +4,10 @@ import { skillIndex, ToolLead, verifiedPage } from "../core/detect.js";
 import { GitHubSource, needsPage, SUPPORTED_SITES } from "../core/github.js";
 import { PAGE_LIMIT } from "../core/limits.js";
 import {
-  CONFIG_DIRS, placement, Placement, rootOf, RootState, SHARED_CONFIG_DIR, splitRoot, targets,
+  placement, Placement, rootOf, RootState, splitRoot, targets,
 } from "../core/placement.js";
 import {
   clearRoot, configHandle, exists, PickerError, pickerHint, pickerUnavailable, placeHandle,
-  rootState,
 } from "./fs.js";
 import { fetchJson } from "./fetch.js";
 import {
@@ -21,6 +20,7 @@ import {
 import {
   animateDetection, applyI18n, applyTheme, byId, clearStatus, setStage, showStatus,
 } from "./popupUi.js";
+import { targetSet, TargetOption } from "./targets.js";
 
 const t = (key: string, ...args: string[]): string => chrome.i18n.getMessage(key, args);
 /** `.claude` → `agentClaude`。設定画面と同じ言葉を使う。 */
@@ -106,20 +106,7 @@ let chosen: AgentId | null = null;
 // --- 導入先の選択 -------------------------------------------------------
 
 /** 導入先の候補。選ばれているものを `chosen` に持つ。 */
-let options: { agent: AgentId; where: Placement; state: RootState }[] = [];
-
-/**
- * 設定の状態を全エージェント分まとめて読む。
- *
- * **実際の許可は見ない。** File System Access API の許可は origin のタブが全部閉じると
- * 消えるので、popup では毎回「未許可」になる。利用者が決めたのは「どのフォルダを使うか」
- * なので、覚えているかどうかで見せる。足りない許可は導入を押したときに 1 回訊けばよい。
- */
-async function readRoots(): Promise<Map<string, RootState>> {
-  const pairs = await Promise.all(
-    CONFIG_DIRS.map(async configDir => [configDir, await rootState(configDir)] as const));
-  return new Map(pairs);
-}
+let options: TargetOption[] = [];
 
 const stateLabel = (state: RootState): string =>
   state.kind === "ok" ? ""
@@ -153,23 +140,14 @@ function showTarget(): void {
 }
 
 async function renderTargets(found: ToolLead): Promise<void> {
-  const roots = await readRoots();
-  const stateOf = (configDir: string): RootState =>
-    roots.get(configDir) ?? { kind: "unset" };
-  const shared = stateOf(SHARED_CONFIG_DIR).kind === "ok";
   const select = byId<HTMLSelectElement>("target");
   select.replaceChildren();
-  options = [];
+  ({ options } = await targetSet(found.kind, found.name));
 
-  for (const agent of targets(found.kind)) {
-    const where = placement(agent, found.kind, found.name, shared);
-    if (where === null) continue;
-    const state = stateOf(where.configDir);
-    options.push({ agent, where, state });
-
+  for (const picked of options) {
     const option = document.createElement("option");
-    option.value = agent;
-    option.textContent = `${agentLabel(where.configDir)}${stateLabel(state)}`;
+    option.value = picked.agent;
+    option.textContent = `${agentLabel(picked.where.configDir)}${stateLabel(picked.state)}`;
     select.append(option);
   }
   // 正しく設定されているものがあればそれを初期値にする。無ければ先頭。
@@ -353,7 +331,7 @@ type SkillIndex = {
   readonly subdir: string; readonly entries: SkillEntry[];
 };
 let index: SkillIndex | null = null;
-let indexOptions: { agent: AgentId; where: Placement; state: RootState }[] = [];
+let indexOptions: TargetOption[] = [];
 let indexAgent: AgentId | null = null;
 /** 共有ストアが許可済みか。行ごとに置き場を組み直すのに要る。 */
 let indexShared = false;
@@ -378,21 +356,16 @@ function showIndexTarget(): void {
 }
 
 async function renderIndexTargets(sample: string): Promise<void> {
-  const roots = await readRoots();
-  const stateOf = (configDir: string): RootState => roots.get(configDir) ?? { kind: "unset" };
-  indexShared = stateOf(SHARED_CONFIG_DIR).kind === "ok";
   const select = byId<HTMLSelectElement>("index-target");
   select.replaceChildren();
-  indexOptions = [];
+  const resolved = await targetSet("skill", sample);
+  indexOptions = resolved.options;
+  indexShared = resolved.shared;
 
-  for (const agent of targets("skill")) {
-    const where = placement(agent, "skill", sample, indexShared);
-    if (where === null) continue;
-    const state = stateOf(where.configDir);
-    indexOptions.push({ agent, where, state });
+  for (const picked of indexOptions) {
     const option = document.createElement("option");
-    option.value = agent;
-    option.textContent = `${agentLabel(where.configDir)}${stateLabel(state)}`;
+    option.value = picked.agent;
+    option.textContent = `${agentLabel(picked.where.configDir)}${stateLabel(picked.state)}`;
     select.append(option);
   }
   indexAgent = (indexOptions.find(option => option.state.kind === "ok") ?? indexOptions[0])?.agent ?? null;
