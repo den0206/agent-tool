@@ -277,5 +277,39 @@
         "example": "20"
       }
     }
+  },
+  "tabPermissionTitle": {
+    "message": "Folder access"
+  },
+  "tabPermissionNote": {
+    "message": "Choose $CONFIG$. Agent Tool writes this item only inside $TARGET$. Your browser exposes only the folder name, so the full path cannot be verified.",
+    "placeholders": {
+      "config": {
+        "content": "$1"
+      },
+      "target": {
+        "content": "$2"
+      }
+    }
+  },
+  "tabSecurityTitle": {
+    "message": "Before install"
+  },
+  "tabSecuritySource": {
+    "message": "$REPO$ is resolved as a public GitHub source.",
+    "placeholders": {
+      "repo": {
+        "content": "$1"
+      }
+    }
+  },
+  "tabSecurityPaths": {
+    "message": "Unsafe archive paths and links inside this item are rejected before writing."
+  },
+  "tabSecurityRollback": {
+    "message": "Existing content is backed up within a bounded rollback budget before replacement."
+  },
+  "tabRequestingPermission": {
+    "message": "Waiting for folder access…"
   }
 }
