@@ -1,5 +1,5 @@
 import { HEAD_BYTES, parse } from "./frontmatter.js";
-import { catalog, components, fromJsonLd, GitHubSource, needsPage, parseUrl } from "./github.js";
+import { catalog, components, DEFAULT_REF, fromJsonLd, GitHubSource, needsPage, parseUrl } from "./github.js";
 
 /**
  * ブラウザ拡張が扱う種別。MCP は URL に手がかりが無く、Plugin は CLI への登録が必要なので
@@ -24,10 +24,10 @@ export type ToolLead = {
 };
 
 /** 実在確認に投げる URL。アーカイブは落とさない — 見ているだけで数 MB は取らない。 */
-export const proofUrls = (lead: ToolLead, defaultBranch = "main"): string[] =>
+export const proofUrls = (lead: ToolLead): string[] =>
   lead.proofs.map(path =>
     `https://raw.githubusercontent.com/${lead.source.repo}/`
-    + `${lead.source.branch ?? defaultBranch}/${encodeURI(path)}`);
+    + `${lead.source.branch ?? DEFAULT_REF}/${encodeURI(path)}`);
 
 /** パス名だけで種別を当てる。ネットワークに触れない絞り込み。 */
 export function kindOf(path: readonly string[]): DetectKind | null {

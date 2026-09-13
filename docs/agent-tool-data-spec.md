@@ -12,7 +12,7 @@
 | キー | 内容 |
 |---|---|
 | `resources` | 管理下の Skill / Subagent（名前、種別、取得元、SHA、固定、無効化、project スコープのパス、実体のルート） |
-| `repos` | 取得元ごとの最新 SHA と確認日時（`checkUpdates` が書き、`hasUpdate` が読む） |
+| `repos` | 取得元ごとの最新 SHA と確認日時。キーは `<repo>#<ref>`（`core/github.ts` の `sourceKey`）。ブランチ未指定は `#HEAD` |
 | `agents` | エージェント CLI の手動パス指定 |
 
 自動検出できるもの、使用実績、除外リストは持たない。

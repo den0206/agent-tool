@@ -151,8 +151,13 @@ export function checkUpdates(params: {
 }): Promise<{ checked: number; issues: string[] }>;
 ```
 
-- 管理下の取得元ごとに GitHub の HEAD を引き、`registry.repos[<repo>#<branch>]` に
+- 管理下の取得元ごとに GitHub の HEAD を引き、`registry.repos[<repo>#<ref>]` に
   `latestSha` と `checkedAt` を書く。`hasUpdate` はこの記録だけで決まる
+- キーの組み立ては `core/github.ts` の `sourceKey` だけに置く。`checkUpdates` と
+  `hasUpdate` と更新適用の 3 か所でズレると、更新が永久に出なくなる
+- **既定ブランチ名は推測しない**。ブランチ未指定は `HEAD`（`DEFAULT_REF`）で引き、
+  キーにも `#HEAD` と載せる。`main` と決め打つと既定ブランチが `master` のリポジトリは
+  追加も更新確認もできない。`HEAD` は zipball・API・raw のどこでも既定ブランチに解決する
 - 固定中（`pinned`）の取得元は問い合わせない
 - 定期ポーリングは持たない。明示的な操作（`agent-tool.checkUpdates`）でだけ走る
 - 失敗した取得元は `issues` に理由を入れ、成功した分の記録は残す

@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Tools installed by the browser extension can now be removed, disabled, re-enabled, and updated from the Dashboard. They were listed as managed, but every one of those actions looked for the files in the IDE extension's own store and reported that the tool was not found; applying an update wrote the new version to that store and left a second copy behind. The registry now records where the files actually are.
 - Pinning a tool is no longer silently cleared when the browser extension installs the same tool again.
+- Skills, subagents, and plugins can be installed from repositories whose default branch is not `main`. The download and the update check both asked for `main` by name, so those repositories returned "not found"; they now ask for the default branch itself.
 - MCP arguments containing spaces reach the agent's CLI intact on Windows. Header and environment values such as `-H "Authorization: Bearer …"` were split into separate arguments, so those servers were registered incorrectly; `&` and `|` in a server URL are also accepted now.
 - The Command Palette no longer lists six Agent Tool commands that did nothing when run from there, because they act on a tool selected in the Dashboard. They are still available from a tool's actions menu.
 - The browser extension declares the popup's language, so screen readers no longer read a Japanese interface with an English voice, and declares its minimum Chrome version.
@@ -23,6 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - A workspace folder name containing HTML characters no longer breaks the Dashboard's filter buttons.
+- The first update check after installing this version re-reads every source, because sources without an explicit branch are now recorded under the default branch rather than under `main`.
 
 ## [0.2.0] — 2026-09-13
 

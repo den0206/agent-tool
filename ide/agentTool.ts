@@ -6,7 +6,7 @@ import { Env, Run } from "./env";
 import { AgentToolError } from "../core/errors";
 import { run as runCommand } from "./exec";
 import { Candidate, discard, fetchPage, stage } from "./fetcher";
-import { fromJsonLd, GitHubSource, narrowToSkill, needsPage, parseUrl, skillHint } from "../core/github";
+import { fromJsonLd, GitHubSource, narrowToSkill, needsPage, parseUrl, skillHint, sourceKey } from "../core/github";
 import { install } from "./installer";
 import { inventory as buildInventory, InventoryItem } from "./inventory";
 import * as mcp from "./mcpScanner";
@@ -95,7 +95,8 @@ export async function checkUpdates(params: { storagePath: string; http?: Http })
   for (const item of read(env).resources) {
     // 固定中は更新しないと決めたもの。レート制限を使ってまで確認しない。
     if (item.repo === undefined || item.pinned) continue;
-    sources.set(`${item.repo}#${item.branch ?? "main"}`, { repo: item.repo, branch: item.branch });
+    sources.set(sourceKey({ repo: item.repo, branch: item.branch }),
+      { repo: item.repo, branch: item.branch });
   }
 
   const found = new Map<string, string>();

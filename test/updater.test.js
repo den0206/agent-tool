@@ -27,3 +27,29 @@ test("差分に載せる本文は合計で打ち切る", t => {
   assert.ok(retained <= DIFF_TOTAL_LIMIT);
   assert.equal(diff.at(-1).path, "[additional changes omitted]");
 });
+
+/**
+ * 既定ブランチ名は推測しない。`main` で引くと既定ブランチが `master` のリポジトリが
+ * 404 になり、追加も更新確認もできない。`HEAD` はどの ref でも既定ブランチに解決する。
+ */
+test("ブランチ未指定の SHA は HEAD で引く", async () => {
+  const { resolveSha } = require("../out/ide/updater.js");
+  const asked = [];
+  const http = async url => {
+    asked.push(url);
+    return { status: 200, body: JSON.stringify({ sha: "abc" }), headers: {} };
+  };
+  assert.equal(await resolveSha({ repo: "o/r" }, http), "abc");
+  assert.equal(await resolveSha({ repo: "o/r", branch: "master" }, http), "abc");
+  assert.deepEqual(asked, [
+    "https://api.github.com/repos/o/r/commits/HEAD",
+    "https://api.github.com/repos/o/r/commits/master",
+  ]);
+});
+
+test("見つからない取得元は HEAD を含む名前で理由を返す", async () => {
+  const { resolveSha } = require("../out/ide/updater.js");
+  await assert.rejects(
+    resolveSha({ repo: "o/gone" }, async () => ({ status: 404, body: "", headers: {} })),
+    error => error.code === "NOT_FOUND" && error.message.includes("o/gone#HEAD"));
+});

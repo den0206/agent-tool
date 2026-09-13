@@ -283,8 +283,8 @@ test("更新確認は最新 SHA を registry に記録する", async () => {
   // 固定中と取得元の無いものは問い合わせない。
   assert.equal(asked.length, 1);
   const saved = read(env);
-  assert.equal(saved.repos["o/r#main"].latestSha, "new");
-  assert.ok(saved.repos["o/r#main"].checkedAt);
+  assert.equal(saved.repos["o/r#HEAD"].latestSha, "new");
+  assert.ok(saved.repos["o/r#HEAD"].checkedAt);
   assert.equal(hasUpdate(saved.resources[0], saved), true);
 });
 
@@ -306,6 +306,6 @@ test("確認できなかった取得元は理由を返し、他の記録は残�
   });
   assert.equal(result.checked, 1);
   assert.equal(result.issues.length, 1);
-  assert.match(result.issues[0], /o\/gone#main/);
-  assert.equal(read(env).repos["o/ok#main"].latestSha, "b");
+  assert.match(result.issues[0], /o\/gone#HEAD/);
+  assert.equal(read(env).repos["o/ok#HEAD"].latestSha, "b");
 });

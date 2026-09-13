@@ -11,10 +11,25 @@ export type GitHubSource = {
   readonly branchAmbiguous?: boolean;
 };
 
-export function archiveUrl(source: GitHubSource, defaultBranch = "main", revision?: string): string {
-  const reference = revision ?? `refs/heads/${source.branch ?? defaultBranch}`;
+/**
+ * ブランチ未指定のときに使う ref。**既定ブランチ名は推測しない** —
+ * `main` と決め打つと既定ブランチが `master` のリポジトリは取得も更新確認もできない。
+ * `HEAD` は zipball・API・raw のどこでもリポジトリの既定ブランチに解決する。
+ */
+export const DEFAULT_REF = "HEAD";
+
+export function archiveUrl(source: GitHubSource, revision?: string): string {
+  const reference = revision
+    ?? (source.branch === undefined ? DEFAULT_REF : `refs/heads/${source.branch}`);
   return `https://github.com/${source.repo}/archive/${reference}.zip`;
 }
+
+/**
+ * `registry.repos` のキー。`checkUpdates` が書き、`hasUpdate` と更新適用が読む。
+ * 3 か所で組み立てるとズレて更新が永久に出なくなるので、ここだけに置く。
+ */
+export const sourceKey = (source: { repo: string; branch?: string }): string =>
+  `${source.repo}#${source.branch ?? DEFAULT_REF}`;
 
 /** `owner/name` として妥当か。パス要素として使う前に必ず通す。 */
 const isRepoPath = (owner: string, name: string): boolean =>
@@ -221,8 +236,6 @@ const headOk = (url: string): Promise<boolean> =>
  * 規約どおりの `skills/<名前>` に `SKILL.md` があるかだけ、HEAD 1 回で先に確かめる。
  * **当たったときだけ** subdir を載せ、外れたら何も足さない（従来どおりアーカイブ全体から
  * 探す）ので退行しない。カタログ名とディレクトリ名が違うことがあるため、外れは普通に起きる。
- *
- * 既定ブランチ名は推測しない。`HEAD` は raw でも解決する。
  */
 export async function narrowToSkill(
   source: GitHubSource, skill: string | undefined,
@@ -233,7 +246,7 @@ export async function narrowToSkill(
   if (!/^[\w.-]+$/.test(skill) || skill.startsWith(".")) return source;
   const subdir = `skills/${skill}`;
   const at = `https://raw.githubusercontent.com/${source.repo}/`
-    + `${source.branch ?? "HEAD"}/${subdir}/SKILL.md`;
+    + `${source.branch ?? DEFAULT_REF}/${subdir}/SKILL.md`;
   return await exists(at) ? { ...source, subdir } : source;
 }
 

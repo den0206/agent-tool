@@ -5,7 +5,7 @@ const { tmpdir } = require("node:os");
 const { test } = require("node:test");
 const { discard, extract, fetchPage, identify, isSubagentMatter, safeJoin, singleTopLevel, stage } = require("../out/ide/fetcher.js");
 const { PAGE_LIMIT } = require("../out/core/limits.js");
-const { archiveUrl, catalog, fromJsonLd, narrowToSkill, needsPage, parseUrl, skillHint } = require("../out/core/github.js");
+const { archiveUrl, catalog, fromJsonLd, narrowToSkill, needsPage, parseUrl, skillHint, sourceKey } = require("../out/core/github.js");
 const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
 const { writeZip } = require("./zipFixture.js");
 
@@ -96,9 +96,17 @@ test("Content-Length がなくても読み込み中にページ上限を打ち�
   assert.equal(cancelled, true);
 });
 
+/** 既定ブランチ名は推測しない。`main` と決め打つと `master` のリポジトリが取れない。 */
 test("zipball の URL を組み立てる", () => {
-  assert.equal(archiveUrl({ repo: "o/r" }), "https://github.com/o/r/archive/refs/heads/main.zip");
-  assert.equal(archiveUrl({ repo: "o/r" }, "main", "abc"), "https://github.com/o/r/archive/abc.zip");
+  assert.equal(archiveUrl({ repo: "o/r" }), "https://github.com/o/r/archive/HEAD.zip");
+  assert.equal(archiveUrl({ repo: "o/r", branch: "master" }),
+    "https://github.com/o/r/archive/refs/heads/master.zip");
+  assert.equal(archiveUrl({ repo: "o/r" }, "abc"), "https://github.com/o/r/archive/abc.zip");
+});
+
+test("registry.repos のキーはブランチ未指定を HEAD で表す", () => {
+  assert.equal(sourceKey({ repo: "o/r" }), "o/r#HEAD");
+  assert.equal(sourceKey({ repo: "o/r", branch: "dev" }), "o/r#dev");
 });
 
 // --- カタログの置き場を先に当てる ---
