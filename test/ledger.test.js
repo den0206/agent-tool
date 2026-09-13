@@ -326,6 +326,25 @@ test("取り込んだ実体を無効化し、元のルートへ戻せる", async
   assert.equal(entry(registry, "pdf", "skill").disabled, false);
 });
 
+/**
+ * `root` は registry.json の 1 フィールドで、利用者が手で書き換えられる。壊れた値で
+ * 戻すと、どのエージェントも読まず走査にも掛からない場所へ実体が移り、消えたのと
+ * 同じになる。`disable` と `remove` と同じ検査を戻す側にも掛ける。
+ */
+test("壊れた root が指す既知ルートの外へは戻さない", async () => {
+  const f = fixture();
+  f.skill("pdf");
+  const registry = await absorbed(f);
+  disable("pdf", "skill", f.env, registry);
+
+  upsert(registry, { ...entry(registry, "pdf", "skill"), root: ".claude" });
+  assert.throws(() => enable("pdf", "skill", f.env, registry),
+    error => error.code === "WRITE_GUARD_DENIED");
+  // 退避したものはそのまま。中途半端な場所に置き去りにしない。
+  assert.equal(existsSync(join(f.env.home, ".claude", "pdf")), false);
+  assert.equal(existsSync(join(f.env.appSupport, "disabled-skills", "pdf", "SKILL.md")), true);
+});
+
 test("取り込んだ実体にはリンクを張らない（自分自身を指すリンクを作らない）", async () => {
   const f = fixture();
   f.skill("pdf");
