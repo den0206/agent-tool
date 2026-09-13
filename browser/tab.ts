@@ -18,7 +18,7 @@ import {
   autoOpenEnabled, forgetAll, loadCollection, setAutoOpenEnabled, setTheme, Theme, theme,
 } from "./store.js";
 import {
-  animateDetection, applyI18n, applyTheme, byId, clearStatus, setStage, showStatus,
+  animateDetection, applyI18n, applyTheme, byId, clearStatus, setBusy, showStatus,
 } from "./popupUi.js";
 import { rootStates, targetSet, TargetOption } from "./targets.js";
 
@@ -268,12 +268,11 @@ byId<HTMLButtonElement>("install").addEventListener("click", async () => {
 
   const button = byId<HTMLButtonElement>("install");
   const card = byId("found-card");
-  setStage(card, button, picked.state.kind === "unset" ? "permission" : "installing");
+  setBusy(card, button, true);
   showStatus(status, picked.state.kind === "unset" ? t("tabRequestingPermission") : t("tabInstalling"));
   try {
     const root = await placeHandle(where, true, { create: true });
     if (root === null) { showStatus(status, t("permissionLost")); return; }
-    setStage(card, button, "installing");
     showStatus(status, t("tabInstalling"));
 
     const request = { lead: found, agent, placement: where, root };
@@ -294,9 +293,8 @@ byId<HTMLButtonElement>("install").addEventListener("click", async () => {
     }, 6000);
   } catch (error) {
     showStatus(status, message(error, where), true);
-    setStage(card, button, "error");
   } finally {
-    setStage(card, button, "idle");
+    setBusy(card, button, false);
   }
 });
 
@@ -428,14 +426,13 @@ async function installOne(entry: SkillEntry, button: HTMLButtonElement): Promise
   if (where === null) return;
 
   const label = button.textContent ?? "";
-  setStage(row, button, picked.state.kind === "unset" ? "permission" : "installing");
+  setBusy(row, button, true);
   showStatus(status, picked.state.kind === "unset" ? t("tabRequestingPermission") : t("tabInstalling"));
   let installed = false;
   try {
     const root = await placeHandle(where, true, { create: true });
     if (root === null) { showStatus(status, t("permissionLost")); return; }
 
-    setStage(row, button, "installing");
     showStatus(status, t("tabInstalling"));
     const lead: ToolLead = {
       url: index.url, source: index.source, kind: "skill", name: entry.name, proofs: [],
@@ -451,20 +448,15 @@ async function installOne(entry: SkillEntry, button: HTMLButtonElement): Promise
     }
     await install({ ...request, overwrite: true });
     installed = true;
-    setStage(row, button, "done");
     showStatus(status, t("tabInstalled", entry.name, `~/${rootOf(where)}`));
     button.textContent = t("tabInstalledShort");   // 入ったものは押せないままにする
-    button.disabled = true;
   } catch (error) {
     showStatus(status, message(error, where), true);
-    setStage(row, button, "error");
   } finally {
     // **入ったときだけ**押せないままにする。許可が取れなかった・上書きをやめた・
     // 取得に失敗した行は必ず戻す。押せない行を残さない。
-    if (!installed) {
-      setStage(row, button, "idle");
-      button.textContent = label;
-    }
+    setBusy(row, null, false);
+    if (!installed) { button.textContent = label; button.disabled = false; }
   }
 }
 
