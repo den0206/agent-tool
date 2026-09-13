@@ -24,6 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Registry entries are kept, not dropped, when a scanned folder cannot be read, so a temporary permission or sync problem no longer loses pinned and disabled state. The unreadable folder is reported instead.
 - Installing over an existing Skill now replaces it instead of writing on top of it, so files that only existed in the previous version no longer linger. The old copy is removed only after the new one has been fetched.
 - The browser extension's popup uses a palette matching the extension icon, with a few short, `prefers-reduced-motion`-aware animations (the detected-card entrance, the install spinner, the dialog open).
+- The browser extension no longer asks for the `unlimitedStorage` permission. It keeps only a small amount of data (the folder handles you granted and the list of what it installed), which fits in the ordinary extension storage quota.
 - Installing over an existing item stops instead of replacing it when that item is over 64 MB, because the old copy is held in memory so it can be put back if the replacement fails. Nothing is deleted, and the message says to remove the item yourself or pick another destination.
 
 ### Fixed

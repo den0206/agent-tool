@@ -85,7 +85,6 @@ make them part of the initial release.
 |---|---|
 | `host_permissions`: `github.com`, `skills.sh`, `agentsdirectory.dev` (+ `www.` variants) | Content script detection runs only on these sites. |
 | `host_permissions`: `api.github.com`, `raw.githubusercontent.com`, `codeload.github.com` | Public GitHub endpoints used to resolve a repository, check a file exists, read a commit SHA, and download the archive to install. No authentication is used or requested. |
-| `unlimitedStorage` | Lifts IndexedDB's default quota, which the extension uses for the directory handles it was granted and the list of items it installed. |
 | `webNavigation` | Detects single-page-app URL changes (`onHistoryStateUpdated`) so a supported page found without a full reload is still detected. Does not read or store browsing history. |
 | File System Access API (no manifest permission — requested per-use via `showDirectoryPicker()`) | Writes only inside the folder the user picks. |
 
