@@ -195,14 +195,44 @@ test("GitHub サブディレクトリの Plugin は Marketplace のルートを�
   ]);
 });
 
-/** Windows は `.cmd` のために shell 実行が要るが、Node は引数をクォートしない。 */
-test("Windows で shell 構文を含むコマンドは実行しない", () => {
+/**
+ * Windows は `.cmd` のために `cmd.exe` 経由が要る。引用符で無力化できない文字だけを
+ * 拒み、それ以外は `cmdLine` がクォートして通す。
+ */
+test("Windows で引用符では無力化できない文字を含むコマンドは実行しない", () => {
   const { hasShellSyntax } = require("../out/ide/exec.js");
-  assert.ok(hasShellSyntax(["npx", "-y", "pkg & calc.exe"]));
-  assert.ok(hasShellSyntax(["npx", "a | b"]));
-  assert.ok(hasShellSyntax(["npx", "%PATH%"]));
+  assert.ok(hasShellSyntax(["npx", "%PATH%"]));        // 引用符の中でも展開される
+  assert.ok(hasShellSyntax(["npx", "!DELAYED!"]));     // 遅延展開が有効なら同じ
+  assert.ok(hasShellSyntax(["npx", "a\"b"]));          // 安全に埋め込めない
+  assert.ok(hasShellSyntax(["npx", "a\nb"]));          // コマンド行を分割する
+  // 引用符で literal になるものは通す。URL の `&` や空白を含むヘッダは実在する。
+  assert.equal(hasShellSyntax(["npx", "-y", "pkg & calc.exe"]), false);
+  assert.equal(hasShellSyntax(["npx", "a | b"]), false);
   assert.equal(hasShellSyntax(["claude", "mcp", "add", "-s", "user", "probe", "--", "npx", "-y", "pkg"]), false);
   assert.equal(hasShellSyntax(["C:\\Program Files\\claude\\claude.cmd", "--version"]), false);
+});
+
+/**
+ * `shell: true` は Node がトークンを空白で連結するだけなので、空白を含む引数が割れる。
+ * `-H "Authorization: Bearer a b"` が 4 引数になって MCP のヘッダ登録が黙って壊れていた。
+ */
+test("cmd.exe へ渡す 1 本は、空白とメタ文字を含むトークンだけを囲む", () => {
+  const { cmdLine, quoteForCmd } = require("../out/ide/exec.js");
+  assert.equal(quoteForCmd("claude"), "claude");
+  assert.equal(quoteForCmd("--url"), "--url");
+  assert.equal(quoteForCmd("Authorization: Bearer a b"), "\"Authorization: Bearer a b\"");
+  assert.equal(quoteForCmd("https://x/mcp?a=1&b=2"), "\"https://x/mcp?a=1&b=2\"");
+  assert.equal(quoteForCmd(""), "\"\"");
+  // 閉じ引用符の直前の `\` は CreateProcess が引用符のエスケープと読む。
+  assert.equal(quoteForCmd("C:\\Users\\My Docs\\"), "\"C:\\Users\\My Docs\\\\\"");
+  assert.equal(quoteForCmd("C:\\Program Files\\claude\\claude.cmd"),
+    "\"C:\\Program Files\\claude\\claude.cmd\"");
+
+  assert.equal(
+    cmdLine(["claude", "mcp", "add", "-s", "user", "figma", "-t", "http",
+             "https://x/mcp?a=1&b=2", "-H", "Authorization: Bearer a b"]),
+    "\"claude mcp add -s user figma -t http \"https://x/mcp?a=1&b=2\" "
+    + "-H \"Authorization: Bearer a b\"\"");
 });
 
 // --- 追加先スコープ ---
