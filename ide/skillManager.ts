@@ -185,6 +185,10 @@ export function enable(name: string, kind: KindId, env: Env, registry: Registry)
   if (wasParked) {
     if (!guard.exists(parked)) notFound(name);
     guard.assertMutable(parked, env, registry);
+    // 戻す先も検査する。`plan.store` は registry の `root` から組むが、registry は
+    // 利用者が手で書き換えられるファイルで、壊れていれば既知ルートの外を指しうる。
+    // `disable` と `remove` が実体に掛けているのと同じ検査を、こちら側にも掛ける。
+    guard.assertBody(plan.store, kind, env, registry, USER);
     guard.prepare(plan.store, join(plan.store, ".."),
       guard.isInside(plan.store, env.home) ? env.home : env.appSupport);
     guard.move(parked, plan.store);
