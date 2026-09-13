@@ -410,29 +410,30 @@ async function showIndex(at: SkillIndex): Promise<void> {
 async function installOne(entry: SkillEntry, button: HTMLButtonElement): Promise<void> {
   const status = byId("index-status");
   const picked = indexOptions.find(option => option.agent === indexAgent);
-  status.className = "status";
+  const row = button.parentElement ?? byId("index");
+  clearStatus(status);
   if (index === null || picked === undefined) {
-    status.className = "status error";
-    status.textContent = t("tabPickTarget");
+    showStatus(status, t("tabPickTarget"), true);
     return;
   }
   // 別のフォルダが設定されたままなら入れない。意図しない場所へ書かない。
   if (picked.state.kind === "mismatch") {
-    status.className = "status error";
-    status.textContent = t("rootMismatch", `~/${picked.where.configDir}`, picked.state.chosen);
+    showStatus(status, t("rootMismatch", `~/${picked.where.configDir}`, picked.state.chosen), true);
     return;
   }
   const where = placement(picked.agent, "skill", entry.name, indexShared);
   if (where === null) return;
 
   const label = button.textContent ?? "";
-  button.disabled = true;
-  status.textContent = t("tabInstalling");
+  setStage(row, button, picked.state.kind === "unset" ? "permission" : "installing");
+  showStatus(status, picked.state.kind === "unset" ? t("tabRequestingPermission") : t("tabInstalling"));
   let installed = false;
   try {
     const root = await placeHandle(where, true, { create: true });
-    if (root === null) { status.textContent = t("permissionLost"); return; }
+    if (root === null) { showStatus(status, t("permissionLost")); return; }
 
+    setStage(row, button, "installing");
+    showStatus(status, t("tabInstalling"));
     const lead: ToolLead = {
       url: index.url, source: index.source, kind: "skill", name: entry.name, proofs: [],
     };
@@ -442,20 +443,25 @@ async function installOne(entry: SkillEntry, button: HTMLButtonElement): Promise
       fetchFiles: filesFor(index.source, index.subdir, entry),
     };
     if (await willOverwrite(request) && !confirm(t("overwriteConfirm", entry.name))) {
-      status.textContent = "";
+      clearStatus(status);
       return;
     }
     await install({ ...request, overwrite: true });
     installed = true;
-    status.textContent = t("tabInstalled", entry.name, `~/${rootOf(where)}`);
+    setStage(row, button, "done");
+    showStatus(status, t("tabInstalled", entry.name, `~/${rootOf(where)}`));
     button.textContent = t("tabInstalledShort");   // 入ったものは押せないままにする
+    button.disabled = true;
   } catch (error) {
-    status.className = "status error";
-    status.textContent = message(error, where);
+    showStatus(status, message(error, where), true);
+    setStage(row, button, "error");
   } finally {
     // **入ったときだけ**押せないままにする。許可が取れなかった・上書きをやめた・
     // 取得に失敗した行は必ず戻す。押せない行を残さない。
-    if (!installed) { button.textContent = label; button.disabled = false; }
+    if (!installed) {
+      setStage(row, button, "idle");
+      button.textContent = label;
+    }
   }
 }
 
