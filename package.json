@@ -2,7 +2,7 @@
   "name": "agent-tool",
   "displayName": "Agent Tool",
   "description": "%extension.description%",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "yuuki-sakai",
   "license": "MIT",
   "repository": {
