@@ -18,9 +18,11 @@ import { listSkills, SkillEntry } from "../core/tree.js";
 import {
   autoOpenEnabled, forgetAll, loadCollection, setAutoOpenEnabled, setTheme, Theme, theme,
 } from "./store.js";
+import {
+  animateDetection, applyI18n, applyTheme, byId, clearStatus, setStage, showStatus,
+} from "./popupUi.js";
 
 const t = (key: string, ...args: string[]): string => chrome.i18n.getMessage(key, args);
-const byId = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 /** `.claude` → `agentClaude`。設定画面と同じ言葉を使う。 */
 const agentLabel = (configDir: string): string =>
   t(`agent${configDir.slice(1, 2).toUpperCase()}${configDir.slice(2)}`);
@@ -35,9 +37,6 @@ const send = (message: Record<string, unknown>): Promise<unknown> =>
  * 変えていない利用者には何も起きない。
  */
 const themePick = byId<HTMLFieldSetElement>("theme");
-const applyTheme = (value: string): void => {
-  document.documentElement.style.colorScheme = value;
-};
 
 themePick.addEventListener("change", event => {
   const { value } = event.target as HTMLInputElement;
@@ -50,9 +49,7 @@ void theme().then(value => {
   for (const input of themePick.querySelectorAll("input")) input.checked = input.value === value;
 });
 
-for (const node of document.querySelectorAll<HTMLElement>("[data-i18n]")) {
-  node.textContent = t(node.dataset.i18n ?? "");
-}
+applyI18n(t);
 byId<HTMLInputElement>("url").placeholder = t("tabUrlPlaceholder");
 
 const sitesDialog = byId<HTMLDialogElement>("supported-sites");
@@ -134,10 +131,14 @@ function showTarget(): void {
   const picked = options.find(option => option.agent === chosen);
   const path = byId("target-path");
   const hint = byId("picker-hint");
+  const permission = byId("permission-note");
   path.textContent = picked === undefined ? "" : `~/${rootOf(picked.where)}`;
   path.className = "repo";
   hint.className = "hint";
   hint.textContent = "";
+  permission.textContent = picked === undefined ? "" : t(
+    "tabPermissionNote", `~/${picked.where.configDir}`, `~/${rootOf(picked.where)}`,
+  );
   if (picked === undefined || picked.state.kind === "ok") return;
 
   if (picked.state.kind === "unset") {
@@ -200,6 +201,7 @@ async function resolve(raw: string, vetted: boolean): Promise<ToolLead | null> {
 function setMode(detected: boolean): void {
   document.body.classList.toggle("detected", detected);
   byId("found").hidden = !detected;
+  if (detected && !byId("found").hidden) animateDetection(byId("found"));
 }
 
 async function showLead(raw: string, vetted = false): Promise<void> {
@@ -217,8 +219,7 @@ async function showLead(raw: string, vetted = false): Promise<void> {
   current = found;
   // 対応外の URL でこそ出す。検知できたときは `#url-section` ごと隠れる。
   byId("url-error").hidden = found !== null || raw === "";
-  byId("status").textContent = "";
-  byId("status").className = "status";
+  clearStatus(byId("status"));
   byId("picker-hint").textContent = "";
   index = null;
   byId("index").hidden = true;
@@ -229,6 +230,7 @@ async function showLead(raw: string, vetted = false): Promise<void> {
   byId("found-kind").textContent = t(found.kind === "skill" ? "kindSkill" : "kindSubagent");
   byId("found-name").textContent = found.name;
   byId("found-repo").textContent = found.source.repo;
+  byId("security-source").textContent = t("tabSecuritySource", found.source.repo);
   byId("destination").hidden = true;             // 導入を押してから出す
 }
 
@@ -276,29 +278,29 @@ byId<HTMLButtonElement>("install").addEventListener("click", async () => {
 
   const picked = options.find(option => option.agent === chosen);
   if (picked === undefined) {
-    status.className = "status error";
-    status.textContent = t("tabPickTarget");
+    showStatus(status, t("tabPickTarget"), true);
     return;
   }
   const { agent, where } = picked;
   // 別のフォルダが設定されたままなら入れない。意図しない場所へ書かない。
   if (picked.state.kind === "mismatch") {
-    status.className = "status error";
-    status.textContent = t("rootMismatch", `~/${where.configDir}`, picked.state.chosen);
+    showStatus(status, t("rootMismatch", `~/${where.configDir}`, picked.state.chosen), true);
     return;
   }
 
   const button = byId<HTMLButtonElement>("install");
-  button.disabled = true;
-  status.className = "status";
-  status.textContent = t("tabInstalling");
+  const card = byId("found-card");
+  setStage(card, button, picked.state.kind === "unset" ? "permission" : "installing");
+  showStatus(status, picked.state.kind === "unset" ? t("tabRequestingPermission") : t("tabInstalling"));
   try {
     const root = await placeHandle(where, true, { create: true });
-    if (root === null) { status.textContent = t("permissionLost"); return; }
+    if (root === null) { showStatus(status, t("permissionLost")); return; }
+    setStage(card, button, "installing");
+    showStatus(status, t("tabInstalling"));
 
     const request = { lead: found, agent, placement: where, root };
     if (await willOverwrite(request) && !confirm(t("overwriteConfirm", found.name))) {
-      status.textContent = "";
+      clearStatus(status);
       return;
     }
     await install({ ...request, overwrite: true });
@@ -313,10 +315,10 @@ byId<HTMLButtonElement>("install").addEventListener("click", async () => {
       if (!done.contains(document.activeElement)) done.hidden = true;
     }, 6000);
   } catch (error) {
-    status.className = "status error";
-    status.textContent = message(error, where);
+    showStatus(status, message(error, where), true);
+    setStage(card, button, "error");
   } finally {
-    button.disabled = false;
+    setStage(card, button, "idle");
   }
 });
 
