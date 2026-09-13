@@ -16,3 +16,9 @@ export const PAGE_LIMIT = 2 * 1024 * 1024;
  * 実測でスキル集のアーカイブは 0.5〜4 MB なので、ここだけ低く抑える。
  */
 export const CATALOG_EXTRACT_LIMIT = 64 * 1024 * 1024;
+
+/**
+ * ブラウザの上書き rollback は既存ツリーをメモリに退避するため、展開上限より低く抑える。
+ * 新旧ツリーを同時に保持したときの popup のメモリ急増を防ぐ。
+ */
+export const BROWSER_ROLLBACK_LIMIT = 64 * 1024 * 1024;
