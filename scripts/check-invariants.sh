@@ -71,8 +71,14 @@ const fs = require("node:fs");
 const read = path => JSON.parse(fs.readFileSync(path, "utf8"));
 const pairs = [
   ["l10n/bundle.l10n.json", "l10n/bundle.l10n.ja.json"],
+  ["package.nls.json", "package.nls.ja.json"],
   ["browser/_locales/en/messages.json", "browser/_locales/ja/messages.json"],
 ];
+// package.json の %key% は package.nls.json からしか解決されない。l10n/ は実行時の別経路。
+const nls = JSON.parse(fs.readFileSync("package.nls.json", "utf8"));
+for (const key of new Set(fs.readFileSync("package.json", "utf8").match(/%[a-zA-Z0-9._]+%/g) ?? [])) {
+  if (!(key.slice(1, -1) in nls)) console.log(`package.nls.json: ${key} がありません`);
+}
 for (const [en, ja] of pairs) {
   if (!fs.existsSync(en) || !fs.existsSync(ja)) continue;
   const a = Object.keys(read(en)).sort(), b = Object.keys(read(ja)).sort();
