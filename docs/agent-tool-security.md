@@ -148,10 +148,11 @@ VS Code の `workspace.isTrusted` が `false` の場合:
 
 `vscode.env.remoteName` が非 null（SSH / Dev Container / Codespaces）の場合:
 
-- **すべての操作を禁止**（読み取り含む）
-- CLI を起動しない（ローカル Mac のファイルに到達できないため）
-- UI: 全 Tree View を無効化してバナー表示（[UI 設計 8.1](agent-tool-ui-design.md#81-remote-環境) 参照）
-- CLI から `REMOTE_ENV` エラーが返った場合も同様に扱う
+- **一覧表示は許可する**。既知の走査対象を読み取り専用で表示する
+- **書き込み操作はすべて拒否する**。追加・削除・有効化・更新適用などはローカルウィンドウでのみ行う
+- `inventory` には `writable: false` を渡し、台帳の取り込みや entry の除去など走査中の副作用も止める
+- UI: Remote の一覧は read-only バナーを表示し、変更操作は実行時にも拒否する
+- この方針は [UI 設計 8.1](agent-tool-ui-design.md#81-remote-環境)、`product-requirements.md`、`CLAUDE.md` の「Remote では書き込みを行わない」と揃える
 
 ---
 
