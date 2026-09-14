@@ -170,11 +170,32 @@ export function dashboardHtml(webview: vscode.Webview): string {
   function hideDetail() { selected=''; }
   function toggleDetail(x) { selected = selected===keyOf(x) ? '' : keyOf(x); render(); }
   function detailHtml(x) { const usage=esc({skill:T.useSkill,subagent:T.useSubagent,rule:T.useRule,mcp:T.useMcp,plugin:T.usePlugin}[x.kind]||''); return '<div class="detail"><div class="detail-label">'+esc(T.description)+'</div><p>'+esc(x.summary||T.noDescription)+'</p><div class="detail-label">'+esc(T.howToUse)+'</div><p>'+usage+'</p>'+(x.sourcePath?'<div class="detail-label">'+esc(T.location)+'</div><p class="detail-path">'+esc(x.sourcePath)+'</p>':'')+(x.repoUrl?'<div class="detail-label">'+esc(T.source)+'</div><p class="detail-path">'+esc(x.repoUrl)+'</p>':'')+(x.floating?'<p class="state update">'+esc(T.floatingWhy.replace('{0}',x.floating))+'</p>':'')+'</div>'; }
-  function showClipboard(url) { const box=document.querySelector('#clip'); box.innerHTML='<button class="icon" id="clip-close" title="'+esc(T.close)+'">×</button><h2>'+esc(T.clipboard)+'</h2><p class="detail-path">'+esc(url)+'</p><button id="clip-use">'+esc(T.analyzeIt)+'</button>'; box.classList.remove('hidden');
-    document.querySelector('#clip-close').onclick=()=>box.classList.add('hidden');
-    document.querySelector('#clip-use').onclick=()=>{ box.classList.add('hidden'); document.querySelector('#tool-url').value=url; vscode.postMessage({type:'analyzeTool',url}); }; }
+  const element = (tag, className, text) => { const node=document.createElement(tag); if(className) node.className=className; if(text!==undefined) node.textContent=String(text); return node; };
+  function showClipboard(url) {
+    const box=document.querySelector('#clip'); box.replaceChildren();
+    const close=element('button','icon','×'); close.id='clip-close'; close.title=T.close; box.append(close);
+    box.append(element('h2','',T.clipboard), element('p','detail-path',url));
+    const use=element('button','',T.analyzeIt); use.id='clip-use'; box.append(use); box.classList.remove('hidden');
+    close.onclick=()=>box.classList.add('hidden');
+    use.onclick=()=>{ box.classList.add('hidden'); document.querySelector('#tool-url').value=url; vscode.postMessage({type:'analyzeTool',url}); };
+  }
   function hidePreview() { lastPreview=null; document.querySelector('#preview').classList.add('hidden'); }
-  function showPreview(result) { lastPreview=result; const panel=document.querySelector('#preview'); const rows=result.candidates||[]; const body=result.loading?'<div class="loading"><span class="spinner"></span>'+esc(T.analyzing)+'</div>':rows.length?'<h2>'+esc(T.detected)+'</h2>'+rows.map((x,i)=>'<p><strong>'+esc(x.installSelector||x.name)+'</strong> · '+esc(kinds[x.kind]||x.kind)+'<br>'+esc(x.description||T.noDescription)+'<br><button class="install" data-index="'+i+'">'+esc(T.install)+'</button></p>').join(''):'<h2>'+esc(T.notFound)+'</h2><p>'+esc(result.error||T.notFoundBody)+'</p>'; panel.innerHTML='<button class="icon" id="close-preview" title="'+esc(T.close)+'">×</button>'+body; panel.classList.remove('hidden'); document.querySelector('#close-preview').onclick=hidePreview; panel.querySelectorAll('.install').forEach(b=>b.onclick=()=>{b.disabled=true; b.textContent=T.installing; const candidate=rows[Number(b.dataset.index)]; vscode.postMessage({type:'installTool',url:result.url,kind:candidate.kind,name:candidate.name,selector:candidate.installSelector});}); }
+  function showPreview(result) {
+    lastPreview=result; const panel=document.querySelector('#preview'); const rows=result.candidates||[]; panel.replaceChildren();
+    const close=element('button','icon','×'); close.id='close-preview'; close.title=T.close; close.onclick=hidePreview; panel.append(close);
+    if(result.loading) {
+      const loading=element('div','loading'); loading.append(element('span','spinner'), document.createTextNode(T.analyzing)); panel.append(loading);
+    } else if(rows.length) {
+      panel.append(element('h2','',T.detected));
+      rows.forEach((x,i)=>{
+        const row=element('p'); const strong=element('strong','',x.installSelector||x.name); row.append(strong, document.createTextNode(' · '+(kinds[x.kind]||x.kind)), document.createElement('br'), document.createTextNode(x.description||T.noDescription), document.createElement('br'));
+        const install=element('button','install',T.install); install.dataset.index=String(i); install.onclick=()=>{ install.disabled=true; install.textContent=T.installing; const candidate=rows[i]; vscode.postMessage({type:'installTool',url:result.url,kind:candidate.kind,name:candidate.name,selector:candidate.installSelector}); }; row.append(install); panel.append(row);
+      });
+    } else {
+      panel.append(element('h2','',T.notFound), element('p','',result.error||T.notFoundBody));
+    }
+    panel.classList.remove('hidden');
+  }
   document.querySelector('#refresh').onclick=()=>vscode.postMessage({type:'refresh'}); document.querySelector('#check-updates').onclick=()=>vscode.postMessage({type:'checkUpdates'}); document.querySelector('#add-form').onsubmit=e=>{e.preventDefault(); vscode.postMessage({type:'analyzeTool',url:document.querySelector('#tool-url').value});}; window.addEventListener('message',e=>{if(e.data.type==='inventory'){loaded=true; items=e.data.items; issues=e.data.issues||[]; loadError=e.data.error||''; if(e.data.projectName) projectName=e.data.projectName; projects=e.data.projects||[]; environment=e.data.environment||environment; readOnly=e.data.readOnly||''; if(otherPath&&!projects.includes(otherPath)){otherPath=''; otherItems=[]; otherError=''; otherIssues=[];} render();}
  if(e.data.type==='projectInventory'&&e.data.path===otherPath){otherLoading=false; otherItems=e.data.items||[]; otherIssues=e.data.issues||[]; otherError=e.data.error||''; renderOthers();} if(e.data.type==='clipboard') showClipboard(e.data.url); if(e.data.type==='installDone'){ if(e.data.ok) hidePreview(); else if(lastPreview) showPreview(lastPreview); } if(e.data.type==='analysisStart') showPreview(e.data); if(e.data.type==='preview') showPreview(e.data);}); render();
   </script></body></html>`;
