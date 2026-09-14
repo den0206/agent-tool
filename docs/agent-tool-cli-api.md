@@ -55,7 +55,7 @@ export class AgentToolError extends Error {
 // ide/agentTool.ts
 
 export type AgentId  = 'claude' | 'cursor' | 'codex' | 'gemini';
-export type KindId   = 'skill' | 'subagent' | 'mcp' | 'plugin';
+export type KindId   = 'skill' | 'subagent' | 'rule' | 'mcp' | 'plugin';
 export type ScopeId  = 'user' | 'project';
 
 export type Selector = {
@@ -227,6 +227,8 @@ export function add(params: {
   projectPath?: string;
 }): Promise<void>;
 ```
+
+Rule は URL 導入の対象外（D-20）。`remove` と表示は Rule も受けるが、`add` は受けない。
 
 - `scope === 'project'` の場合は `projectPath` が必須
 - `Fetcher` → `Installer` → WriteGuard のパスを通る
