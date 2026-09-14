@@ -8,7 +8,7 @@ const { scanRuleRoot, scanSkillRoot, scanSubagentRoot, isLoadable } = require(".
 const { stripComments } = require("../out/ide/mcpScanner.js");
 const { parseAll, redact, summary, floatingPackage } = require("../out/ide/mcpServer.js");
 const { projectSkillRoots, knownProjects } = require("../out/ide/projectScan.js");
-const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
+const { fakeEnv, link, makeDir, writeFileIn } = require("./helpers.js");
 
 const skill = (root, name, body) => writeFileIn(join(root, name, "SKILL.md"), body);
 
@@ -125,6 +125,17 @@ test("Cursor Rule は .mdc を対象にする", () => {
   writeFileIn(join(root, "ignored.md"), "---\ndescription: ignored\n---\n");
   const found = scanRuleRoot(root, ".cursor/rules").map(r => r.name);
   assert.deepEqual(found, ["style"]);
+});
+
+/** 再帰は走査ホワイトリストの中だけ。リンクされたディレクトリには降りない（不変条件3）。 */
+test("Rule の走査はリンクされたディレクトリへ降りない", () => {
+  const env = fakeEnv();
+  const root = makeDir(join(env.home, ".claude", "rules"));
+  writeFileIn(join(root, "testing.md"), "---\ndescription: 直下\n---\n");
+  const outside = makeDir(join(env.home, "Documents", "private"));
+  writeFileIn(join(outside, "secret.md"), "---\ndescription: 走査外\n---\n");
+  link(outside, join(root, "linked"));
+  assert.deepEqual(scanRuleRoot(root, ".claude/rules").map(r => r.name), ["testing"]);
 });
 
 test("Rule も frontmatter が無いと missingFrontmatter", () => {
