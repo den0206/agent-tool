@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- The browser extension now keeps detected candidates and their badge when automatic popup opening is off, so opening the toolbar action still shows the current candidate.
 - Tools installed by the browser extension can now be removed, disabled, re-enabled, and updated from the Dashboard. They were listed as managed, but every one of those actions looked for the files in the IDE extension's own store and reported that the tool was not found; applying an update wrote the new version to that store and left a second copy behind. The registry now records where the files actually are.
 - Pinning a tool is no longer silently cleared when the browser extension installs the same tool again.
 - Skills, subagents, and plugins can be installed from repositories whose default branch is not `main`. The download and the update check both asked for `main` by name, so those repositories returned "not found"; they now ask for the default branch itself.

@@ -409,7 +409,7 @@ Claude の削除には一覧から取得した `scope` をそのまま渡す。M
 |---|---|
 | `core/` | OS にもブラウザにも依存しない判定と取得。IDE 拡張とブラウザ拡張が共有する |
 | `ide/` | VS Code API と `node:fs` を触るモジュール。実装の入口は `ide/agentTool.ts` |
-| `browser/` | MV3 の manifest、content script、popup window、File System Access API の呼び出し |
+| `browser/` | MV3 の manifest、content script、popup、File System Access API の呼び出し |
 | `test/` | 上記 3 つのテスト。ルートに集約する |
 
 `core/` に置くのは次の 2 種類とする。

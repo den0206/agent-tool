@@ -62,7 +62,7 @@ File System Access API を使う。利用者がディレクトリを選んで許
 Chromium はホームディレクトリ直下の選択を拒否するが、その配下は選べる。symlink は作れないため、
 D-3 の共有ストアとリンクの方式はブラウザ側では再現しない（D-13）。
 
-初回起動時はオンボーディングを popup window で開き、利用者が使う Agent ごとに導入先ルートを
+初回起動時はオンボーディングを popup で開き、利用者が使う Agent ごとに導入先ルートを
 選ぶ。ピッカーはこの明示操作でだけ開く。以後は保存済みハンドルに `queryPermission()` を行い、
 `granted` なら Agent を選ぶだけで導入する。権限が `prompt` のときは導入ボタンの操作で再許可を
 求め、`denied` またはハンドル未設定のときだけオンボーディングの選択画面へ戻す。
@@ -115,7 +115,7 @@ entry を巻き込んで消さないための条件である。
 raw.githubusercontent.com / codeload.github.com に限る。content script は候補を service worker へ渡す
 だけで、ページへ UI を挿入しない。
 
-検知時は `raw.githubusercontent.com` へ実在確認し、成功したら service worker が popup window を
+検知時は `raw.githubusercontent.com` へ実在確認し、成功したら service worker が action popup を
 開く。カタログ候補だけは実在確認では足りず（実体パスを約束しない）アーカイブを 1 本落として
 展開できるかを見るが、これは**他の判定を全部通ったものにだけ**行う。導入済みのものを
 見るたびに数 MB 落とさないよう、結果は URL 単位で service worker のメモリに持つ。覚えるのは
@@ -125,7 +125,7 @@ raw.githubusercontent.com / codeload.github.com に限る。content script は�
 覚えると解除条件が「service worker が停止するまで」という拡張の都合になり、利用者からは
 いつ戻るのか決まらない。同じページをもう一度開けば、もう一度出す。導入済みかどうかは
 収集一覧（IndexedDB）が持っているので、service worker が別に覚える必要も無い。自動表示はオンボーディングで有効にする既定 ON の設定とし、同じタブ・同じ候補には
-セッション中 1 回だけ開く。すでに popup window があれば新規作成せず、その候補を表示して前面へ出す。
+セッション中 1 回だけ開く。開けない環境ではバッジだけを出し、toolbar action から候補を開けるようにする。
 閲覧中の URL は外部へ送らない。
 URL だけで取得元が決まらない agentsdirectory.dev は、開いているページの JSON-LD を DOM から
 読む。入力フォームに貼られたときだけ取得しに行く。

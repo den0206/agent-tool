@@ -110,23 +110,23 @@ const clear = async (tabId: number): Promise<void> => {
   await chrome.action.setBadgeText({ text: "", tabId }).catch(() => { /* タブが閉じた */ });
 };
 
-/** バッジを出して popup を開く。開けない環境ではバッジだけにする。 */
-async function announce(tabId: number, text: string): Promise<void> {
+/** バッジを出し、設定されているときだけ popup を開く。 */
+async function announce(tabId: number, text: string, open: boolean): Promise<void> {
   await chrome.action.setBadgeText({ text, tabId }).catch(() => { /* タブが閉じた */ });
   // popup の `--accent` と同じ紫。バッジはアイコンの上に出るので、そこで色がずれない。
   await chrome.action.setBadgeBackgroundColor({ color: "#5b4bd6", tabId }).catch(() => { /* 同上 */ });
-  // 設定が ON なら popup を開く。`openPopup` は Chrome 127 以降で、それ未満と
+  // `openPopup` は Chrome 127 以降で、それ未満と
   // 操作の文脈によっては開けない。そのときはバッジだけにする（manifest の
   // `minimum_chrome_version` は `light-dark()` が要る 123 に置く。これは必須ではない）。
   // **別ウィンドウは作らない** — 見ていたページが隠れる。
-  await chrome.action.openPopup().catch(() => { /* バッジで足りる */ });
+  if (open) await chrome.action.openPopup().catch(() => { /* バッジで足りる */ });
 }
 
 async function visit(url: string, tabId: number | undefined, jsonLd?: string): Promise<void> {
   if (tabId === undefined) return;
   // 遷移したら前のページの検知は無かったことにする。
   if (candidates.get(tabId) !== url) await clear(tabId);
-  if (!await autoOpenEnabled()) return;
+  const autoOpen = await autoOpenEnabled();
 
   // 展開確認はアーカイブを 1 本丸ごと落とす（実測で数 MB）。ネットワークに触れない
   // 判定を全部先に通し、**出すと決まったものだけ**確かめる。導入済みのものを
@@ -137,7 +137,7 @@ async function visit(url: string, tabId: number | undefined, jsonLd?: string): P
     const entries = await enumerate(at);
     if (entries.length === 0) return;
     shown.set(tabId, { ...at, entries });
-    await announce(tabId, String(entries.length));
+    await announce(tabId, String(entries.length), autoOpen);
     return;
   }
 
@@ -147,7 +147,7 @@ async function visit(url: string, tabId: number | undefined, jsonLd?: string): P
   if (!await extractable(found)) return;
 
   candidates.set(tabId, found.url);
-  await announce(tabId, "1");
+  await announce(tabId, "1", autoOpen);
 }
 
 /**
