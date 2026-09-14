@@ -205,7 +205,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   command("agent-tool.previewUpdate", async (node: ToolNode) => {
-    if (!node?.tool || !node.agent) return;
+    if (!node?.tool || !node.agent || !await canWrite()) return;
     const selector = selectorOf(node);
     const previewed = await withProgress(vscode.l10n.t("Agent Tool: Preparing diff"),
       () => agentTool.updatePreview({ storagePath, selector }));
@@ -263,6 +263,7 @@ export function activate(context: vscode.ExtensionContext): void {
   });
 
   command("agent-tool.openToolActions", async (item: DashboardItem) => {
+    if (!await canWrite()) return;
     const agent = item.agents.length === 1
       ? item.agents[0]
       : await vscode.window.showQuickPick(item.agents, { placeHolder: vscode.l10n.t("Choose an agent") });

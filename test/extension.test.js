@@ -121,6 +121,34 @@ test("Remote 環境では書き込みを拒否する", async () => {
   assert.match(state.warnings[0], /local window/);
 });
 
+test("未信頼・Remote 環境では更新プレビューも拒否する", async () => {
+  for (const [overrides, expected] of [
+    [{ workspace: { isTrusted: false, workspaceFolders: undefined } }, /trust this workspace/],
+    [{ env: { remoteName: "ssh-remote", clipboard: { readText: async () => "" } } }, /local window/],
+  ]) {
+    const { stub, state } = stubVscode(overrides);
+    let previews = 0;
+    activateWith(stub, fakeEnv().appSupport, { previewUpdate: async () => { previews += 1; } });
+    await state.commands.get("agent-tool.previewUpdate")({
+      tool: { name: "x", kind: "skill", scope: "user", agents: ["claude"] },
+      scope: "user", agent: "claude",
+    });
+    assert.equal(previews, 0);
+    assert.match(state.warnings[0], expected);
+  }
+});
+
+test("未信頼ワークスペースではツール操作を表示しない", async () => {
+  const { stub, state } = stubVscode({ workspace: { isTrusted: false, workspaceFolders: undefined } });
+  activateWith(stub, fakeEnv().appSupport);
+  await state.commands.get("agent-tool.openToolActions")({
+    name: "x", kind: "skill", scope: "user", agents: ["claude"], origin: "managed",
+    enabled: true, hasUpdate: true,
+  });
+  assert.deepEqual(state.picks, []);
+  assert.match(state.warnings[0], /trust this workspace/);
+});
+
 /**
  * Webview のスクリプトは tsc も node:test も構文を見ない。
  * 文言差し込みで壊れても気付けないので、ここで構文と文言表だけ確かめる。
