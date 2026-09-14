@@ -84,6 +84,7 @@
   "The tool list could not be read; it may be incomplete.": "The tool list could not be read; it may be incomplete.",
   "Name it in chat, or ask for something it covers.": "Name it in chat, or ask for something it covers.",
   "Delegate to it from the agent's subagent feature.": "Delegate to it from the agent's subagent feature.",
+  "Loaded by the agent according to its frontmatter.": "Loaded by the agent according to its frontmatter.",
   "Available as an MCP tool in the matching agent.": "Available as an MCP tool in the matching agent.",
   "Use it from the matching agent's plugin feature.": "Use it from the matching agent's plugin feature.",
   "Show only tools with updates": "Show only tools with updates",

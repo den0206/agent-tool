@@ -84,6 +84,39 @@ test("プロジェクトのスキルを project スコープで返す", async ()
   assert.equal(find(items, "apps/web:deploy").scope, "project");
 });
 
+/**
+ * Claude Rule と Cursor Rule の両方が Dashboard に出る。Rule は URL からの導入経路を
+ * 持たないので `origin: "user"` になり、pin と更新は出さない（D-20）。
+ */
+test("Rule は Claude と Cursor の両方を user スコープで拾う", async () => {
+  const env = fakeEnv();
+  writeFileIn(join(env.home, ".claude", "rules", "testing.md"),
+    "---\ndescription: run tests\n---\n");
+  writeFileIn(join(env.home, ".cursor", "rules", "style.mdc"),
+    "---\ndescription: Style guide\n---\n");
+  const { items } = await inventory({ env, projectPath: null });
+  const testing = find(items, "testing");
+  const style = find(items, "style");
+  assert.equal(testing.kind, "rule");
+  assert.equal(testing.scope, "user");
+  assert.equal(testing.origin, "user");
+  assert.deepEqual(testing.agents, ["claude"]);
+  assert.equal(style.kind, "rule");
+  assert.deepEqual(style.agents, ["cursor"]);
+});
+
+test("プロジェクトの Rule も両エージェント分を project スコープで返す", async () => {
+  const env = fakeEnv();
+  const project = makeDir(join(env.home, "proj"));
+  writeFileIn(join(project, ".claude", "rules", "api.md"),
+    "---\ndescription: API rules\n---\n");
+  writeFileIn(join(project, ".cursor", "rules", "ui.mdc"),
+    "---\ndescription: UI rules\n---\n");
+  const { items } = await inventory({ env, projectPath: project });
+  assert.equal(find(items, "api").scope, "project");
+  assert.equal(find(items, "ui").scope, "project");
+});
+
 test("MCP サーバーを設定ファイルから読む", async () => {
   const env = fakeEnv();
   writeFileIn(join(env.home, ".cursor/mcp.json"),

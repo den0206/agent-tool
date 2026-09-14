@@ -47,6 +47,15 @@ function walk(dir: string, prefix: string, depth: number,
 /** Subagent はプロジェクト直下だけ。走査もそこしか見ていない。 */
 export const projectSubagentRoot = (project: string): string => join(project, ".claude", "agents");
 
+/**
+ * Rule はプロジェクト直下だけを見る。Claude と Cursor で置き場が違うので両方を返す。
+ * 呼び出し側は 2 つのルートをそれぞれ走査し、ラベル（相対パス）で区別する（D-20）。
+ */
+export const projectRuleRoots = (project: string): { path: string; label: string }[] => [
+  { path: join(project, ".claude", "rules"), label: ".claude/rules" },
+  { path: join(project, ".cursor", "rules"), label: ".cursor/rules" },
+];
+
 /** 中身のあるディレクトリか。隠しファイルだけの置き場は「無い」と扱う。 */
 const hasEntries = (path: string): boolean => {
   try {
@@ -67,7 +76,8 @@ const hasTools = (project: string, localMcp: boolean): boolean =>
   localMcp
   || existsSync(join(project, ".mcp.json"))
   || hasEntries(join(project, ".claude", "skills"))
-  || hasEntries(projectSubagentRoot(project));
+  || hasEntries(projectSubagentRoot(project))
+  || projectRuleRoots(project).some(({ path }) => hasEntries(path));
 
 /**
  * Claude Code が開いたことのあるプロジェクトのうち、ツールを持つものだけ。

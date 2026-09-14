@@ -2,7 +2,7 @@ const { strict: assert } = require("node:assert");
 const { test } = require("node:test");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
-const { AGENT_IDS, skillRoots, subagentRoots, supports } = require("../out/core/agent.js");
+const { AGENT_IDS, ruleRoots, skillRoots, subagentRoots, supports } = require("../out/core/agent.js");
 const { mcpSource } = require("../out/ide/agent.js");
 const { MCP_SOURCES, SOURCES, relativePath, sourcePath } = require("../out/ide/source.js");
 
@@ -57,7 +57,7 @@ test("全 Source がホーム内か拡張の保存領域内に収まる", () => 
 test("Agent が宣言したルートは必ず走査対象に載る", () => {
   const scanned = new Set(SOURCES.map(relativePath).filter(path => path !== null));
   for (const agent of AGENT_IDS) {
-    for (const root of [...skillRoots(agent), ...subagentRoots(agent)]) {
+    for (const root of [...skillRoots(agent), ...subagentRoots(agent), ...ruleRoots(agent)]) {
       assert.ok(scanned.has(root), `${agent} が読む ${root} が SOURCES に無い`);
     }
   }

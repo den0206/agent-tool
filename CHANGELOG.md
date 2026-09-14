@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Rules are now listed in the Dashboard for both user scope (`~/.claude/rules/*.md`, `~/.cursor/rules/*.mdc`) and project scope (`<project>/.claude/rules/*.md`, `<project>/.cursor/rules/*.mdc`). You can delete rules that you or your team placed there; the extension does not add rules from a URL, and enable/disable are not offered because rules load unconditionally or based on their own `paths:` frontmatter. Codex `AGENTS.md` and Gemini `GEMINI.md` are single-file formats and out of scope.
+
 ## [0.2.1] — 2026-09-14
 
 ### Added

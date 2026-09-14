@@ -1,14 +1,15 @@
-import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ScopeId, skillRoots, subagentRoots } from "../core/agent";
+import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ruleRoots, ScopeId, skillRoots, subagentRoots } from "../core/agent";
 import { sourceKey } from "../core/github";
 import { agentStore, disabledAgentStore, disabledStore, Env, Run, skillStore } from "./env";
 import * as mcp from "./mcpScanner";
 import { floatingPackage, MCPScope, MCPServer, summary as mcpSummary } from "./mcpServer";
 import * as plugins from "./pluginScanner";
-import { projectSkillRoots, projectSubagentRoot } from "./projectScan";
+import { projectRuleRoots, projectSkillRoots, projectSubagentRoot } from "./projectScan";
 import { Entry, load, Registry, update } from "./registry";
 import { absorb as absorbLedgers, key as ledgerKey, prune, scan as scanLedgers } from "./ledger";
 import {
-  isLoadable, scanSkillRoot, scanSkills, scanSubagentRoot, scanSubagents, Skill, unreadableRoots,
+  isLoadable, scanRuleRoot, scanRules, scanSkillRoot, scanSkills, scanSubagentRoot,
+  scanSubagents, Skill, unreadableRoots,
 } from "./skillScanner";
 
 export type InventoryItem = {
@@ -114,6 +115,12 @@ function userSubagents(env: Env, registry: Registry): InventoryItem[] {
   return group(found, "subagent", "user", registry, subagentRoots);
 }
 
+function userRules(env: Env, registry: Registry): InventoryItem[] {
+  // Rule には toggle が無い（registry に載らないため）ので、退避先は走査しない。
+  const found = scanRules(env);
+  return group(found, "rule", "user", registry, ruleRoots);
+}
+
 /** プロジェクトのスキルとサブエージェント。ユーザー資産なので origin は user のまま。 */
 function projectItems(project: string, registry: Registry): InventoryItem[] {
   // ルート名はユーザー側と同じ `.claude/skills` にする。どのエージェントが読むかは
@@ -124,9 +131,11 @@ function projectItems(project: string, registry: Registry): InventoryItem[] {
     scanSkillRoot(path, ".claude/skills")
       .map(skill => prefix === "" ? skill : { ...skill, name: `${prefix}:${skill.name}` }));
   const subagents = scanSubagentRoot(projectSubagentRoot(project), ".claude/agents");
+  const rules = projectRuleRoots(project).flatMap(({ path, label }) => scanRuleRoot(path, label));
   return [
     ...group(skills, "skill", "project", registry, skillRoots, project),
     ...group(subagents, "subagent", "project", registry, subagentRoots, project),
+    ...group(rules, "rule", "project", registry, ruleRoots, project),
   ];
 }
 
@@ -183,7 +192,10 @@ export async function inventory(params: {
     }));
 
   const items = [
-    ...(includeUser ? [...userSkills(env, registry), ...userSubagents(env, registry), ...mcpItems] : []),
+    ...(includeUser
+      ? [...userSkills(env, registry), ...userSubagents(env, registry),
+         ...userRules(env, registry), ...mcpItems]
+      : []),
     ...pluginItems, ...projectItemList, ...projectMcp,
   ];
 
@@ -193,13 +205,15 @@ export async function inventory(params: {
   const blocked = writable ? unreadableRoots(env, [
     disabledStore(env), disabledAgentStore(env),
     ...(projectPath === null ? []
-      : [...projectSkillRoots(projectPath).map(root => root.path), projectSubagentRoot(projectPath)]),
+      : [...projectSkillRoots(projectPath).map(root => root.path),
+         projectSubagentRoot(projectPath),
+         ...projectRuleRoots(projectPath).map(root => root.path)]),
   ]) : [];
   // 失敗を握り潰さない。読めなかったから消さなかった、と利用者に見せる。
   for (const root of blocked) issues.push(`${root}: not readable, its entries were kept`);
   if (writable && blocked.length === 0) {
     const seen = new Set(items
-      .filter(item => item.kind === "skill" || item.kind === "subagent")
+      .filter(item => item.kind === "skill" || item.kind === "subagent" || item.kind === "rule")
       .map(item => ledgerKey(item.name, item.kind,
         item.scope === "project" && projectPath !== null ? projectPath : undefined)));
     await update(env, registry => {

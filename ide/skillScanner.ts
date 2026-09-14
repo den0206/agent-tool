@@ -2,7 +2,7 @@ import { accessSync, constants, existsSync, readdirSync, statSync } from "node:f
 import { join } from "node:path";
 import { Env } from "./env";
 import * as frontmatter from "./frontmatter";
-import { relativePath, SKILL_SOURCES, SUBAGENT_SOURCES, sourcePath } from "./source";
+import { relativePath, RULE_SOURCES, SKILL_SOURCES, SUBAGENT_SOURCES, sourcePath } from "./source";
 import { isLink } from "./writeGuard";
 
 /**
@@ -65,7 +65,7 @@ export const isUnreadable = (root: string): boolean => {
 
 /** 走査できたはずなのに読めなかったルート。1 つでもあれば `prune` は行わない。 */
 export const unreadableRoots = (env: Env, extra: readonly string[] = []): string[] => [
-  ...[...SKILL_SOURCES, ...SUBAGENT_SOURCES]
+  ...[...SKILL_SOURCES, ...SUBAGENT_SOURCES, ...RULE_SOURCES]
     .map(source => sourcePath(source, env))
     .filter((root): root is string => root !== null),
   ...extra,
@@ -123,6 +123,37 @@ export function scanSubagentRoot(root: string, label: string): Subagent[] {
       const path = join(root, file);
       // 識別子はファイル名。frontmatter の name とズレると有効化・無効化が実体を見失う。
       const name = file.slice(0, -3);
+      if (isBrokenLink(path)) return [{ name, path, root: label, status: "brokenLink" }];
+      if (!existsSync(path)) return [];
+      const result = frontmatter.read(path);
+      return [{
+        name, path, root: label, status: statusOf(result),
+        description: result.status === "parsed" ? result.matter.description : undefined,
+      }];
+    });
+}
+
+/**
+ * Rule は Claude の `.md` と Cursor の `.mdc` の 2 拡張子。走査は両方を拾う（D-20）。
+ * 識別子（`name`）はファイル名から拡張子を落としたもの。Cursor は `.md` を無視するので、
+ * `.mdc` と `.md` の間で重複することはない。
+ */
+export type Rule = Skill;
+
+export const scanRules = (env: Env): Rule[] =>
+  RULE_SOURCES.flatMap(source => {
+    const root = sourcePath(source, env), label = relativePath(source);
+    return root === null || label === null ? [] : scanRuleRoot(root, label);
+  });
+
+/** ルール専用の走査。Cursor は `.mdc`、Claude は `.md`。ルート名で拡張子を切り替える。 */
+export function scanRuleRoot(root: string, label: string): Rule[] {
+  const ext = label.includes(".cursor/") ? ".mdc" : ".md";
+  return entries(root)
+    .filter(name => name.endsWith(ext) && !name.startsWith("."))
+    .flatMap((file): Rule[] => {
+      const path = join(root, file);
+      const name = file.slice(0, -ext.length);
       if (isBrokenLink(path)) return [{ name, path, root: label, status: "brokenLink" }];
       if (!existsSync(path)) return [];
       const result = frontmatter.read(path);

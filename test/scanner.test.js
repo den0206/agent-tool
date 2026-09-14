@@ -4,7 +4,7 @@ const { join } = require("node:path");
 const { test } = require("node:test");
 const { parse, HEAD_BYTES } = require("../out/core/frontmatter.js");
 const { read } = require("../out/ide/frontmatter.js");
-const { scanSkillRoot, scanSubagentRoot, isLoadable } = require("../out/ide/skillScanner.js");
+const { scanRuleRoot, scanSkillRoot, scanSubagentRoot, isLoadable } = require("../out/ide/skillScanner.js");
 const { stripComments } = require("../out/ide/mcpScanner.js");
 const { parseAll, redact, summary, floatingPackage } = require("../out/ide/mcpServer.js");
 const { projectSkillRoots, knownProjects } = require("../out/ide/projectScan.js");
@@ -102,6 +102,37 @@ test("Subagent の名前はファイル名から取る", () => {
   const [found] = scanSubagentRoot(root, ".claude/agents");
   assert.equal(found.name, "reviewer");
   assert.equal(found.description, "d");
+});
+
+/** Claude Rule は .md、Cursor Rule は .mdc。ルート名で拡張子を切り替える（D-20）。 */
+test("Claude Rule の名前はファイル名から取る", () => {
+  const env = fakeEnv();
+  const root = makeDir(join(env.home, ".claude", "rules"));
+  writeFileIn(join(root, "testing.md"),
+    "---\ndescription: Testing conventions\npaths:\n  - \"src/**/*.ts\"\n---\nrun tests\n");
+  const [found] = scanRuleRoot(root, ".claude/rules");
+  assert.equal(found.name, "testing");
+  assert.equal(found.description, "Testing conventions");
+  assert.equal(isLoadable(found.status), true);
+});
+
+test("Cursor Rule は .mdc を対象にする", () => {
+  const env = fakeEnv();
+  const root = makeDir(join(env.home, ".cursor", "rules"));
+  writeFileIn(join(root, "style.mdc"),
+    "---\ndescription: Style guide\nalwaysApply: true\n---\nUse 2-space indent.\n");
+  // 同じディレクトリの .md は Cursor 側では無視される。
+  writeFileIn(join(root, "ignored.md"), "---\ndescription: ignored\n---\n");
+  const found = scanRuleRoot(root, ".cursor/rules").map(r => r.name);
+  assert.deepEqual(found, ["style"]);
+});
+
+test("Rule も frontmatter が無いと missingFrontmatter", () => {
+  const env = fakeEnv();
+  const root = makeDir(join(env.home, ".claude", "rules"));
+  writeFileIn(join(root, "no-front.md"), "# just a heading\n");
+  const [found] = scanRuleRoot(root, ".claude/rules");
+  assert.equal(found.status, "missingFrontmatter");
 });
 
 // --- MCP ---

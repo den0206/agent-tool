@@ -3,7 +3,7 @@ const { join } = require("node:path");
 const { test } = require("node:test");
 const { claudeSkills, skillStore } = require("../out/ide/env.js");
 const {
-  assertMutable, assertSafeCreation, assertValidName, isValidName,
+  assertMutable, assertSafeCreation, assertUserArtifact, assertValidName, isValidName,
 } = require("../out/ide/writeGuard.js");
 const { empty, upsert } = require("../out/ide/registry.js");
 const { fakeEnv, link, makeDir, writeFileIn } = require("./helpers.js");
@@ -49,6 +49,35 @@ test("自分が張ったリンクは触れる", () => {
   const f = fixture();
   const target = f.managedSkill("mine");
   assertMutable(link(target, join(claudeSkills(f.env), "mine")), f.env, f.registry);
+});
+
+/**
+ * Rule は managed ストアの外にあり、`assertMutable` の対象外（D-20）。
+ * 手で置かれたものは `assertUserArtifact` で走査ホワイトリスト直下だけを許可する。
+ */
+test("Rule は既知ルート直下なら assertUserArtifact で通す", () => {
+  const f = fixture();
+  const claudeRule = join(f.env.home, ".claude", "rules", "testing.md");
+  writeFileIn(claudeRule, "---\ndescription: t\n---\n");
+  assertUserArtifact(claudeRule, "rule", f.env);
+
+  const cursorRule = join(f.env.home, ".cursor", "rules", "style.mdc");
+  writeFileIn(cursorRule, "---\ndescription: s\n---\n");
+  assertUserArtifact(cursorRule, "rule", f.env);
+});
+
+test("Rule 相当の拡張子でも既知ルートの外は拒否する", () => {
+  const f = fixture();
+  const outside = join(f.env.home, "elsewhere", "testing.md");
+  writeFileIn(outside, "---\ndescription: t\n---\n");
+  assert.throws(() => assertUserArtifact(outside, "rule", f.env), code("WRITE_GUARD_DENIED"));
+});
+
+test("Rule のファイル拡張子は .md か .mdc に限る", () => {
+  const f = fixture();
+  const wrong = join(f.env.home, ".claude", "rules", "testing.txt");
+  writeFileIn(wrong, "---\ndescription: t\n---\n");
+  assert.throws(() => assertUserArtifact(wrong, "rule", f.env), code("WRITE_GUARD_DENIED"));
 });
 
 /** 他ツールが張ったリンクには触らない。 */

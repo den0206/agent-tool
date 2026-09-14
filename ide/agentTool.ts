@@ -249,7 +249,7 @@ const placeOf = (selector: Selector): Place =>
  * 修飾名はサブディレクトリのもので、`.claude/skills` 直下ではないので扱わない。
  */
 export const isManageable = (selector: Selector): boolean =>
-  (selector.kind === "skill" || selector.kind === "subagent")
+  (selector.kind === "skill" || selector.kind === "subagent" || selector.kind === "rule")
   && !selector.name.includes(":")
   && (selector.scope === "user" || selector.projectPath !== undefined);
 
@@ -259,9 +259,13 @@ const projectOf = (selector: Selector): string | undefined => {
   return place.scope === "project" ? place.path : undefined;
 };
 
-/** 有効化・無効化は退避先がある user だけ。プロジェクト内に隠し退避先を作らない。 */
+/**
+ * 有効化・無効化は退避先がある user だけ。プロジェクト内に隠し退避先を作らない。
+ * Rule は URL からの導入経路を持たず registry に載らないため、`assertMutable` が
+ * 通らずに toggle が失敗する。表示・削除だけを提供して toggle は出さない（D-20）。
+ */
 export const isTogglable = (selector: Selector): boolean =>
-  isManageable(selector) && selector.scope === "user";
+  isManageable(selector) && selector.scope === "user" && selector.kind !== "rule";
 
 function assertManageable(selector: Selector): void {
   if (isManageable(selector)) return;
