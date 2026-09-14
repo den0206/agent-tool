@@ -277,7 +277,7 @@ export function identify(base: string): Candidate[] {
     }];
   }
 
-  // frontmatter を持つ `.md` は Subagent または Rule。取得元のパスで振り分ける。
+  // frontmatter を持つ `.md` は Subagent。Rule は URL から導入しない（D-20）。
   const markdown = (() => {
     try {
       return readdirSync(base).filter(name => name.endsWith(".md") && !name.startsWith(".")).sort();

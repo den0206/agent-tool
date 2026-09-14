@@ -25,12 +25,10 @@ export const SUBAGENT_SOURCES: Source[] = [
 ];
 
 /**
- * Rule の走査対象。Claude が直読みする `.claude/rules` と、無効化の退避先だけ。
- * 共有ストアが無いので Skill のような複数ルートは列挙しない（D-20）。
+ * Rule の走査対象。各エージェントが直読みする `.claude/rules` と `.cursor/rules` だけ。
+ * 共有ストアも退避先も無い（registry に載らず、無効化を提供しないため）（D-20）。
  */
-export const RULE_SOURCES: Source[] = [
-  ...dirs(flat(ruleRoots)),
-];
+export const RULE_SOURCES: Source[] = dirs(flat(ruleRoots));
 
 export const MCP_SOURCES: Source[] = AGENT_IDS.map(mcpSource).filter((s): s is Source => s !== null);
 

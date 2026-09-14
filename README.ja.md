@@ -11,7 +11,7 @@
 [![Open VSX](https://img.shields.io/open-vsx/v/yuuki-sakai/agent-tool)](https://open-vsx.org/extension/yuuki-sakai/agent-tool)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Agent Toolは、同じ検知・導入ロジックを共有する2つの拡張からなります。AIコーディングエージェントのSkill、Subagent、MCPサーバー、Pluginを横断管理する**[Cursor / VS Code拡張](#ide拡張)**と、ブラウザで見つけたSkillとSubagentをページを離れずに導入する、Chrome / Edge / Brave向けの**[ブラウザ拡張](#ブラウザ拡張)**です。
+Agent Toolは、同じ検知・導入ロジックを共有する2つの拡張からなります。AIコーディングエージェントのSkill、Subagent、Rule、MCPサーバー、Pluginを横断管理する**[Cursor / VS Code拡張](#ide拡張)**と、ブラウザで見つけたSkillとSubagentをページを離れずに導入する、Chrome / Edge / Brave向けの**[ブラウザ拡張](#ブラウザ拡張)**です。
 
 ### IDE拡張(Cursor)
 
@@ -39,7 +39,7 @@ Agent Toolは、同じ検知・導入ロジックを共有する2つの拡張か
 
 ## 主な機能
 
-- Skill、Subagent、MCPサーバー、Pluginを1つのダッシュボードで確認
+- Skill、Subagent、Rule、MCPサーバー、Pluginを1つのダッシュボードで確認
 - GitHubと対応カタログからSkill / Subagentを導入
 - GitHubサブディレクトリ内のPluginを含むClaude Code / Codex Pluginの導入
 - 説明、場所、スコープ、有効状態、更新の確認
@@ -85,7 +85,7 @@ code --install-extension agent-tool-X.Y.Z.vsix
 1. CursorまたはVS CodeでAgent Toolを開き、Activity Barから起動します。
 2. ダッシュボードのユーザー全体・プロジェクト欄を確認します。
 3. 追加操作から、[対応サイト](#対応サイト)のGitHubまたはカタログURLを貼り付けます。
-4. 検出されたSkill、Subagent、MCP、Pluginを選び、操作を確認します。
+4. 検出されたSkill、Subagent、Rule、MCP、Pluginを選び、操作を確認します。
 5. 再走査やリモート更新の確認には更新操作を使います。
 
 Pluginの導入はClaude CodeまたはCodexへ委譲します。Claude CodeではMarketplaceを登録してからPluginを導入します。

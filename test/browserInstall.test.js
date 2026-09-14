@@ -117,7 +117,6 @@ test("Subagent は .md 1 つとして書く", async () => {
   assert.equal(store.tree()["reviewer.md"], "---\nname: reviewer\n---\n");
 });
 
-
 test("同名があって上書きを許していなければ、何も触らない", async () => {
   const store = fakeRoot().seed("pdf/SKILL.md", "旧版");
   assert.equal(await willOverwrite(request(store.handle)), true);
