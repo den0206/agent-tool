@@ -187,6 +187,25 @@ test("Rule は removeUnmanaged で削除できる（.md と .mdc）", () => {
   assert.equal(existsSync(cursorPath), false);
 });
 
+/**
+ * 同名でも Claude と Cursor の Rule は無関係な別ファイル。Skill / Subagent と同じ
+ * 「全ルート一括削除」に乗せると、片方を消したつもりでもう一方まで消える（D-20）。
+ */
+test("同名 Rule は選ばれたエージェントの分だけ消す", () => {
+  const env = fakeEnv();
+  const claudePath = writeFileIn(join(env.home, ".claude", "rules", "testing.md"),
+    "---\ndescription: claude 用\n---\n");
+  const cursorPath = writeFileIn(join(env.home, ".cursor", "rules", "testing.mdc"),
+    "---\ndescription: cursor 用（別内容）\n---\n");
+
+  assert.deepEqual(removeUnmanaged("testing", "rule", env, undefined, "cursor"), [cursorPath]);
+  assert.equal(existsSync(cursorPath), false);
+  assert.equal(existsSync(claudePath), true, "Claude の Rule は残る");
+
+  assert.deepEqual(removeUnmanaged("testing", "rule", env, undefined, "claude"), [claudePath]);
+  assert.equal(existsSync(claudePath), false);
+});
+
 // --- 種別ごとの宛先 ---
 
 /**

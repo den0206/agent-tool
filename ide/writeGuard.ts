@@ -4,7 +4,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
-import { BUNDLED_SKILL_ROOTS, KindId } from "../core/agent";
+import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ruleRoots } from "../core/agent";
 import { LEDGER_DIR } from "../core/ledger";
 import { RULE_SOURCES, SKILL_SOURCES, SUBAGENT_SOURCES } from "./source";
 import { agentStore, disabledAgentStore, Env, managedRoots } from "./env";
@@ -199,7 +199,13 @@ export function assertSafeCreation(path: string, root: string, anchor?: string):
  * 他のツールが入れた実体の置き場。走査ホワイトリストのうち、
  * ホーム直下の既知ルートから同梱ルートを除いたもの。
  */
-export function userRoots(kind: KindId, env: Env): string[] {
+export function userRoots(kind: KindId, env: Env, agent?: AgentId): string[] {
+  // Rule は共有ストアもリンクも無く、同名でもエージェントごとに別ファイル。
+  // どのエージェントの行から来たか分かるときは、そのルートだけに絞る —
+  // 絞らないと片方を消したつもりでもう一方まで消える（D-20）。
+  if (kind === "rule" && agent !== undefined) {
+    return ruleRoots(agent).map(path => join(env.home, path));
+  }
   const sources = kind === "skill" ? SKILL_SOURCES
     : kind === "rule" ? RULE_SOURCES
     : SUBAGENT_SOURCES;
@@ -222,12 +228,13 @@ export function assertUserArtifact(path: string, kind: KindId, env: Env): void {
 }
 
 /** プロジェクト内の Skill / Subagent / Rule の置き場。一覧が読む場所と同じにする。 */
-export const projectRoots = (kind: KindId, project: string): string[] => {
+export const projectRoots = (kind: KindId, project: string, agent?: AgentId): string[] => {
   if (kind === "skill") return [join(project, ".claude", "skills")];
   if (kind === "subagent") return [join(project, ".claude", "agents")];
-  // Rule は Claude と Cursor の両方に配置場所があり、それぞれ別ファイルとして扱う（D-20）。
+  // `userRoots` と同じ理由でエージェント単位に絞る（D-20）。
   if (kind === "rule") {
-    return [join(project, ".claude", "rules"), join(project, ".cursor", "rules")];
+    return (agent !== undefined ? ruleRoots(agent) : AGENT_IDS.flatMap(ruleRoots))
+      .map(path => join(project, path));
   }
   return [];
 };

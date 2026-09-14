@@ -105,6 +105,19 @@ test("Rule は Claude と Cursor の両方を user スコープで拾う", async
   assert.deepEqual(style.agents, ["cursor"]);
 });
 
+/** 同名 Rule は 1 行に潰さない。潰すと削除前の確認に片方のパスしか出せない（D-20）。 */
+test("同名 Rule はエージェントごとに別の行にする", async () => {
+  const env = fakeEnv();
+  writeFileIn(join(env.home, ".claude", "rules", "testing.md"),
+    "---\ndescription: claude 用\n---\n");
+  writeFileIn(join(env.home, ".cursor", "rules", "testing.mdc"),
+    "---\ndescription: cursor 用\n---\n");
+  const { items } = await inventory({ env, projectPath: null });
+  const rows = items.filter(item => item.kind === "rule" && item.name === "testing");
+  assert.deepEqual(rows.map(row => row.agents), [["claude"], ["cursor"]]);
+  assert.equal(new Set(rows.map(row => row.sourcePath)).size, 2);
+});
+
 test("プロジェクトの Rule も両エージェント分を project スコープで返す", async () => {
   const env = fakeEnv();
   const project = makeDir(join(env.home, "proj"));

@@ -188,5 +188,9 @@ Rule は Claude Code の `.claude/rules/*.md` と Cursor の `.cursor/rules/*.md
   `isTogglable` が `kind === "rule"` を排除する。Dashboard は表示・削除だけを出す。
 - 削除は `removeUnmanaged` を通す。Claude は `<name>.md`、Cursor は `<name>.mdc` を消す。
   拡張はどちらのフォーマットにも変換せず、置き場ごとに拡張子を切り替える。
+  **Skill / Subagent と違い、対象ルートを選ばれた行の agent 1 つに絞る。** Rule には
+  共有ストアもリンクも無く、同名でもエージェントごとに無関係な別ファイルなので、
+  全ルート一括で消すと片方を消したつもりでもう一方まで消える（D-5 によりゴミ箱は無い）。
+  一覧も同じ理由で、同名 Rule をエージェントごとに別の行として出す。
 - 実体には手を入れない。frontmatter の相互変換（Claude `paths:` ↔ Cursor `globs:`）も
   行わない。利用者が手で置いたものを見せて、消せるようにするだけに閉じる。

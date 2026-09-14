@@ -285,7 +285,8 @@ export async function remove(params: { storagePath: string; selector: Selector }
     const managed = registry.resources.some(item =>
       item.name === name && item.kind === kind && item.project === project);
     if (managed) removeManaged(name, kind, env, registry, place);
-    else removeUnmanaged(name, kind, env, place);
+    // Rule は同名でもエージェントごとに別ファイル。選ばれた行の agent だけを消す（D-20）。
+    else removeUnmanaged(name, kind, env, place, params.selector.agent);
   });
 }
 

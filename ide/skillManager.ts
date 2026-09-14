@@ -1,5 +1,5 @@
-import { join, sep } from "node:path";
-import { KindId } from "../core/agent";
+import { join } from "node:path";
+import { AgentId, KindId } from "../core/agent";
 import { agentStore, claudeSkills, disabledAgentStore, disabledStore, Env, skillStore } from "./env";
 import { AgentToolError } from "../core/errors";
 import { entry, Entry, Registry, upsert } from "./registry";
@@ -289,23 +289,27 @@ export function remove(name: string, kind: KindId, env: Env, registry: Registry,
  *
  * 同じ名前が複数のルートに現れる（実体 + 各エージェントへのリンク）ので、
  * 走査ホワイトリストの全ルートを見て一括で消す。消した位置を返す。
+ *
+ * Rule だけは例外で、同名でもエージェントごとに無関係な別ファイル。`agent` を
+ * 渡してそのルートだけに絞る（D-20）。
  */
 export function removeUnmanaged(name: string, kind: KindId, env: Env,
-                                place: Place = USER): string[] {
+                                place: Place = USER, agent?: AgentId): string[] {
   guard.assertValidName(name);
   if (kind !== "skill" && kind !== "subagent" && kind !== "rule") {
     throw new AgentToolError("OPERATION_FAILED",
       `${kind} is managed by the agent, not by Agent Tool`);
   }
-  // Rule はエージェントごとに拡張子が違う（Claude=.md、Cursor=.mdc）。
-  // ルートのパスに `.cursor/` を含むかで振り分ける。
+  // Rule はエージェントごとに拡張子が違う（Claude=.md、Cursor=.mdc）。ルートの末尾で
+  // 見分ける — 絶対パスの途中に `.cursor` を含むだけのプロジェクトで切り替えない。
+  const cursorRules = join(".cursor", "rules");
   const leafFor = (root: string): string =>
     kind === "skill" ? name
-    : kind === "rule" && root.includes(`${sep}.cursor${sep}`) ? `${name}.mdc`
+    : kind === "rule" && root.endsWith(cursorRules) ? `${name}.mdc`
     : `${name}.md`;
   const roots = place.scope === "project"
-    ? guard.projectRoots(kind, place.path)
-    : guard.userRoots(kind, env);
+    ? guard.projectRoots(kind, place.path, agent)
+    : guard.userRoots(kind, env, agent);
   // リンク切れは `exists` が false になるので、リンクかどうかも見る。
   const targets = roots
     .map(root => join(root, leafFor(root)))
