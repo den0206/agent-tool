@@ -32,6 +32,9 @@
 | `<globalStorageUri>/agents/` | 管理対象 Subagent の実体 |
 | `<globalStorageUri>/disabled-agents/` | 無効化した Subagent |
 
+Rule（`~/.claude/rules/*.md` と `~/.cursor/rules/*.mdc`）は URL からの導入経路を持たず、
+registry にも載らないので管理ルートには含まない。走査と削除だけを提供する（D-20）。
+
 `writeGuard.ts` は名前、親ディレクトリ、リンク先、管理ルートを検証してから作成、移動、削除する。
 macOS/Linux では symlink、Windows では junction または hardlink を使う。
 

@@ -1,6 +1,6 @@
 # Agent Tool — プロダクト要件書
 
-AI コーディングエージェントの Skill、Subagent、MCP サーバー、Plugin を管理する
+AI コーディングエージェントの Skill、Subagent、Rule、MCP サーバー、Plugin を管理する
 Cursor 拡張と、Skill と Subagent の検知・導入を担うブラウザ拡張。
 
 | 項目 | IDE 拡張 | ブラウザ拡張 |
@@ -16,7 +16,8 @@ Cursor 拡張と、Skill と Subagent の検知・導入を担うブラウザ拡
 ## IDE 拡張の機能
 
 - Dashboard でユーザー全体とワークスペースのツールを一覧表示する。
-- 公開 GitHub URL から Skill、Subagent、Plugin を追加する。
+- 公開 GitHub URL から Skill、Subagent、Plugin を追加する。Rule は URL からの追加を提供せず、
+  既に置かれているものの表示・削除だけを担う（D-20）。
 - 構造化 JSON、HTTP URL、または安全なコマンドから MCP サーバーを追加する。
 - 削除、有効化、無効化、更新プレビュー、更新適用を提供する。
 - Plugin の設定変更は対象 CLI の実行コマンドを表示して確認を求める。

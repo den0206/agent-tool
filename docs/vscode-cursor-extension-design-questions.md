@@ -73,7 +73,11 @@ Skill と Subagent だけを扱う。
 
 - MCP は URL に手がかりが無く、公式サイトの JSON を貼る既存導線が最頻である。
 - Plugin は `installed_plugins.json` への登録が必要で、IDE 拡張も書き込みを CLI に委譲している。
-  ファイルを置いてもエージェントが認識しない。
+  ファイルを置いてもエージェントが認識しない。Native Messaging Host で埋める案は
+  Snap Chromium が到達できず、Windows の EV 証明書コストと配布物へバイナリを持ち込む必要が
+  D-2 と衝突するため採らない。
+- Rule は共有カタログの実体が観測できないため URL からの導入経路を持たない（D-20）。
+  IDE 拡張の表示・削除だけに閉じ、ブラウザ拡張は扱わない。
 
 `supports()` により、Gemini CLI は MCP だけを対象にするため導入先に現れない。Codex は Skill だけ。
 
@@ -165,3 +169,24 @@ toolbar action の popup を extension page とする。検知で開けない環
 版は IDE 拡張とブラウザ拡張で同一にする。`release/Ver_X.Y.Z` が両方を組み立て、同じ GitHub
 Release へ添付する。利用者が両方を使う際の対応関係を明確にし、リリース手順を 1 つに保つためである。
 ブラウザの zip は Chrome Web Store と Edge Add-ons へ提出し、Brave は Chrome Web Store からの導入を案内する。
+
+## D-20. Rule 種別の対象
+
+Rule は Claude Code の `.claude/rules/*.md` と Cursor の `.cursor/rules/*.mdc` を扱う。
+ただし **URL からの導入は行わない**。既に置かれている Rule を Dashboard に表示し、
+削除だけを提供する。
+
+- Rule は Skill / Subagent と違い、共有カタログが実質存在しない。プロジェクトごとの規約や
+  個人の作業習慣を書くファイルで、GitHub 上の共有ライブラリとして流通する慣習が確認できない。
+  ブラウザ拡張の検知、URL からの導入、台帳・収集一覧は用意しない。`kindOf` で `rules/` を
+  含む URL は候補にせず、`DetectKind` にも Rule を含めない。
+- 走査は各エージェントの読む場所だけ。user は `~/.claude/rules/` と `~/.cursor/rules/`、
+  project は `<project>/.claude/rules/` と `<project>/.cursor/rules/`。Codex の `AGENTS.md` と
+  Gemini の `GEMINI.md` は「単一ファイル階層マージ」方式で 1 リソース = 1 配置に乗らず、
+  ファイル全体を書き換える経路は利用者の手編集を保護できないので対象外にする。
+- 有効化・無効化（toggle）は提供しない。Rule は registry に載らず、退避先も持たない —
+  `isTogglable` が `kind === "rule"` を排除する。Dashboard は表示・削除だけを出す。
+- 削除は `removeUnmanaged` を通す。Claude は `<name>.md`、Cursor は `<name>.mdc` を消す。
+  拡張はどちらのフォーマットにも変換せず、置き場ごとに拡張子を切り替える。
+- 実体には手を入れない。frontmatter の相互変換（Claude `paths:` ↔ Cursor `globs:`）も
+  行わない。利用者が手で置いたものを見せて、消せるようにするだけに閉じる。
