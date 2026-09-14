@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: "20.x"
+          node-version: "24.x"
           cache: npm
       - run: npm ci
       - run: npm run typecheck
@@ -50,7 +50,7 @@ jobs:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
-          MANIFEST_VERSION="${RELEASE_VERSION%%-*}" node -e "const fs=require('node:fs'); const file='browser/manifest.json'; const manifest=JSON.parse(fs.readFileSync(file, 'utf8')); manifest.version=process.env.MANIFEST_VERSION; fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\\n')"
+          MANIFEST_VERSION="${RELEASE_VERSION%%-*}" node -e "const fs=require('node:fs'); const file='browser/manifest.json'; const manifest=JSON.parse(fs.readFileSync(file, 'utf8')); manifest.version=process.env.MANIFEST_VERSION; fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n')"
       - name: Cut changelog section
         run: ./scripts/release-changelog.sh "${{ steps.version.outputs.version }}" "$(date -u +%F)"
       - name: Package VSIX
@@ -102,7 +102,7 @@ jobs:
           git fetch origin main
           git switch -f -C main origin/main
           npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
-          MANIFEST_VERSION="${RELEASE_VERSION%%-*}" node -e "const fs=require('node:fs'); const file='browser/manifest.json'; const manifest=JSON.parse(fs.readFileSync(file, 'utf8')); manifest.version=process.env.MANIFEST_VERSION; fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\\n')"
+          MANIFEST_VERSION="${RELEASE_VERSION%%-*}" node -e "const fs=require('node:fs'); const file='browser/manifest.json'; const manifest=JSON.parse(fs.readFileSync(file, 'utf8')); manifest.version=process.env.MANIFEST_VERSION; fs.writeFileSync(file, JSON.stringify(manifest, null, 2) + '\n')"
           ./scripts/release-changelog.sh "$RELEASE_VERSION" "$(date -u +%F)"
           git add package.json package-lock.json browser/manifest.json CHANGELOG.md
           git diff --cached --quiet && exit 0
