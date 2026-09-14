@@ -69,7 +69,7 @@ allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(npm r
 `package.json` / `scripts/` / `.github/workflows/` を
 触っている場合のみ:
 
-- `package.json`の`engines.vscode`とCIのNode 20が仕様と一致するか
+- `package.json`の`engines.vscode`とCIのNode 24 LTSが仕様と一致するか
 - CI とローカルで**同じスクリプト**を呼んでいるか（CI 専用ロジックを足していないか）
 - `README.md` と `README.ja.md` の**両方**を更新したか
 - Universal CLI の両arch、VSIX 20 MB上限、Open VSX→GitHubの公開順を壊していないか
