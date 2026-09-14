@@ -24,6 +24,11 @@ export const registryFile = (env: Env): string => join(env.appSupport, "registry
 /** Claude だけは共有ルートを読まないのでリンクを張る先。 */
 export const claudeSkills = (env: Env): string => join(env.home, ".claude", "skills");
 
-/** 削除・移動してよいルート。ここ以外は触らない。 */
+/**
+ * 削除・移動してよいルート。ここ以外は触らない。
+ * Rule は URL からの導入経路を持たず registry に載らないので `assertMutable` の
+ * 対象外。走査で見つけたものは `assertUserArtifact` / `assertProjectArtifact` の
+ * ホワイトリスト経路だけで削除する（D-20）。
+ */
 export const managedRoots = (env: Env): string[] =>
   [skillStore(env), disabledStore(env), agentStore(env), disabledAgentStore(env)];

@@ -4,7 +4,7 @@ export type Source =
   | { readonly kind: "cli"; readonly command: string[] };
 
 export type AgentId = "claude" | "cursor" | "codex" | "gemini";
-export type KindId = "mcp" | "skill" | "subagent" | "plugin";
+export type KindId = "mcp" | "skill" | "subagent" | "plugin" | "rule";
 export type ScopeId = "user" | "project";
 
 export const AGENT_IDS: readonly AgentId[] = ["claude", "cursor", "codex", "gemini"];
@@ -23,7 +23,8 @@ export function supports(agent: AgentId, kind: KindId): boolean {
     case "cursor":
       return true;
     case "codex":
-      return kind !== "subagent"; // Subagent の概念が無い
+      // Codex は Subagent と Rule の概念が無い。AGENTS.md はマージ管理で対象外（D-20）。
+      return kind !== "subagent" && kind !== "rule";
     case "gemini":
       return kind === "mcp";
   }
@@ -49,6 +50,20 @@ export function subagentRoots(agent: AgentId): string[] {
   switch (agent) {
     case "claude": return [".claude/agents"];
     case "cursor": return [".cursor/agents"];
+    case "codex":
+    case "gemini": return [];
+  }
+}
+
+/**
+ * Rule の置き場。Claude Code は `~/.claude/rules/*.md`、Cursor は `.cursor/rules/*.mdc` を読む。
+ * Codex の `AGENTS.md` と Gemini の `GEMINI.md` は単一ファイル階層マージ方式なので対象外（D-20）。
+ * URL からの導入は行わず、既にある実体の表示・削除だけを提供する。
+ */
+export function ruleRoots(agent: AgentId): string[] {
+  switch (agent) {
+    case "claude": return [".claude/rules"];
+    case "cursor": return [".cursor/rules"];
     case "codex":
     case "gemini": return [];
   }

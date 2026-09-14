@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { KindId } from "../core/agent";
 import { agentStore, claudeSkills, disabledAgentStore, disabledStore, Env, skillStore } from "./env";
 import { AgentToolError } from "../core/errors";
@@ -53,8 +53,9 @@ const rootPath = (env: Env, root: string): string | null => {
  */
 export function layout(name: string, kind: KindId, env: Env, place: Place = USER,
                        root?: string): Layout {
-  // MCP と Plugin はこちらの管理ストアに実体を持たない。ここを素通りさせると
-  // `~/.agents/skills/<name>` を指してしまい、同名の Skill を消しにいく。
+  // MCP / Plugin / Rule はこちらの管理ストアに実体を持たない。ここを素通りさせると
+  // `~/.agents/skills/<name>` を指してしまい、同名の Skill を消しにいく。Rule は
+  // URL からの導入経路を持たず（D-20）、`layout` の管理下には現れない。
   if (kind !== "skill" && kind !== "subagent") {
     throw new AgentToolError("OPERATION_FAILED",
       `${kind} is managed by the agent, not by Agent Tool`);
@@ -292,17 +293,22 @@ export function remove(name: string, kind: KindId, env: Env, registry: Registry,
 export function removeUnmanaged(name: string, kind: KindId, env: Env,
                                 place: Place = USER): string[] {
   guard.assertValidName(name);
-  if (kind !== "skill" && kind !== "subagent") {
+  if (kind !== "skill" && kind !== "subagent" && kind !== "rule") {
     throw new AgentToolError("OPERATION_FAILED",
       `${kind} is managed by the agent, not by Agent Tool`);
   }
-  const leaf = kind === "subagent" ? `${name}.md` : name;
+  // Rule はエージェントごとに拡張子が違う（Claude=.md、Cursor=.mdc）。
+  // ルートのパスに `.cursor/` を含むかで振り分ける。
+  const leafFor = (root: string): string =>
+    kind === "skill" ? name
+    : kind === "rule" && root.includes(`${sep}.cursor${sep}`) ? `${name}.mdc`
+    : `${name}.md`;
   const roots = place.scope === "project"
     ? guard.projectRoots(kind, place.path)
     : guard.userRoots(kind, env);
   // リンク切れは `exists` が false になるので、リンクかどうかも見る。
   const targets = roots
-    .map(root => join(root, leaf))
+    .map(root => join(root, leafFor(root)))
     .filter(path => guard.exists(path) || guard.isLink(path));
   if (targets.length === 0) notFound(name);
 

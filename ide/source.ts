@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { AGENT_IDS, skillRoots, subagentRoots, Source } from "../core/agent";
+import { AGENT_IDS, ruleRoots, skillRoots, subagentRoots, Source } from "../core/agent";
 import { mcpSource, pluginSources } from "./agent";
 import { Env } from "./env";
 
@@ -24,6 +24,14 @@ export const SUBAGENT_SOURCES: Source[] = [
   { kind: "dir", root: "appSupport", path: "agents" },
 ];
 
+/**
+ * Rule の走査対象。Claude が直読みする `.claude/rules` と、無効化の退避先だけ。
+ * 共有ストアが無いので Skill のような複数ルートは列挙しない（D-20）。
+ */
+export const RULE_SOURCES: Source[] = [
+  ...dirs(flat(ruleRoots)),
+];
+
 export const MCP_SOURCES: Source[] = AGENT_IDS.map(mcpSource).filter((s): s is Source => s !== null);
 
 export const PLUGIN_SOURCES: Source[] = flat(pluginSources);
@@ -37,7 +45,8 @@ export const APP_SOURCES: Source[] = [
 ];
 
 export const SOURCES: Source[] =
-  [...SKILL_SOURCES, ...SUBAGENT_SOURCES, ...MCP_SOURCES, ...PLUGIN_SOURCES, ...APP_SOURCES];
+  [...SKILL_SOURCES, ...SUBAGENT_SOURCES, ...RULE_SOURCES,
+   ...MCP_SOURCES, ...PLUGIN_SOURCES, ...APP_SOURCES];
 
 /** ルート相対パス。CLI ケースは null。 */
 export const relativePath = (source: Source): string | null =>

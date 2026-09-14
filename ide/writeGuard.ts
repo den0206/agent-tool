@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
 import { BUNDLED_SKILL_ROOTS, KindId } from "../core/agent";
 import { LEDGER_DIR } from "../core/ledger";
-import { SKILL_SOURCES, SUBAGENT_SOURCES } from "./source";
+import { RULE_SOURCES, SKILL_SOURCES, SUBAGENT_SOURCES } from "./source";
 import { agentStore, disabledAgentStore, Env, managedRoots } from "./env";
 import { AgentToolError } from "../core/errors";
 import { assertReadable, entry, Registry } from "./registry";
@@ -118,7 +118,9 @@ export function assertMutable(path: string, env: Env, registry: Registry): void 
     return;
   }
 
-  // Subagent は `<name>.md` なので拡張子を落とす。
+  // Subagent は `<name>.md` なので拡張子を落とす。Rule はここには到達しない —
+  // 管理ストア（`managedRoots`）に Rule のルートを含めていないので、Rule ファイルは
+  // 早い段階で WRITE_GUARD_DENIED として弾かれ、削除経路は `assertUserArtifact` を通る。
   const isSubagent = extname(target) === ".md";
   const name = isSubagent ? basename(target, ".md") : basename(target);
   const kind: KindId = isSubagent ? "subagent" : "skill";
@@ -198,7 +200,9 @@ export function assertSafeCreation(path: string, root: string, anchor?: string):
  * ホーム直下の既知ルートから同梱ルートを除いたもの。
  */
 export function userRoots(kind: KindId, env: Env): string[] {
-  const sources = kind === "skill" ? SKILL_SOURCES : SUBAGENT_SOURCES;
+  const sources = kind === "skill" ? SKILL_SOURCES
+    : kind === "rule" ? RULE_SOURCES
+    : SUBAGENT_SOURCES;
   return sources.flatMap(source => {
     if (source.kind === "cli" || source.root !== "home") return [];
     return BUNDLED_SKILL_ROOTS.has(source.path) ? [] : [join(env.home, source.path)];
@@ -217,9 +221,16 @@ export function assertUserArtifact(path: string, kind: KindId, env: Env): void {
   assertArtifact(path, kind, userRoots(kind, env), env.home, env);
 }
 
-/** プロジェクト内の Skill / Subagent の置き場。一覧が読む場所と同じにする。 */
-export const projectRoots = (kind: KindId, project: string): string[] =>
-  [join(project, ".claude", kind === "subagent" ? "agents" : "skills")];
+/** プロジェクト内の Skill / Subagent / Rule の置き場。一覧が読む場所と同じにする。 */
+export const projectRoots = (kind: KindId, project: string): string[] => {
+  if (kind === "skill") return [join(project, ".claude", "skills")];
+  if (kind === "subagent") return [join(project, ".claude", "agents")];
+  // Rule は Claude と Cursor の両方に配置場所があり、それぞれ別ファイルとして扱う（D-20）。
+  if (kind === "rule") {
+    return [join(project, ".claude", "rules"), join(project, ".cursor", "rules")];
+  }
+  return [];
+};
 
 /**
  * プロジェクト内の実体を触ってよいか。信頼の根はワークスペースで、
@@ -267,7 +278,7 @@ export function assertBody(path: string, kind: KindId, env: Env, registry: Regis
 }
 
 function assertArtifact(path: string, kind: KindId, roots: string[], anchor: string, env: Env): void {
-  if (kind !== "skill" && kind !== "subagent") {
+  if (kind !== "skill" && kind !== "subagent" && kind !== "rule") {
     throw new AgentToolError("WRITE_GUARD_DENIED", `${kind} is managed by the agent`);
   }
   const target = resolve(path);
@@ -277,6 +288,9 @@ function assertArtifact(path: string, kind: KindId, roots: string[], anchor: str
   }
   if (kind === "subagent" && extname(target) !== ".md") {
     throw new AgentToolError("WRITE_GUARD_DENIED", `${target} is not a subagent file`);
+  }
+  if (kind === "rule" && extname(target) !== ".md" && extname(target) !== ".mdc") {
+    throw new AgentToolError("WRITE_GUARD_DENIED", `${target} is not a rule file`);
   }
   const parent = dirname(target);
   if (!roots.some(root => isSame(parent, root))) {

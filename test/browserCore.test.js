@@ -38,6 +38,13 @@ test("パス名から Skill と Subagent を当てる", () => {
   assert.equal(kindOf(["subagents", "reviewer.md"]), "subagent");
 });
 
+/** Rule は D-20 により URL からの導入対象外。検知しない。 */
+test("Rule は URL から検知しない", () => {
+  assert.equal(kindOf(["rules", "testing.md"]), null);
+  assert.equal(kindOf([".claude", "rules", "testing.md"]), null);
+  assert.equal(kindOf([".cursor", "rules", "style.mdc"]), null);
+});
+
 test("Plugin と MCP は候補にしない", () => {
   assert.equal(kindOf(["plugins", "foo"]), null);
   assert.equal(kindOf([".claude-plugin", "plugin.json"]), null);
@@ -69,6 +76,12 @@ test("Subagent はファイル指定だけを受ける", () => {
   assert.deepEqual(file.proofs, ["agents/reviewer.md"]);
   // ディレクトリだと中のファイル名が分からず確認できない
   assert.equal(lead("https://github.com/owner/repo/tree/main/agents"), null);
+});
+
+/** Rule は D-20 により URL からの導入対象外。lead も返さない。 */
+test("Rule の URL は lead を返さない", () => {
+  assert.equal(lead("https://github.com/owner/repo/blob/main/.claude/rules/testing.md"), null);
+  assert.equal(lead("https://github.com/owner/repo/blob/main/.cursor/rules/style.mdc"), null);
 });
 
 test("カタログはスキル名があるときだけ候補にする", () => {
@@ -116,6 +129,7 @@ test("Skill の導入先は Claude / Cursor / Codex", () => {
 test("Subagent の導入先は Claude と Cursor だけ", () => {
   assert.deepEqual(targets("subagent"), ["claude", "cursor"]);
 });
+
 
 test("共有ストアがあれば Cursor と Codex は同じ場所に置く", () => {
   for (const agent of ["cursor", "codex"]) {

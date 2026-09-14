@@ -157,6 +157,36 @@ test("Subagent の退避先と実体は .md で分かれる", () => {
   assert.equal(plan.linkKind, "file");
 });
 
+// --- Rule ---
+
+/** Rule は URL からの導入経路を持たず、`layout` の管理下に現れない（D-20）。 */
+test("Rule は install / layout の対象外", () => {
+  const env = fakeEnv();
+  const path = writeFileIn(join(env.home, "staging", "testing.md"),
+    "---\ndescription: t\n---\n");
+  assert.throws(
+    () => install({ kind: "rule", name: "testing", localPath: path },
+      { root: join(env.home, "staging"), source: { repo: "owner/repo" } }, env, empty()),
+    code("OPERATION_FAILED"));
+  assert.throws(() => layout("testing", "rule", env), code("OPERATION_FAILED"));
+});
+
+/** 手で置いた Rule は `removeUnmanaged` で消せる。Claude は .md、Cursor は .mdc。 */
+test("Rule は removeUnmanaged で削除できる（.md と .mdc）", () => {
+  const env = fakeEnv();
+  const claudePath = writeFileIn(join(env.home, ".claude", "rules", "testing.md"),
+    "---\ndescription: t\n---\n");
+  const cursorPath = writeFileIn(join(env.home, ".cursor", "rules", "style.mdc"),
+    "---\ndescription: s\n---\n");
+  const removedClaude = removeUnmanaged("testing", "rule", env);
+  assert.deepEqual(removedClaude, [claudePath]);
+  assert.equal(existsSync(claudePath), false);
+
+  const removedCursor = removeUnmanaged("style", "rule", env);
+  assert.deepEqual(removedCursor, [cursorPath]);
+  assert.equal(existsSync(cursorPath), false);
+});
+
 // --- 種別ごとの宛先 ---
 
 /**

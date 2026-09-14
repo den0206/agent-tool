@@ -3,7 +3,8 @@ import { catalog, components, DEFAULT_REF, fromJsonLd, GitHubSource, needsPage, 
 
 /**
  * ブラウザ拡張が扱う種別。MCP は URL に手がかりが無く、Plugin は CLI への登録が必要なので
- * どちらも扱わない（設計決定 D-12）。
+ * どちらも扱わない（設計決定 D-12）。Rule は共有カタログが存在しないため、URL からの
+ * 導入経路を持たず、IDE 拡張の表示・管理だけに閉じる（D-20）。
  */
 export type DetectKind = "skill" | "subagent";
 
@@ -32,8 +33,9 @@ export const proofUrls = (lead: ToolLead): string[] =>
 /** パス名だけで種別を当てる。ネットワークに触れない絞り込み。 */
 export function kindOf(path: readonly string[]): DetectKind | null {
   const lower = new Set(path.map(part => part.toLowerCase()));
-  // Plugin と MCP は扱わないので、見分けた上で落とす（Skill と誤認させない）。
+  // Plugin / MCP / Rule はブラウザから導入しない。見分けた上で落とす（Skill と誤認させない）。
   if (lower.has(".claude-plugin") || lower.has("plugins")) return null;
+  if (lower.has("rules")) return null;
   if (lower.has("agents") || lower.has("subagents")) return "subagent";
   if (lower.has("skills")) return "skill";
   return null;

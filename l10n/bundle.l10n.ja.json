@@ -84,6 +84,7 @@
   "The tool list could not be read; it may be incomplete.": "ツール一覧を読み取れませんでした。表示が不完全な可能性があります。",
   "Name it in chat, or ask for something it covers.": "チャットで名前を指定するか、内容に合う依頼をしてください。",
   "Delegate to it from the agent's subagent feature.": "対応するエージェントの委譲機能から指定して使います。",
+  "Loaded by the agent according to its frontmatter.": "エージェントはfrontmatterに従って読み込みます。",
   "Available as an MCP tool in the matching agent.": "対応するエージェントのMCPツールとして利用できます。",
   "Use it from the matching agent's plugin feature.": "対応するエージェントのPlugin機能から利用します。",
   "Show only tools with updates": "更新のあるツールだけ表示",
