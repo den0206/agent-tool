@@ -11,7 +11,7 @@
 [![Open VSX](https://img.shields.io/open-vsx/v/yuuki-sakai/agent-tool)](https://open-vsx.org/extension/yuuki-sakai/agent-tool)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Agent Tool has two parts that share the same detection and install logic: a **[Cursor/VS Code extension](#ide-extension)** for managing Skills, Subagents, MCP servers, and Plugins across AI coding agents, and a **[browser extension](#browser-extension)** for Chrome, Edge, and Brave that catches Skills and Subagents while you browse and installs them without leaving the page.
+Agent Tool has two parts that share the same detection and install logic: a **[Cursor/VS Code extension](#ide-extension)** for managing Skills, Subagents, Rules, MCP servers, and Plugins across AI coding agents, and a **[browser extension](#browser-extension)** for Chrome, Edge, and Brave that catches Skills and Subagents while you browse and installs them without leaving the page.
 
 ### IDE extension (Cursor)
 
@@ -39,7 +39,7 @@ Agent Tool keeps the resources used by your coding agents discoverable from one 
 
 ## Features
 
-- See Skills, Subagents, MCP servers, and Plugins in one dashboard.
+- See Skills, Subagents, Rules, MCP servers, and Plugins in one dashboard.
 - Install Skills and Subagents from GitHub and supported catalogs.
 - Install Claude Code and Codex Plugins, including Plugins in GitHub subdirectories.
 - Preview descriptions, locations, scopes, enabled state, and available updates.
@@ -85,7 +85,7 @@ You can also use **Install from VSIX…** in the Extensions view. Stable release
 1. Open Cursor or VS Code and activate Agent Tool from the Activity Bar.
 2. Review the User Global and project sections in the dashboard.
 3. Use the add action to paste a supported GitHub or catalog URL (see [Supported sources](#supported-sources) above).
-4. Select a detected Skill, Subagent, MCP server, or Plugin and confirm the operation.
+4. Select a detected Skill, Subagent, Rule, MCP server, or Plugin and confirm the operation.
 5. Use the refresh and update actions when you want to rescan sources or check remote revisions.
 
 Plugin installation is delegated to Claude Code or Codex. For Claude Code, a Marketplace is registered before the Plugin is installed.
