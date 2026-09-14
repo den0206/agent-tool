@@ -141,7 +141,7 @@ This produces `vsix/browser/`. Open `chrome://extensions` (or the Brave/Edge equ
 
 ## Development
 
-Requirements: Node.js 20.
+Requirements: Node.js 24 (matches CI; Node.js 20 also works because `engines.node` stays `>=20`).
 
 ```bash
 npm ci

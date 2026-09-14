@@ -112,7 +112,7 @@ CI はローカルと同じスクリプトを呼び、別ロジックを持た�
 
 ## 配布・依存管理
 
-- Secondary Simulator と同じくNode 20、npm、`package-lock.json`、Node標準 `node:test`を使う。
+- 開発・CI は Node 24 LTS、npm、`package-lock.json`、Node標準 `node:test`を使う。拡張の `engines.node` は `>=20` を維持し、Node 20 でも起動できる状態を保つ。
 - 依存は必要最小限の正確な版に固定し、`ignore-scripts=true`、第三者Actionのcommit SHA固定を守る。
 - Publisherは`yuuki-sakai`。alpha / betaはGitHub Releases、安定版は同じVSIXをOpen VSXからGitHubの順に公開する。
 - IDE拡張とブラウザ拡張は同じ版で配布する。`release/Ver_X.Y.Z` が両方を組み立て、同じGitHub Releaseへ添付する。
