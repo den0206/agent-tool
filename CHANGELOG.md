@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09-14
+
 ### Added
 
 - MCP servers pinned to `@latest` are now flagged in the Dashboard, because their contents change on every launch and no version is recorded to update from.
