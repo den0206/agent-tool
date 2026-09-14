@@ -332,7 +332,7 @@ Bearer <value>        → Bearer [REDACTED]
 - codeload の `tar.gz` を `DecompressionStream('gzip')` でストリーム展開する。tar の各エントリは
   `assertValidName`、種別（通常ファイルまたはディレクトリ）、各上限を検査し、リンクと特殊ファイルを拒否する。
 - アーカイブ 50 MB、展開後 200 MB、単一ファイル 20 MB の上限は `core/` で IDE 拡張と共有する。
-- 取得と展開は extension の popup window で行う。MV3 の service worker はアイドルで停止するため使わない。
+- 取得と展開は extension の popup で行う。MV3 の service worker はアイドルで停止するため使わない。
 - カタログ候補の展開確認はアーカイブを 1 本丸ごと落とす（実測で数 MB）。ネットワークに
   触れない判定・実在確認・導入済み判定を**全部先に**通し、出すと決まったものだけを確かめる。
   結果は service worker のメモリに URL 単位で持ち、同じページを見るたびに落とし直さない。
@@ -343,7 +343,7 @@ Bearer <value>        → Bearer [REDACTED]
 |---|---|
 | スクリプトを同梱した配布物で Safe Browsing の確認が出る | 利用者に確認を委ねる。回避しない |
 | Brave は File System Access API を既定で無効にしている | ピッカーを開く前に関数の有無を見る。「取り消した」と混ぜず、`brave://flags` を開いて `File System` を探す手順を出す（項目 id は版で変わるため深いリンクにしない）。有効にできない版では Chrome / Edge を案内する |
-| ブラウザ再起動後に再許可が 1 回必要 | 仕様。popup window の導入操作に組み込む |
+| ブラウザ再起動後に再許可が 1 回必要 | 仕様。popup の導入操作に組み込む |
 | IDE 拡張が張った symlink を辿れない | 相互に不可視。D-13 の通り受け入れる |
 | 隠しディレクトリをピッカーで選べない | OS 別の手順を、ピッカーを開く前に表示する |
 | 導入先の取り違え | ハンドルから basename しか得られず、`~/.cursor/skills` と `~/.claude/skills` を区別できない。検出しない。ピッカーを開く前に期待するパスを示すに留める |
