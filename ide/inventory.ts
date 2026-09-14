@@ -82,9 +82,15 @@ const entryOf = (registry: Registry, name: string, kind: KindId, project?: strin
 function group(found: Skill[], kind: KindId, scope: ScopeId, registry: Registry,
                rootsFor: (agent: AgentId) => string[], project?: string): InventoryItem[] {
   const groups = new Map<string, Skill[]>();
-  for (const item of found) groups.set(item.name, [...(groups.get(item.name) ?? []), item]);
+  for (const item of found) {
+    // Rule は共有ストアもリンクも無く、同名でもエージェントごとに無関係な別ファイル。
+    // 1 行にまとめると、消す前の確認に出せるパスが片方だけになる（D-20）。
+    const key = kind === "rule" ? `${item.root}\u0000${item.name}` : item.name;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
 
-  return [...groups].map(([name, items]) => {
+  return [...groups].map(([, items]) => {
+    const name = items[0].name;
     // リンク切れ・SKILL.md 欠落は「有効」にしない。退避中はどこからも見えない。
     const visible = new Set(items.filter(item => isLoadable(item.status) && item.root !== PARKED)
       .map(item => item.root));
