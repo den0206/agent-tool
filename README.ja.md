@@ -141,7 +141,7 @@ npm run package:browser
 
 ## 開発
 
-Node.js 20が必要です。
+Node.js 24 が必要です（CI と揃えています。`engines.node` は `>=20` のままなので Node.js 20 でもビルドできます）。
 
 ```bash
 npm ci
