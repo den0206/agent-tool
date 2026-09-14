@@ -33,9 +33,10 @@ export const proofUrls = (lead: ToolLead): string[] =>
 /** パス名だけで種別を当てる。ネットワークに触れない絞り込み。 */
 export function kindOf(path: readonly string[]): DetectKind | null {
   const lower = new Set(path.map(part => part.toLowerCase()));
-  // Plugin / MCP / Rule はブラウザから導入しない。見分けた上で落とす（Skill と誤認させない）。
+  // Plugin と MCP は扱わないので、見分けた上で落とす（Skill と誤認させない）。
+  // Rule も導入しないが、`rules/` は `skills/` も `agents/` も含まないので既に落ちる。
+  // ここで `rules` を弾くと `skills/rules/`（"rules" という名の Skill）まで消える。
   if (lower.has(".claude-plugin") || lower.has("plugins")) return null;
-  if (lower.has("rules")) return null;
   if (lower.has("agents") || lower.has("subagents")) return "subagent";
   if (lower.has("skills")) return "skill";
   return null;
