@@ -43,6 +43,9 @@ test("Rule は URL から検知しない", () => {
   assert.equal(kindOf(["rules", "testing.md"]), null);
   assert.equal(kindOf([".claude", "rules", "testing.md"]), null);
   assert.equal(kindOf([".cursor", "rules", "style.mdc"]), null);
+  // ただし "rules" という語そのものは落とさない。`skills/` の下なら Skill のまま。
+  assert.equal(kindOf(["skills", "rules", "SKILL.md"]), "skill");
+  assert.equal(kindOf(["agents", "rules", "x.md"]), "subagent");
 });
 
 test("Plugin と MCP は候補にしない", () => {
@@ -129,7 +132,6 @@ test("Skill の導入先は Claude / Cursor / Codex", () => {
 test("Subagent の導入先は Claude と Cursor だけ", () => {
   assert.deepEqual(targets("subagent"), ["claude", "cursor"]);
 });
-
 
 test("共有ストアがあれば Cursor と Codex は同じ場所に置く", () => {
   for (const agent of ["cursor", "codex"]) {
