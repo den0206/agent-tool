@@ -181,7 +181,10 @@ Rule は Claude Code の `.claude/rules/*.md` と Cursor の `.cursor/rules/*.md
   ブラウザ拡張の検知、URL からの導入、台帳・収集一覧は用意しない。`kindOf` で `rules/` を
   含む URL は候補にせず、`DetectKind` にも Rule を含めない。
 - 走査は各エージェントの読む場所だけ。user は `~/.claude/rules/` と `~/.cursor/rules/`、
-  project は `<project>/.claude/rules/` と `<project>/.cursor/rules/`。Codex の `AGENTS.md` と
+  project は `<project>/.claude/rules/` と `<project>/.cursor/rules/`。Cursor は
+  `.cursor/rules/**` を読むのでサブディレクトリも 2 階層まで見る。修飾名は
+  プロジェクトの Skill と同じ `common:api` 形式にし、`isManageable` が `:` を弾くので
+  一覧には出るが削除対象にはならない。Codex の `AGENTS.md` と
   Gemini の `GEMINI.md` は「単一ファイル階層マージ」方式で 1 リソース = 1 配置に乗らず、
   ファイル全体を書き換える経路は利用者の手編集を保護できないので対象外にする。
 - 有効化・無効化（toggle）は提供しない。Rule は registry に載らず、退避先も持たない —

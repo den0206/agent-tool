@@ -37,6 +37,14 @@ const statusOf = (result: frontmatter.FrontmatterResult): Status =>
   result.status === "parsed" ? "ok"
     : result.status === "truncated" ? "truncatedFrontmatter" : "missingFrontmatter";
 
+const isDirectory = (path: string): boolean => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
 /** リンク切れ。`existsSync` はリンク先を見るので false になる。 */
 const isBrokenLink = (path: string): boolean => isLink(path) && !existsSync(path);
 
@@ -146,14 +154,26 @@ export const scanRules = (env: Env): Rule[] =>
     return root === null || label === null ? [] : scanRuleRoot(root, label);
   });
 
-/** ルール専用の走査。Cursor は `.mdc`、Claude は `.md`。ルート名で拡張子を切り替える。 */
-export function scanRuleRoot(root: string, label: string): Rule[] {
-  const ext = label.includes(".cursor/") ? ".mdc" : ".md";
+/**
+ * ルール専用の走査。Cursor は `.mdc`、Claude は `.md`。ルート名で拡張子を切り替える。
+ *
+ * サブディレクトリも見る — Cursor は `.cursor/rules/**` を読み、実際の置き場も
+ * `rules/common/` のように分けられている。修飾名はプロジェクトの Skill と同じ
+ * `common:api` 形式にし、`isManageable` が `:` を弾くので削除対象にはならない。
+ */
+export function scanRuleRoot(root: string, label: string, prefix = "", depth = 2): Rule[] {
+  const ext = label === ".cursor/rules" ? ".mdc" : ".md";
   return entries(root)
-    .filter(name => name.endsWith(ext) && !name.startsWith("."))
+    .filter(file => !file.startsWith("."))
     .flatMap((file): Rule[] => {
       const path = join(root, file);
-      const name = file.slice(0, -ext.length);
+      if (!file.endsWith(ext)) {
+        // リンクされたディレクトリには降りない。辿ると走査ホワイトリストの外
+        // （`rules/linked -> ~/Documents`）まで読んでしまう。
+        return depth > 0 && !isLink(path) && isDirectory(path)
+          ? scanRuleRoot(path, label, `${prefix}${file}:`, depth - 1) : [];
+      }
+      const name = `${prefix}${file.slice(0, -ext.length)}`;
       if (isBrokenLink(path)) return [{ name, path, root: label, status: "brokenLink" }];
       if (!existsSync(path)) return [];
       const result = frontmatter.read(path);

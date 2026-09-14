@@ -118,6 +118,17 @@ test("同名 Rule はエージェントごとに別の行にする", async () =>
   assert.equal(new Set(rows.map(row => row.sourcePath)).size, 2);
 });
 
+/** Cursor は `.cursor/rules/**` を読む。サブディレクトリの Rule も一覧に出す（D-20）。 */
+test("サブディレクトリの Rule は修飾名で出す", async () => {
+  const env = fakeEnv();
+  writeFileIn(join(env.home, ".claude", "rules", "common", "api.md"),
+    "---\ndescription: API rules\n---\n");
+  const { items } = await inventory({ env, projectPath: null });
+  const found = find(items, "common:api");
+  assert.equal(found.kind, "rule");
+  assert.deepEqual(found.agents, ["claude"]);
+});
+
 test("プロジェクトの Rule も両エージェント分を project スコープで返す", async () => {
   const env = fakeEnv();
   const project = makeDir(join(env.home, "proj"));
