@@ -12,6 +12,8 @@ function loadExtension(stub, tool) {
   try {
     delete require.cache[require.resolve("../out/ide/extension.js")];
     delete require.cache[require.resolve("../out/ide/dashboard.js")];
+    delete require.cache[require.resolve("../out/ide/dashboardProvider.js")];
+    delete require.cache[require.resolve("../out/ide/dashboardView.js")];
     return require("../out/ide/extension.js");
   } finally {
     Module._load = load;
