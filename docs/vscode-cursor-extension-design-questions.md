@@ -197,3 +197,49 @@ Rule は Claude Code の `.claude/rules/*.md` と Cursor の `.cursor/rules/*.md
   一覧も同じ理由で、同名 Rule をエージェントごとに別の行として出す。
 - 実体には手を入れない。frontmatter の相互変換（Claude `paths:` ↔ Cursor `globs:`）も
   行わない。利用者が手で置いたものを見せて、消せるようにするだけに閉じる。
+
+## D-21. 診断と Agent Environment Doctor
+
+診断は inventory がすでに読んだホワイトリスト内の実体、registry、PATH 解決結果から導く。
+`registry.json`、ログ、診断履歴には保存しない。Dashboard の「環境を診断」はその結果を集約する
+表示であり、別の走査器や CLI を作らない。
+
+- [x] 最初に扱うのは、`realpath` が異なる同一 identity の競合、Claude MCP の user/project 同名登録、
+  壊れたリンク、`SKILL.md` 欠落、stdio MCP の起動コマンド未解決である。symlink が同じ実体を
+  指す場合は競合にしない。MCP の有効優先順位は推測しない。
+- [x] 実体を失った管理 entry は診断しない。読めない走査ルートが無い場合、既存の prune が
+  registry から除去するためである。
+- [x] MCP を起動して成否を調べない。これは利用者の設定コマンドを実行する新しい信頼境界になる。
+  起動状態は D-8 の既存プロセス照合だけで表示する。
+- [x] 競合の優先順位は Agent/scope ごとの公式仕様とテストが揃うまで推測しない。診断は実体の
+  場所を示すだけにする。
+- [x] 自動修復・自動削除はしない。利用者は既存の比較、削除、再導入を明示して行う。
+
+## D-22. 互換性、移行、信頼レビュー
+
+互換性は Agent Tool 自身が検証した形式の表として持ち、`対応形式`、`導入済み`、`CLI 検出済み` を
+混同しない。Gemini CLI が Skills、Extensions、preview Subagents を提供していても、各形式の
+読取先・所有権・安全な書込み経路を検証するまで `supports()` を広げない。
+
+根拠となる外部仕様は [Gemini CLI Extension reference](https://geminicli.com/docs/extensions/reference/)、
+[Gemini CLI command reference](https://geminicli.com/docs/cli/cli-reference/)、
+[Claude Code Subagents](https://code.claude.com/docs/en/subagents) を参照する。
+
+- [x] 移行は有効な管理下 Skill と user / current project の宛先だけを対象にする。確認前に
+  source/destination と copy・上書きなしを表示する。宛先に実体または registry entry があれば
+  停止し、元は残す。Subagent、Rule、MCP、Plugin、管理外 Skill、link/move、Agent ごとの形式変換、
+  影響 Agent の推測は対象外とする。
+- [x] 2026-09-15 時点の Gemini CLI Extension reference を確認した。Gemini は
+  `~/.gemini/extensions/<name>/gemini-extension.json` を単位に取得元を copy して管理し、その配下の
+  `skills/` と `agents/` を読む。Sub-agent は preview である。現行の Agent Tool にはこの
+  Extension の所有権、manifest、copy/update、hook・settings を安全に扱う経路が無いため、Gemini の
+  `supports()` を Skill / Subagent / Plugin へ広げず、MCP のままとする。
+- [x] 2026-09-15 時点の Claude Code Subagents を確認した。`~/.claude/agents/` と
+  `<project>/.claude/agents/` は公式の配置である一方、同一ディレクトリ内の重複 name は filesystem
+  read order で選ばれる。よって D-21 の競合診断は優先実体を推測しない方針を維持する。
+- [x] 数値の Risk / Trust Score は採らない。明示操作で取得した可変 ref、アーカイブ状態、
+  取得元の古さ、実行物・MCP・hook、環境変数、binary/archive を、取得できない場合は `unknown` と
+  して根拠付きで表示する。immutable commit ref の受入れは現在の GitHub 取得元モデルに無いため、
+  可変 ref の表示はその対応後に行う。
+- [x] Profile、ワークスペース推薦、ローカル使用分析は採らない。現行の保存・走査・プライバシー境界を
+  守ったままでは、いずれも正確で利用価値のある最小版を作れない。
