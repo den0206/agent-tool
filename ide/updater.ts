@@ -14,6 +14,13 @@ export type UpdateDiff = {
   readonly currentSha: string | null;
   readonly latestSha: string;
   readonly files: { path: string; before: string; after: string }[];
+  readonly summary: {
+    added: number;
+    removed: number;
+    changed: number;
+    manifestChanged: boolean;
+    omitted: boolean;
+  };
 };
 
 /** 差分に載せる 1 ファイルの上限。これを超えるものは要約だけ出す。 */
@@ -152,18 +159,29 @@ const readText = (path: string): string => {
   }
 };
 
-export function diffFiles(current: string, candidate: string, name: string): UpdateDiff["files"] {
+function diff(current: string, candidate: string, name: string): Pick<UpdateDiff, "files" | "summary"> {
   const beforeFiles = files(current);
   const afterFiles = files(candidate);
+  const beforePaths = new Set(beforeFiles.paths);
+  const afterPaths = new Set(afterFiles.paths);
   const paths = [...new Set([...beforeFiles.paths, ...afterFiles.paths])].sort();
   const result: UpdateDiff["files"] = [];
+  const summary = { added: 0, removed: 0, changed: 0, manifestChanged: false, omitted: false };
   let total = 0;
   let omitted = 0;
   const at = (root: string, path: string): string => path === "" ? root : join(root, path);
   for (const path of paths) {
+    const beforeExists = beforePaths.has(path);
+    const afterExists = afterPaths.has(path);
     const before = readText(at(current, path));
     const after = readText(at(candidate, path));
-    if (before === after) continue;
+    if (beforeExists && afterExists && before === after) continue;
+    if (!beforeExists) summary.added += 1;
+    else if (!afterExists) summary.removed += 1;
+    else summary.changed += 1;
+    if (/(^|\/)(package\.json|gemini-extension\.json|plugin\.json)$/.test(path)) {
+      summary.manifestChanged = true;
+    }
     const size = Buffer.byteLength(before) + Buffer.byteLength(after);
     if (total + size > DIFF_TOTAL_LIMIT) { omitted += 1; continue; }
     total += size;
@@ -177,7 +195,16 @@ export function diffFiles(current: string, candidate: string, name: string): Upd
   if (reasons.length > 0) result.push({
     path: "[additional changes omitted]", before: "", after: reasons.join("\n"),
   });
-  return result;
+  summary.omitted = omitted > 0 || beforeFiles.truncated || afterFiles.truncated;
+  return { files: result, summary };
+}
+
+export function diffFiles(current: string, candidate: string, name: string): UpdateDiff["files"] {
+  return diff(current, candidate, name).files;
+}
+
+export function diffSummary(current: string, candidate: string, name: string): UpdateDiff["summary"] {
+  return diff(current, candidate, name).summary;
 }
 
 /**
@@ -195,7 +222,7 @@ export async function updatePreview(params: {
     return {
       currentSha: entry.sha ?? null,
       latestSha: sha,
-      files: diffFiles(current, candidate.localPath, entry.name),
+      ...diff(current, candidate.localPath, entry.name),
     };
   } finally {
     discard(staging);

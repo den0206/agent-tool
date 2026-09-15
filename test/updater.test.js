@@ -3,7 +3,7 @@ const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { test } = require("node:test");
-const { API_RESPONSE_LIMIT, DIFF_TOTAL_LIMIT, diffFiles, readLimitedText } = require("../out/ide/updater.js");
+const { API_RESPONSE_LIMIT, DIFF_TOTAL_LIMIT, diffFiles, diffSummary, readLimitedText } = require("../out/ide/updater.js");
 
 test("大きすぎる GitHub 応答は読み切らずに落とす", async () => {
   const body = {
@@ -26,6 +26,23 @@ test("差分に載せる本文は合計で打ち切る", t => {
   const retained = diff.reduce((size, file) => size + Buffer.byteLength(file.before) + Buffer.byteLength(file.after), 0);
   assert.ok(retained <= DIFF_TOTAL_LIMIT);
   assert.equal(diff.at(-1).path, "[additional changes omitted]");
+});
+
+test("更新差分は追加・削除・変更と manifest を要約する", t => {
+  const root = mkdtempSync(join(tmpdir(), "agent-tool-diff-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const current = join(root, "current");
+  const candidate = join(root, "candidate");
+  mkdirSync(current); mkdirSync(candidate);
+  writeFileSync(join(current, "removed.md"), "old");
+  writeFileSync(join(current, "changed.md"), "old");
+  writeFileSync(join(current, "package.json"), "{\"version\":\"1\"}");
+  writeFileSync(join(candidate, "added.md"), "new");
+  writeFileSync(join(candidate, "changed.md"), "new");
+  writeFileSync(join(candidate, "package.json"), "{\"version\":\"2\"}");
+  assert.deepEqual(diffSummary(current, candidate, "tool"), {
+    added: 1, removed: 1, changed: 2, manifestChanged: true, omitted: false,
+  });
 });
 
 /**

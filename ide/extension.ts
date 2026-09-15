@@ -215,6 +215,13 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage(vscode.l10n.t("Agent Tool: {0} is up to date.", node.tool.name));
       return;
     }
+    const summary = [
+      vscode.l10n.t("Update preview: {0} added, {1} removed, {2} changed.",
+        diff.summary.added, diff.summary.removed, diff.summary.changed),
+      ...(diff.summary.manifestChanged ? [vscode.l10n.t("Manifest/configuration changed.")] : []),
+      ...(diff.summary.omitted ? [vscode.l10n.t("Some changes are not shown.")] : []),
+    ].join(" ");
+    void vscode.window.showInformationMessage(summary);
     // 本文は Diff Editor に渡すあいだだけ持ち、Editor を閉じたら破棄する。
     const first = diff.files[0];
     const before = await vscode.workspace.openTextDocument({ content: first.before });
@@ -233,6 +240,24 @@ export function activate(context: vscode.ExtensionContext): void {
     const selector = selectorOf(node);
     const result = await withProgress(vscode.l10n.t("Agent Tool: Applying update"),
       () => agentTool.updateApply({ storagePath, selector }));
+    if (result.ok) void dashboard.refresh(true);
+  });
+
+  command("agent-tool.copySkill", async (node: ToolNode) => {
+    if (!node?.tool || !node.agent || !await canWrite()) return;
+    const target = await pickScope();
+    if (target === undefined) return;
+    const selector = selectorOf(node);
+    const previewed = await withProgress(vscode.l10n.t("Agent Tool: Preparing copy"), async () =>
+      agentTool.migrationPreview({ storagePath, selector, ...target }));
+    if (!previewed.ok) return;
+    const preview = previewed.value;
+    const choice = await vscode.window.showWarningMessage(
+      vscode.l10n.t("Copy {0}? Existing files will not be overwritten.", preview.name),
+      { modal: true, detail: `${preview.sourcePath}\n→ ${preview.destinationPath}` }, vscode.l10n.t("Copy"));
+    if (!choice) return;
+    const result = await withProgress(vscode.l10n.t("Agent Tool: Copying Skill"), () =>
+      agentTool.migrate({ storagePath, selector, ...target }));
     if (result.ok) void dashboard.refresh(true);
   });
 
@@ -287,6 +312,8 @@ export function activate(context: vscode.ExtensionContext): void {
         ? [{ label: item.pinned ? vscode.l10n.t("Unpin (follow updates again)")
                : vscode.l10n.t("Pin (stop following updates)"),
             value: "agent-tool.togglePin" }] : []),
+      ...(manageable && item.kind === "skill" && item.origin === "managed"
+        ? [{ label: vscode.l10n.t("Copy to another scope"), value: "agent-tool.copySkill" }] : []),
       ...(removable ? [{ label: vscode.l10n.t("Remove"), value: "agent-tool.removeTool" }] : []),
     ];
     if (actions.length === 0) {
