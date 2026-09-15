@@ -13,13 +13,13 @@
 
 Agent Toolは、同じ検知・導入ロジックを共有する2つの拡張からなります。AIコーディングエージェントのSkill、Subagent、Rule、MCPサーバー、Pluginを横断管理する**[Cursor / VS Code拡張](#ide拡張)**と、ブラウザで見つけたSkillとSubagentをページを離れずに導入する、Chrome / Edge / Brave向けの**[ブラウザ拡張](#ブラウザ拡張)**です。
 
-### IDE拡張(Cursor)
+### IDE拡張([Cursor](https://open-vsx.org/extension/yuuki-sakai/agent-tool))
 
 <p align="center">
   <img src="media/demo.gif" width="1200" alt="IDE拡張でPluginを導入する動作">
 </p>
 
-### ブラウザ拡張(Chrome/Edge(準備中))
+### ブラウザ拡張([Chrome](https://chromewebstore.google.com/detail/agent-tool/allbohfeiidaiemnagikcghaialfafhp))
 
 #### 自動検知
 
