@@ -266,8 +266,10 @@ test("管理下の有効な Skill は既存物を上書きせず project へコ�
   registry.resources = [{ name: "pdf", kind: "skill", repo: "o/r", pinned: false, disabled: false }];
   await save(env, registry);
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   process.env.HOME = env.home;
-  t.after(() => { process.env.HOME = previousHome; });
+  process.env.USERPROFILE = env.home;
+  t.after(() => { process.env.HOME = previousHome; process.env.USERPROFILE = previousUserProfile; });
 
   const selector = { name: "pdf", kind: "skill", scope: "user", agent: "claude", sourcePath };
   const preview = agentTool.migrationPreview({ storagePath: env.appSupport, selector,
@@ -294,8 +296,10 @@ test("project → 別 project へのコピーは API 層で拒否する", async 
   registry.resources = [{ name: "shared", kind: "skill", project: source, repo: "o/r", pinned: false, disabled: false }];
   await save(env, registry);
   const previousHome = process.env.HOME;
+  const previousUserProfile = process.env.USERPROFILE;
   process.env.HOME = env.home;
-  t.after(() => { process.env.HOME = previousHome; });
+  process.env.USERPROFILE = env.home;
+  t.after(() => { process.env.HOME = previousHome; process.env.USERPROFILE = previousUserProfile; });
 
   const selector = { name: "shared", kind: "skill", scope: "project", agent: "claude",
     sourcePath: join(source, ".claude", "skills", "shared"), projectPath: source };
