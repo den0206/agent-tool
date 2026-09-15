@@ -8,20 +8,21 @@ import { run as runCommand } from "./exec";
 import { Candidate, discard, fetchPage, stage } from "./fetcher";
 import { fromJsonLd, GitHubSource, narrowToSkill, needsPage, parseUrl, skillHint, sourceKey } from "../core/github";
 import { install } from "./installer";
-import { inventory as buildInventory, InventoryItem } from "./inventory";
+import { Diagnostic, inventory as buildInventory, InventoryItem } from "./inventory";
 import * as mcp from "./mcpScanner";
 import { MCPScope, MCPServer } from "./mcpServer";
 import { mcpStatus as pollMcpStatus } from "./processScanner";
 import { knownProjects } from "./projectScan";
-import { cliOverrides, entry, load, read, Registry, save, update, upsert } from "./registry";
-import { disable, enable, Place, remove as removeManaged, removeUnmanaged, USER } from "./skillManager";
+import { cliOverrides, entry, Entry, load, read, Registry, save, update, upsert } from "./registry";
+import { disable, enable, layout, Place, remove as removeManaged, removeUnmanaged, USER } from "./skillManager";
 import { SOURCES, sourcePath } from "./source";
 import { updateApply as applyUpdate, Http, updatePreview as previewUpdate, resolveSha, UpdateDiff } from "./updater";
+import * as guard from "./writeGuard";
 
 export { AgentToolError } from "../core/errors";
 export type { ErrorCode } from "../core/errors";
 export type { AgentInfo } from "./detector";
-export type { InventoryItem } from "./inventory";
+export type { Diagnostic, DiagnosticTarget, InventoryItem } from "./inventory";
 export type { UpdateDiff } from "./updater";
 export type { MCPScope, MCPServer } from "./mcpServer";
 
@@ -33,6 +34,16 @@ export type Selector = {
   sourcePath?: string;
   /** project スコープのときのワークスペース。実体の置き場がここで決まる。 */
   projectPath?: string;
+};
+
+export type MigrationPreview = {
+  readonly name: string;
+  readonly sourcePath: string;
+  readonly destinationPath: string;
+  readonly sourceScope: ScopeId;
+  readonly destinationScope: ScopeId;
+  readonly mode: "copy";
+  readonly overwrite: false;
 };
 
 export type PreviewCandidate = {
@@ -70,7 +81,7 @@ export async function inventory(params: {
   storagePath: string; projectPath: string | null; user?: boolean;
   /** 未信頼ワークスペースと Remote では渡さない。台帳の取り込みと entry の除去を止める。 */
   writable?: boolean;
-}): Promise<{ items: InventoryItem[]; issues: string[] }> {
+}): Promise<{ items: InventoryItem[]; issues: string[]; diagnostics: Diagnostic[] }> {
   const env = envOf(params.storagePath);
   return buildInventory({
     env, projectPath: params.projectPath, run: runnerFor(env), user: params.user,
@@ -232,6 +243,76 @@ function placeFor(scope: ScopeId, projectPath?: string): Place {
     throw new AgentToolError("OPERATION_FAILED", "no workspace folder is open to install into");
   }
   return { scope: "project", path: projectPath };
+}
+
+function migration(params: { storagePath: string; selector: Selector; scope: ScopeId; projectPath?: string },
+                   env = envOf(params.storagePath), registry = read(env)): {
+  source: string; sourceEntry: Entry; destination: Place;
+  destinationPath: string;
+} {
+  const { selector } = params;
+  if (selector.kind !== "skill" || selector.sourcePath === undefined) {
+    throw new AgentToolError("OPERATION_FAILED", "only a managed Skill with a known source can be copied");
+  }
+  const sourcePlace = placeOf(selector);
+  const sourceProject = sourcePlace.scope === "project" ? sourcePlace.path : undefined;
+  const destination = placeFor(params.scope, params.projectPath);
+  const destinationProject = destination.scope === "project" ? destination.path : undefined;
+  if (sourcePlace.scope === "project" && destination.scope === "project") {
+    // 仕様（D-22 / UI 3.3）は user ↔ current project の間だけ。API 直叩きでも守る。
+    throw new AgentToolError("OPERATION_FAILED", "copy is limited to user and current project");
+  }
+  if (sourceProject === destinationProject) {
+    throw new AgentToolError("OPERATION_FAILED", `${selector.name} is already in that scope`);
+  }
+  const sourceEntry = entry(registry, selector.name, "skill", sourceProject);
+  if (sourceEntry === undefined) {
+    throw new AgentToolError("NOT_IN_REGISTRY", `${selector.name} has no known source, so it cannot be copied`);
+  }
+  if (sourceEntry.disabled) {
+    throw new AgentToolError("OPERATION_FAILED", `${selector.name} must be enabled before it can be copied`);
+  }
+  guard.assertBody(selector.sourcePath, "skill", env, registry, sourcePlace);
+  const destinationPath = layout(selector.name, "skill", env, destination).store;
+  if (guard.exists(destinationPath) || entry(registry, selector.name, "skill", destinationProject) !== undefined) {
+    throw new AgentToolError("ALREADY_EXISTS", `${selector.name} is already installed in that scope`);
+  }
+  return { source: selector.sourcePath, sourceEntry, destination, destinationPath };
+}
+
+export function migrationPreview(params: {
+  storagePath: string; selector: Selector; scope: ScopeId; projectPath?: string;
+}): MigrationPreview {
+  const plan = migration(params);
+  return { name: params.selector.name, sourcePath: plan.source, destinationPath: plan.destinationPath,
+    sourceScope: params.selector.scope, destinationScope: params.scope, mode: "copy", overwrite: false };
+}
+
+export async function migrate(params: {
+  storagePath: string; selector: Selector; scope: ScopeId; projectPath?: string;
+}): Promise<void> {
+  await mutate(params.storagePath, (registry, env) => {
+    const plan = migration(params, env, registry);
+    const project = plan.destination.scope === "project" ? plan.destination.path : undefined;
+    const target = { ...plan.sourceEntry, project, root: undefined, disabled: false };
+    const layoutPlan = layout(params.selector.name, "skill", env, plan.destination);
+    const anchor = plan.destination.scope === "project" ? plan.destination.path
+      : guard.isInside(layoutPlan.store, env.home) ? env.home : env.appSupport;
+    guard.prepare(layoutPlan.store, join(layoutPlan.store, ".."), anchor);
+    const before = registry.resources.slice();
+    try {
+      guard.copy(plan.source, layoutPlan.store);
+      upsert(registry, target);
+      if (plan.destination.scope === "user") enable(params.selector.name, "skill", env, registry);
+    } catch (error) {
+      registry.resources = before;
+      for (const link of layoutPlan.links) {
+        if (guard.isManagedLink(link, layoutPlan.store)) guard.removeLink(link);
+      }
+      if (guard.exists(layoutPlan.store)) guard.remove(layoutPlan.store);
+      throw error;
+    }
+  });
 }
 
 /** 実体の置き場。project はワークスペースが分からなければ組めない。 */

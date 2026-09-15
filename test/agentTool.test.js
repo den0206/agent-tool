@@ -256,6 +256,53 @@ test("ワークスペースが無いまま project を指定したら user へ�
   }), code("OPERATION_FAILED"));
 });
 
+test("管理下の有効な Skill は既存物を上書きせず project へコピーできる", async t => {
+  const env = fakeEnv();
+  const project = makeDir(join(env.home, "project"));
+  const sourcePath = join(env.home, ".agents", "skills", "pdf");
+  writeFileIn(join(sourcePath, "SKILL.md"), "# PDF\n");
+  const { empty, read, save } = require("../out/ide/registry.js");
+  const registry = empty();
+  registry.resources = [{ name: "pdf", kind: "skill", repo: "o/r", pinned: false, disabled: false }];
+  await save(env, registry);
+  const previousHome = process.env.HOME;
+  process.env.HOME = env.home;
+  t.after(() => { process.env.HOME = previousHome; });
+
+  const selector = { name: "pdf", kind: "skill", scope: "user", agent: "claude", sourcePath };
+  const preview = agentTool.migrationPreview({ storagePath: env.appSupport, selector,
+    scope: "project", projectPath: project });
+  assert.equal(preview.mode, "copy");
+  assert.equal(preview.overwrite, false);
+  assert.equal(preview.destinationPath, join(project, ".claude", "skills", "pdf"));
+  await agentTool.migrate({ storagePath: env.appSupport, selector, scope: "project", projectPath: project });
+
+  assert.equal(readFileSync(join(preview.destinationPath, "SKILL.md"), "utf8"), "# PDF\n");
+  assert.ok(existsSync(sourcePath));
+  assert.equal(read(env).resources.find(item => item.project === project)?.name, "pdf");
+  await assert.rejects(agentTool.migrate({ storagePath: env.appSupport, selector,
+    scope: "project", projectPath: project }), code("ALREADY_EXISTS"));
+});
+
+test("project → 別 project へのコピーは API 層で拒否する", async t => {
+  const env = fakeEnv();
+  const source = makeDir(join(env.home, "src"));
+  const destination = makeDir(join(env.home, "dst"));
+  writeFileIn(join(source, ".claude", "skills", "shared", "SKILL.md"), "# S\n");
+  const { empty, save } = require("../out/ide/registry.js");
+  const registry = empty();
+  registry.resources = [{ name: "shared", kind: "skill", project: source, repo: "o/r", pinned: false, disabled: false }];
+  await save(env, registry);
+  const previousHome = process.env.HOME;
+  process.env.HOME = env.home;
+  t.after(() => { process.env.HOME = previousHome; });
+
+  const selector = { name: "shared", kind: "skill", scope: "project", agent: "claude",
+    sourcePath: join(source, ".claude", "skills", "shared"), projectPath: source };
+  await assert.rejects(agentTool.migrate({ storagePath: env.appSupport, selector,
+    scope: "project", projectPath: destination }), code("OPERATION_FAILED"));
+});
+
 // --- 更新確認 ---
 
 /** ここが走らないと registry.repos が空のままで、更新の導線が一生出ない。 */
