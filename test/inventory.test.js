@@ -17,13 +17,23 @@ const find = (items, name) => items.find(item => item.name === name);
 test("同名のスキルを 1 件にまとめ、見えるエージェントを並べる", async () => {
   const env = fakeEnv();
   skill(skillStore(env), "shared");                       // ~/.agents/skills（Cursor / Codex が直読み）
-  skill(join(env.home, ".claude/skills"), "shared");      // Claude 用のリンク先
-  const { items } = await inventory({ env, projectPath: null });
+  makeDir(join(env.home, ".claude/skills"));
+  require("node:fs").symlinkSync(join(skillStore(env), "shared"), join(env.home, ".claude/skills/shared"), "junction");
+  const { items, diagnostics } = await inventory({ env, projectPath: null });
   const item = find(items, "shared");
   assert.equal(item.kind, "skill");
   assert.deepEqual(item.agents.sort(), ["claude", "codex", "cursor"]);
   assert.equal(item.enabled, true);
   assert.equal(item.summary, "d");
+  assert.equal(diagnostics.filter(d => d.code === "DUPLICATE_IDENTITY").length, 0);
+});
+
+test("別の実体を持つ同名スキルを競合として診断する", async () => {
+  const env = fakeEnv();
+  skill(skillStore(env), "shared");
+  skill(join(env.home, ".claude/skills"), "shared");
+  const { diagnostics } = await inventory({ env, projectPath: null });
+  assert.equal(diagnostics.find(d => d.code === "DUPLICATE_IDENTITY").targets.length, 2);
 });
 
 /** 退避先を読まないと、無効化したものを再有効化する手段がなくなる。 */
@@ -61,8 +71,18 @@ test("リンク切れのスキルはどのエージェントにも数えない",
   const env = fakeEnv();
   makeDir(join(env.home, ".claude/skills"));
   require("node:fs").symlinkSync(join(env.home, "gone"), join(env.home, ".claude/skills/dead"), "junction");
-  const item = find((await inventory({ env, projectPath: null })).items, "dead");
+  const { items, diagnostics } = await inventory({ env, projectPath: null });
+  const item = find(items, "dead");
   assert.deepEqual(item.agents, []);
+  assert.equal(diagnostics.find(d => d.code === "BROKEN_LINK").targets[0].sourcePath,
+    join(env.home, ".claude/skills/dead"));
+});
+
+test("SKILL.md の無いディレクトリを診断する", async () => {
+  const env = fakeEnv();
+  makeDir(join(env.home, ".agents/skills/incomplete"));
+  const { diagnostics } = await inventory({ env, projectPath: null });
+  assert.equal(diagnostics.find(d => d.code === "MISSING_SKILL_FILE").targets[0].name, "incomplete");
 });
 
 test("projectPath が null ならプロジェクトは走査しない", async () => {
@@ -152,6 +172,16 @@ test("MCP サーバーを設定ファイルから読む", async () => {
   assert.equal(item.floating, undefined);       // 版が固定されているものに警告は出さない
 });
 
+test("PATH で解決できない MCP の起動コマンドを診断する", async () => {
+  const env = fakeEnv();
+  writeFileIn(join(env.home, ".cursor/mcp.json"),
+    '{"mcpServers":{"missing":{"command":"agent-tool-test-command-not-found"}}}');
+  const run = async command => command.includes("echo $PATH") ? process.env.PATH ?? "" : "[]";
+  const { diagnostics } = await inventory({ env, projectPath: null, run });
+  const diagnostic = diagnostics.find(d => d.code === "MISSING_EXECUTABLE");
+  assert.equal(diagnostic.targets[0].name, "missing");
+});
+
 /**
  * `@latest` は起動のたびに最新を取るので、こちらが更新を管理する余地が無い。
  * 判定は `floatingPackage` が持っているので、一覧まで届いていることを確かめる。
@@ -191,6 +221,16 @@ test("プロジェクトの MCP はスコープ付きで返す", async () => {
   const item = find((await inventory({ env, projectPath: project })).items, "shared");
   assert.equal(item.scope, "project");
   assert.match(item.summary, /^project /);
+});
+
+test("同名の Claude MCP が user と project にあれば競合として診断する", async () => {
+  const env = fakeEnv();
+  const project = makeDir(join(env.home, "proj"));
+  writeFileIn(join(env.home, ".claude.json"), '{"mcpServers":{"shared":{"command":"node"}}}');
+  writeFileIn(join(project, ".mcp.json"), '{"mcpServers":{"shared":{"command":"node"}}}');
+  const { diagnostics } = await inventory({ env, projectPath: project });
+  const diagnostic = diagnostics.find(d => d.code === "DUPLICATE_MCP_NAME");
+  assert.deepEqual(diagnostic.targets.map(target => target.scope), ["user", "project"]);
 });
 
 test("user: false はユーザー資産を走査しない", async () => {

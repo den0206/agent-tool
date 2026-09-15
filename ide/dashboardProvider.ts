@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { basename, dirname } from 'node:path';
+import { KindId, supports } from '../core/agent';
 import * as agentTool from './agentTool';
 import { dashboardHtml, type DashboardItem } from './dashboardView';
+
+const KINDS: KindId[] = ['skill', 'subagent', 'rule', 'mcp', 'plugin'];
 
 /** 書き込みを拒む理由。空文字なら書ける。表示と可否の判定を 1 か所にする。 */
 const readOnlyReason = (): '' | 'untrusted' | 'remote' =>
@@ -12,7 +15,7 @@ export class DashboardProvider
   implements vscode.WebviewViewProvider, vscode.Disposable
 {
   private view?: vscode.WebviewView;
-  private snapshot?: {at: number; items: DashboardItem[]};
+  private snapshot?: {at: number; items: DashboardItem[]; diagnostics: agentTool.Diagnostic[]};
   private status = new Map<string, boolean>();
   private issues: string[] = [];
   private knownProjects: string[] = [];
@@ -90,7 +93,7 @@ export class DashboardProvider
   async refresh(force = false): Promise<void> {
     if (!this.view?.visible) return;
     if (!force && this.snapshot && Date.now() - this.snapshot.at < 180_000) {
-      this.post(this.snapshot.items, this.issues);
+      this.post(this.snapshot.items, this.issues, this.snapshot.diagnostics);
       return;
     }
     try {
@@ -99,7 +102,7 @@ export class DashboardProvider
       this.knownProjects = agentTool
         .projects({storagePath: this.storagePath})
         .filter((path) => path !== folder);
-      const {items, issues} = await agentTool.inventory({
+      const {items, issues, diagnostics} = await agentTool.inventory({
         storagePath: this.storagePath,
         projectPath: folder,
         // 未信頼・Remote では台帳の取り込みも entry の除去も行わない。
@@ -108,10 +111,10 @@ export class DashboardProvider
       // 待っている間に View が隠れたら、解放したはずの状態を書き戻さない。
       if (!this.view?.visible) return;
       const found = items as DashboardItem[];
-      this.snapshot = {at: Date.now(), items: found};
+      this.snapshot = {at: Date.now(), items: found, diagnostics};
       // 走査に失敗したエージェントは黙って 0 件にしない。「未検出」と
       // 「読めなかった」が同じ見た目になると、消してよいものが判断できない。
-      this.post(found, issues);
+      this.post(found, issues, diagnostics);
       // CLI の検出はログインシェルを起こすので一覧より遅い。待たせると初期表示が
       // 止まって見えるため、一覧を出してから引き直して差分だけ送り直す。
       if (force || this.environment === undefined) {
@@ -120,10 +123,10 @@ export class DashboardProvider
           .catch(() => []);
         if (!this.view?.visible) return;
         this.environment = environment;
-        this.post(found, issues);
+        this.post(found, issues, diagnostics);
       }
     } catch (error) {
-      this.post([], [], error instanceof Error ? error.message : String(error));
+      this.post([], [], [], error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -231,13 +234,13 @@ export class DashboardProvider
       const status = await agentTool.mcpStatus({storagePath: this.storagePath});
       if (!this.view?.visible) return;
       this.status = new Map(Object.entries(status));
-      if (this.snapshot) this.post(this.snapshot.items, this.issues);
+      if (this.snapshot) this.post(this.snapshot.items, this.issues, this.snapshot.diagnostics);
     } catch { /* keep previous status */ } finally {
       this.statusPending = false;
     }
   }
 
-  private post(items: DashboardItem[], issues: string[] = [], error?: string): void {
+  private post(items: DashboardItem[], issues: string[] = [], diagnostics: agentTool.Diagnostic[] = [], error?: string): void {
     this.issues = issues;
     const annotated = items.map(item =>
       item.kind === 'mcp'
@@ -254,9 +257,14 @@ export class DashboardProvider
     const projectName = folder === undefined
       ? 'Current Project'
       : folder.split(/[\\/]/).filter(Boolean).pop() ?? 'Current Project';
+    const compatibility = (this.environment ?? []).map(info => ({
+      id: info.id,
+      supported: KINDS.filter(kind => supports(info.id, kind)),
+      installed: KINDS.filter(kind => annotated.some(item => item.kind === kind && item.agents.includes(info.id))),
+    }));
     this.view?.webview.postMessage({
-      type: 'inventory', items: annotated, projectName, issues, error,
-      projects: this.knownProjects, environment: this.environment ?? [],
+      type: 'inventory', items: annotated, projectName, issues, diagnostics, error,
+      projects: this.knownProjects, environment: this.environment ?? [], compatibility,
       readOnly: readOnlyReason(),
     });
   }
