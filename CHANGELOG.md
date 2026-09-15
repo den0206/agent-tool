@@ -20,6 +20,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - Documented Remote (SSH / Dev Container / Codespaces) behavior as read-only listing with all write operations rejected, matching what the extension has always done. Previous wording implied even reading was blocked.
+- Added an opt-in Playwright end-to-end script (`npm run test:browser`) that loads the packaged browser extension into Chromium and asserts the toolbar badge fills in for each supported catalog. Excluded from CI so real-site or catalog outages never break `npm test`.
+- The browser extension now detects catalog skills that live under `.agent-skills/<name>/SKILL.md`, checked only when the canonical `skills/<name>/SKILL.md` returns 404. This lets repositories that keep 100+ skills in a hidden directory (measured: `akillness/jeo-skills`, 140 MB archive) install a single skill without hitting the archive size limit.
+- The browser extension now shows a "!" toolbar badge (with a tooltip explaining the cause) when GitHub's unauthenticated rate limit stops it from listing skills at a directory URL. Previously the badge stayed empty, indistinguishable from a directory that has no skills.
 
 ## [0.2.1] — 2026-09-14
 

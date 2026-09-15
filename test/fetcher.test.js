@@ -138,7 +138,39 @@ test("branch があればその ref で確かめる", async () => {
     seen.push(url);
     return false;
   });
-  assert.deepEqual(seen, ["https://raw.githubusercontent.com/o/r/dev/skills/pdf/SKILL.md"]);
+  // どれも外れれば候補すべてを HEAD するが、ref はどれも branch を通す。
+  assert.deepEqual(seen, [
+    "https://raw.githubusercontent.com/o/r/dev/skills/pdf/SKILL.md",
+    "https://raw.githubusercontent.com/o/r/dev/.agent-skills/pdf/SKILL.md",
+  ]);
+});
+
+/**
+ * `skills/` が外れたときだけ `.agent-skills/` を試す。実測: `akillness/jeo-skills`
+ * は 250 件の Skill を `.agent-skills/<名前>/SKILL.md` に置いていて、規約どおりの
+ * `skills/` は無い。圧縮 140 MB のためアーカイブ経路では tooLarge で落ちる。
+ */
+test("隠しディレクトリの置き場にも当たる", async () => {
+  const seen = [];
+  const source = await narrowToSkill({ repo: "o/r" }, "plannotator", async url => {
+    seen.push(url);
+    return url.endsWith("/.agent-skills/plannotator/SKILL.md");
+  });
+  assert.deepEqual(source, { repo: "o/r", subdir: ".agent-skills/plannotator" });
+  assert.deepEqual(seen, [
+    "https://raw.githubusercontent.com/o/r/HEAD/skills/plannotator/SKILL.md",
+    "https://raw.githubusercontent.com/o/r/HEAD/.agent-skills/plannotator/SKILL.md",
+  ]);
+});
+
+test("`skills/` が当たるなら隠しディレクトリは確かめない", async () => {
+  const seen = [];
+  const source = await narrowToSkill({ repo: "o/r" }, "pdf", async url => {
+    seen.push(url);
+    return true;                                 // 上の候補で短絡復帰する
+  });
+  assert.deepEqual(source, { repo: "o/r", subdir: "skills/pdf" });
+  assert.equal(seen.length, 1);                  // 成功経路の HEAD 回数は変えない
 });
 
 test("すでに subdir が分かっているなら確かめない", async () => {

@@ -9,42 +9,19 @@ import { download } from "../out/web/browser/install.js";
 import { fromJsonLd, needsPage } from "../out/web/core/github.js";
 import { PAGE_LIMIT } from "../out/web/core/limits.js";
 import { placement, targets } from "../out/web/core/placement.js";
+import {
+  agentsDirectoryUrl, githubSkillUrl, githubSubagentUrl, skillsShUrl,
+  warnIfGitHubRateLimited,
+} from "./e2e/fixtures.mjs";
 
-const text = async url => {
-  const response = await fetch(url, { cache: "no-store" });
-  assert.ok(response.ok, `${url}: ${response.status}`);
-  return response.text();
-};
-const pick = values => values[Math.floor(Math.random() * values.length)];
-const matches = (body, pattern) => [...body.matchAll(pattern)].map(match => match[1]);
 const isRejectedCatalog = error => error?.kind === "notFound" || error?.kind === "tooLarge";
-const githubSkills = ["composition-patterns", "react-view-transitions", "web-design-guidelines"];
-// Subagent はカタログに出ないので、GitHub の実リポジトリを固定で見る。消えたら赤くする
-// （固定物の差し替えが要る、と気づける方がよい）。
-const githubSubagents = ["code-refactorer", "content-writer", "frontend-designer", "vibe-coding-coach"];
 
+// 対応サイトごとに 1 本引く。URL の選び方は fixtures.mjs に寄せて E2E と共有する。
 const sites = [
-  ["GitHub", async () => `https://github.com/vercel-labs/agent-skills/tree/main/skills/${pick(githubSkills)}`],
-  ["GitHub (subagent)", async () =>
-    `https://github.com/iannuttall/claude-agents/blob/main/agents/${pick(githubSubagents)}.md`],
-  ["skills.sh", async () => {
-    const maps = matches(await text("https://www.skills.sh/sitemap.xml"), /<loc>([^<]*sitemap-skills[^<]*)<\/loc>/g);
-    assert.ok(maps.length > 0, "skills.sh: no skill sitemap found");
-    const urls = matches(await text(pick(maps)), /<loc>(https:\/\/[^<]+)<\/loc>/g);
-    assert.ok(urls.length > 0, "skills.sh: no skill URL found");
-    return pick(urls);
-  }],
-  ["Agents Directory", async () => {
-    const paths = [...new Set(matches(await text("https://agentsdirectory.dev/skills"), /href="(\/skills\/[^"?#]+)"/g))];
-    assert.ok(paths.length > 0, "Agents Directory: no skill URL found");
-    for (let left = Math.min(paths.length, 12); left > 0; left--) {
-      const index = Math.floor(Math.random() * paths.length);
-      const url = `https://agentsdirectory.dev${paths.splice(index, 1)[0]}`;
-      const source = fromJsonLd(await text(url));
-      if (source !== null && lead(source) !== null) return url;
-    }
-    throw new Error("Agents Directory: no installable skill URL found");
-  }],
+  ["GitHub", githubSkillUrl],
+  ["GitHub (subagent)", githubSubagentUrl],
+  ["skills.sh", skillsShUrl],
+  ["Agents Directory", agentsDirectoryUrl],
 ];
 
 async function resolve(url) {
@@ -55,6 +32,7 @@ async function resolve(url) {
 }
 
 void (async () => {
+  await warnIfGitHubRateLimited();
   for (const [site, randomUrl] of sites) {
     attempts:
     for (let attempt = 1; attempt <= 12; attempt++) {
@@ -95,6 +73,12 @@ void (async () => {
       } catch (error) {
         if (error instanceof TypeError) {
           console.log(`skip ${site}: network unavailable`);
+          break attempts;
+        }
+        // API 枠切れや一時的な取得失敗は、別 URL を引き直しても同じ壁に当たる。
+        // 実サイト由来の障害でオプトインテストを落とさないよう、サイトごと skip する。
+        if (error?.kind === "fetchFailed") {
+          console.log(`skip ${site}: ${error.message} (rate limit or transient fetch failure)`);
           break attempts;
         }
         if (found.proofs.length !== 0 || !isRejectedCatalog(error) || attempt === 12) throw error;

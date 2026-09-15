@@ -154,6 +154,16 @@ The extensions use only in-memory caches. The IDE extension's only mutable metad
 
 Press F5 in Cursor or VS Code to launch an Extension Development Host for the IDE extension.
 
+### Optional real-site checks
+
+One optional script hits real catalogs and is excluded from CI so a catalog outage never breaks `npm test`:
+
+```bash
+npm run test:browser
+```
+
+It runs two passes in order: (1) picks a random URL from every supported catalog and walks it through the detect + download pipeline, then (2) loads the packaged extension (`vsix/browser/`) into Chromium via Playwright and asserts the toolbar badge fills in for each catalog. It fetches the Chromium binary on the first run (~78 MiB) and skips the download on subsequent runs — nothing else to prepare, because the script embeds the install step. Headless CI without a display can wrap the command with `xvfb-run -a`.
+
 ## Release
 
 **IDE extension:** create and push a branch named `release/Ver_X.Y.Z`. GitHub Actions runs the checks, creates one VSIX, records its SHA-256 checksum, and attaches it to the GitHub Release. Stable releases are also published to Open VSX when the `OVSX_PAT` secret is configured.

@@ -327,5 +327,9 @@
   },
   "tabRequestingPermission": {
     "message": "フォルダへのアクセスを待っています…"
+  },
+  "badgeRateLimited": {
+    "message": "GitHub API の枠が切れました。この一覧は読めなかったため、しばらく待ってから開き直してください。",
+    "description": "ブラウザ拡張が Skill 一覧の取得で GitHub の未認証枠に当たったときに、ツールバーアイコンのツールチップに出す。"
   }
 }

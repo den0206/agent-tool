@@ -327,5 +327,9 @@
   },
   "tabRequestingPermission": {
     "message": "Waiting for folder access…"
+  },
+  "badgeRateLimited": {
+    "message": "GitHub API rate limit reached. The skill list here could not be read — try again in a while.",
+    "description": "Tooltip shown on the toolbar icon when the browser extension hit GitHub's unauthenticated rate limit while listing skills."
   }
 }
