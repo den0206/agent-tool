@@ -1,9 +1,11 @@
+import { realpathSync } from "node:fs";
 import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ruleRoots, ScopeId, skillRoots, subagentRoots } from "../core/agent";
 import { sourceKey } from "../core/github";
 import { agentStore, disabledAgentStore, disabledStore, Env, Run, skillStore } from "./env";
 import * as mcp from "./mcpScanner";
 import { floatingPackage, MCPScope, MCPServer, summary as mcpSummary } from "./mcpServer";
 import * as plugins from "./pluginScanner";
+import { resolvePath, which } from "./detector";
 import { projectRuleRoots, projectSkillRoots, projectSubagentRoot } from "./projectScan";
 import { Entry, load, Registry, update } from "./registry";
 import { absorb as absorbLedgers, key as ledgerKey, prune, scan as scanLedgers } from "./ledger";
@@ -38,6 +40,21 @@ export type InventoryItem = {
   readonly pluginScope?: "user" | "project" | "local";
 };
 
+export type DiagnosticTarget = {
+  readonly name: string;
+  readonly kind: KindId;
+  readonly scope: ScopeId;
+  readonly sourcePath?: string;
+  readonly projectPath?: string;
+};
+
+export type Diagnostic = {
+  readonly code: "DUPLICATE_IDENTITY" | "DUPLICATE_MCP_NAME" | "BROKEN_LINK" | "MISSING_SKILL_FILE" | "MISSING_EXECUTABLE";
+  readonly severity: "warning" | "broken";
+  readonly targets: DiagnosticTarget[];
+  readonly message: string;
+};
+
 /** 無効化して退避したものの擬似ルート。どのエージェントからも見えない。 */
 export const PARKED = "(disabled)";
 
@@ -52,6 +69,74 @@ const floatingOf = (server: MCPServer): { floating?: string } => {
 
 const byName = (a: InventoryItem, b: InventoryItem): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+
+const targetOf = (item: Skill, kind: KindId, scope: ScopeId, projectPath?: string): DiagnosticTarget => ({
+  name: item.name, kind, scope, sourcePath: item.path, projectPath,
+});
+
+/** 同じ実体へ張った symlink は 1 件。別の実体だけを競合として出す。 */
+function skillDiagnostics(found: Skill[], kind: "skill" | "subagent", scope: ScopeId,
+                          projectPath?: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  const bodies = new Map<string, Map<string, Skill>>();
+  for (const item of found) {
+    if (item.status === "brokenLink") {
+      diagnostics.push({ code: "BROKEN_LINK", severity: "broken", targets: [targetOf(item, kind, scope, projectPath)],
+        message: `${item.name} has a broken link` });
+      continue;
+    }
+    if (item.status === "noSkillFile") {
+      diagnostics.push({ code: "MISSING_SKILL_FILE", severity: "broken", targets: [targetOf(item, kind, scope, projectPath)],
+        message: `${item.name} has no SKILL.md` });
+      continue;
+    }
+    if (!isLoadable(item.status) || item.root === PARKED) continue;
+    try {
+      const paths = bodies.get(item.name) ?? new Map<string, Skill>();
+      paths.set(realpathSync(item.path), item);
+      bodies.set(item.name, paths);
+    } catch { /* 消えた実体は次回の prune に任せる */ }
+  }
+  for (const [name, paths] of bodies) {
+    if (paths.size < 2) continue;
+    diagnostics.push({ code: "DUPLICATE_IDENTITY", severity: "warning",
+      targets: [...paths.values()].map(item => targetOf(item, kind, scope, projectPath)),
+      message: `${name} has ${paths.size} independent bodies` });
+  }
+  return diagnostics;
+}
+
+/** PATH で解決可否を調べる対象。絶対・相対パス直指定は「PATH で引かない」ので対象外。 */
+const needsPathLookup = (server: MCPServer): boolean =>
+  server.transport.type === "stdio" && !/[\\/]/.test(server.transport.command);
+
+function executableDiagnostics(servers: Iterable<MCPServer>, path: string,
+                               scope: ScopeId, projectPath?: string): Diagnostic[] {
+  const diagnostics: Diagnostic[] = [];
+  for (const server of servers) {
+    if (server.transport.type !== "stdio") continue;
+    const command = server.transport.command;
+    if (/[\\/]/.test(command)) continue;
+    if (which(command, path) !== null) continue;
+    diagnostics.push({ code: "MISSING_EXECUTABLE", severity: "warning", targets: [{
+      name: server.name, kind: "mcp", scope, projectPath,
+    }], message: `${server.name} cannot resolve ${command} on PATH` });
+  }
+  return diagnostics;
+}
+
+/** Claude の user / project 登録は別設定なので、同名でもどちらが優先されるかを推測しない。 */
+function mcpScopeDiagnostics(user: Iterable<MCPServer>, project: Iterable<MCPServer>,
+                             projectPath: string): Diagnostic[] {
+  const names = new Set([...user].map(server => server.name));
+  return [...project].flatMap(server => !names.has(server.name) ? [] : [{
+    code: "DUPLICATE_MCP_NAME" as const, severity: "warning" as const,
+    targets: [
+      { name: server.name, kind: "mcp" as const, scope: "user" as const },
+      { name: server.name, kind: "mcp" as const, scope: "project" as const, projectPath },
+    ], message: `${server.name} is registered in both user and project MCP scopes`,
+  }]);
+}
 
 /** 更新の有無は registry.json だけで決まる。固定中は数えない。 */
 export function hasUpdate(entry: Entry | undefined, registry: Registry): boolean {
@@ -109,15 +194,11 @@ function group(found: Skill[], kind: KindId, scope: ScopeId, registry: Registry,
   }).sort(byName);
 }
 
-function userSkills(env: Env, registry: Registry): InventoryItem[] {
-  // 無効化したスキルは走査ルートから消えるので、退避先も併せて読む。
-  // これが無いと再有効化する手段がなくなる。
-  const found = [...scanSkills(env), ...scanSkillRoot(disabledStore(env), PARKED)];
+function userSkills(found: Skill[], registry: Registry): InventoryItem[] {
   return group(found, "skill", "user", registry, skillRoots);
 }
 
-function userSubagents(env: Env, registry: Registry): InventoryItem[] {
-  const found = [...scanSubagents(env), ...scanSubagentRoot(disabledAgentStore(env), PARKED)];
+function userSubagents(found: Skill[], registry: Registry): InventoryItem[] {
   return group(found, "subagent", "user", registry, subagentRoots);
 }
 
@@ -128,15 +209,9 @@ function userRules(env: Env, registry: Registry): InventoryItem[] {
 }
 
 /** プロジェクトのスキルとサブエージェント。ユーザー資産なので origin は user のまま。 */
-function projectItems(project: string, registry: Registry): InventoryItem[] {
+function projectItems(project: string, registry: Registry, skills: Skill[], subagents: Skill[]): InventoryItem[] {
   // ルート名はユーザー側と同じ `.claude/skills` にする。どのエージェントが読むかは
   // `skillRoots` の宣言だけで決まり、サブディレクトリの位置では変わらない。
-  const skills = projectSkillRoots(project).flatMap(({ prefix, path }) =>
-    // サブディレクトリのスキルは `apps/web:deploy` として区別する。
-    // 名前で畳むので、修飾しないと別物が 1 行に潰れる。
-    scanSkillRoot(path, ".claude/skills")
-      .map(skill => prefix === "" ? skill : { ...skill, name: `${prefix}:${skill.name}` }));
-  const subagents = scanSubagentRoot(projectSubagentRoot(project), ".claude/agents");
   const rules = projectRuleRoots(project).flatMap(({ path, label }) => scanRuleRoot(path, label));
   return [
     ...group(skills, "skill", "project", registry, skillRoots, project),
@@ -149,7 +224,7 @@ export async function inventory(params: {
   env: Env; projectPath: string | null; run?: Run; user?: boolean;
   /** 未信頼ワークスペースと Remote では false。台帳の取り込みと entry の除去を行わない。 */
   writable?: boolean;
-}): Promise<{ items: InventoryItem[]; issues: string[] }> {
+}): Promise<{ items: InventoryItem[]; issues: string[]; diagnostics: Diagnostic[] }> {
   const { env, projectPath, run } = params;
   const includeUser = params.user !== false;
   const writable = params.writable === true;
@@ -158,11 +233,25 @@ export async function inventory(params: {
   if (writable) await absorb(env);
   const registry = load(env);
   const issues: string[] = [];
+  const diagnostics: Diagnostic[] = [];
+  // 無効化した実体も一度だけ読む。ここで得た観測値を一覧と診断で共用する。
+  const userSkillFound = includeUser
+    ? [...scanSkills(env), ...scanSkillRoot(disabledStore(env), PARKED)] : [];
+  const userSubagentFound = includeUser
+    ? [...scanSubagents(env), ...scanSubagentRoot(disabledAgentStore(env), PARKED)] : [];
+  const projectSkills = projectPath === null ? [] : projectSkillRoots(projectPath).flatMap(({ prefix, path }) =>
+    scanSkillRoot(path, ".claude/skills").map(skill => prefix === "" ? skill : { ...skill, name: `${prefix}:${skill.name}` }));
+  const projectSubagents = projectPath === null ? []
+    : scanSubagentRoot(projectSubagentRoot(projectPath), ".claude/agents");
 
   let mcpItems: InventoryItem[] = [];
+  let userMcpServers: MCPServer[] = [];
+  let claudeMcpServers: MCPServer[] = [];
   if (includeUser) {
     const servers = await mcp.scan(env, run);
     issues.push(...servers.issues);
+    userMcpServers = AGENT_IDS.flatMap(agent => servers.servers[agent] ?? []);
+    claudeMcpServers = servers.servers.claude ?? [];
     mcpItems = AGENT_IDS.flatMap(agent =>
       (servers.servers[agent] ?? []).map(server => ({
         name: server.name, kind: "mcp" as const, scope: "user" as const, agents: [agent],
@@ -188,9 +277,11 @@ export async function inventory(params: {
       summary: plugin.version === undefined ? undefined : `v${plugin.version}`,
     })).sort(byName);
 
-  const projectItemList = projectPath === null ? [] : projectItems(projectPath, registry);
+  const projectItemList = projectPath === null ? [] : projectItems(projectPath, registry, projectSkills, projectSubagents);
+  const projectMcpEntries = projectPath === null ? [] : [...mcp.readProject(projectPath, env)];
+  const projectServers = projectMcpEntries.map(([, { server }]) => server);
   const projectMcp: InventoryItem[] = projectPath === null ? []
-    : [...mcp.readProject(projectPath, env)].map(([name, { server, scope }]): InventoryItem => ({
+    : projectMcpEntries.map(([name, { server, scope }]): InventoryItem => ({
       name, kind: "mcp", scope: "project", agents: ["claude" as AgentId],
       enabled: server.enabled, origin: server.isProtected ? "bundled" : "user",
       hasUpdate: false, pinned: false, summary: `${scope} · ${mcpSummary(server)}`, mcpScope: scope,
@@ -199,11 +290,36 @@ export async function inventory(params: {
 
   const items = [
     ...(includeUser
-      ? [...userSkills(env, registry), ...userSubagents(env, registry),
+      ? [...userSkills(userSkillFound, registry), ...userSubagents(userSubagentFound, registry),
          ...userRules(env, registry), ...mcpItems]
       : []),
     ...pluginItems, ...projectItemList, ...projectMcp,
   ];
+  if (includeUser) {
+    diagnostics.push(
+      ...skillDiagnostics(userSkillFound, "skill", "user"),
+      ...skillDiagnostics(userSubagentFound, "subagent", "user"),
+    );
+  }
+  if (projectPath !== null) {
+    diagnostics.push(
+      ...skillDiagnostics(projectSkills, "skill", "project", projectPath),
+      ...skillDiagnostics(projectSubagents, "subagent", "project", projectPath),
+      ...(includeUser ? mcpScopeDiagnostics(claudeMcpServers, projectServers, projectPath) : []),
+    );
+  }
+  // PATH 解決はログインシェルを起こすので、走査対象が 1 件も無ければ引かない。
+  // user / project を跨いで 1 回だけ引いて両方の診断に使う。
+  const needResolve = (includeUser && userMcpServers.some(needsPathLookup))
+    || (projectPath !== null && projectServers.some(needsPathLookup));
+  if (needResolve && run !== undefined) {
+    let path = "";
+    try { path = await resolvePath(env, run); } catch { /* 引けなければ診断を出さない */ }
+    if (path !== "") {
+      if (includeUser) diagnostics.push(...executableDiagnostics(userMcpServers, path, "user"));
+      if (projectPath !== null) diagnostics.push(...executableDiagnostics(projectServers, path, "project", projectPath));
+    }
+  }
 
   // 実体を失った entry を落とす。走査できたルートの分だけを対象にする。
   // 読めなかったルートが 1 つでもあれば行わない — 読めないだけのものを「消えた」と
@@ -227,7 +343,7 @@ export async function inventory(params: {
     });
   }
 
-  return { items, issues };
+  return { items, issues, diagnostics };
 }
 
 /** 台帳を取り込む。1 件も無ければ registry を開かない。 */
