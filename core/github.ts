@@ -233,10 +233,18 @@ const headOk = (url: string): Promise<boolean> =>
  * 持ってから探すことになり、大きいリポジトリは上限に当たって取り出せない
  * （実測: `github/awesome-copilot` は 105 MB あり、欲しいのは 10 KB）。
  *
- * 規約どおりの `skills/<名前>` に `SKILL.md` があるかだけ、HEAD 1 回で先に確かめる。
- * **当たったときだけ** subdir を載せ、外れたら何も足さない（従来どおりアーカイブ全体から
- * 探す）ので退行しない。カタログ名とディレクトリ名が違うことがあるため、外れは普通に起きる。
+ * 規約どおりの置き場に `SKILL.md` があるかを HEAD 1 回ずつで先に確かめる。
+ * 上の候補が当たれば短絡復帰し、外れたときだけ下を叩く（成功経路は増やさない）。
+ * どれも外れたら何も足さない（従来どおりアーカイブ全体から探す）ので退行しない。
+ * カタログ名とディレクトリ名が違うことがあるため、外れは普通に起きる。
+ *
+ * 候補:
+ *   - `skills/<名前>`        規約どおりの置き場（大半のリポジトリ）
+ *   - `.agent-skills/<名前>` 隠しディレクトリ版。実測: `akillness/jeo-skills` は
+ *                            この形で 250 件を持ち、圧縮 140 MB のためアーカイブ経路では取れない
  */
+const SKILL_DIR_CANDIDATES = ["skills", ".agent-skills"] as const;
+
 export async function narrowToSkill(
   source: GitHubSource, skill: string | undefined,
   exists: (url: string) => Promise<boolean> = headOk,
@@ -244,10 +252,13 @@ export async function narrowToSkill(
   if (skill === undefined || source.subdir !== undefined) return source;
   // パス要素として使えない名前は確かめもしない。`..` で置き場の外を指させない。
   if (!/^[\w.-]+$/.test(skill) || skill.startsWith(".")) return source;
-  const subdir = `skills/${skill}`;
-  const at = `https://raw.githubusercontent.com/${source.repo}/`
-    + `${source.branch ?? DEFAULT_REF}/${subdir}/SKILL.md`;
-  return await exists(at) ? { ...source, subdir } : source;
+  for (const dir of SKILL_DIR_CANDIDATES) {
+    const subdir = `${dir}/${skill}`;
+    const at = `https://raw.githubusercontent.com/${source.repo}/`
+      + `${source.branch ?? DEFAULT_REF}/${subdir}/SKILL.md`;
+    if (await exists(at)) return { ...source, subdir };
+  }
+  return source;
 }
 
 /** カタログ URL に含まれるスキル名。候補一覧の初期絞り込みに使う。 */
