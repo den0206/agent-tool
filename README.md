@@ -13,13 +13,13 @@
 
 Agent Tool has two parts that share the same detection and install logic: a **[Cursor/VS Code extension](#ide-extension)** for managing Skills, Subagents, Rules, MCP servers, and Plugins across AI coding agents, and a **[browser extension](#browser-extension)** for Chrome, Edge, and Brave that catches Skills and Subagents while you browse and installs them without leaving the page.
 
-### IDE extension (Cursor)
+### IDE extension ([Cursor](https://open-vsx.org/extension/yuuki-sakai/agent-tool))
 
 <p align="center">
   <img src="media/demo.gif" width="1200" alt="Installing a Plugin in the IDE extension">
 </p>
 
-### Browser extension (Chrome/Edge — coming soon)
+### Browser extension ([Chrome](https://chromewebstore.google.com/detail/agent-tool/allbohfeiidaiemnagikcghaialfafhp))
 
 #### Automatic detection
 
