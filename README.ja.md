@@ -154,6 +154,16 @@ npm run package:browser # ブラウザ拡張 → vsix/agent-tool-browser.zip
 
 CursorまたはVS CodeでF5を押すと、拡張機能開発ホストを起動できます。
 
+### 任意の実サイト確認
+
+CIには入れない任意スクリプトが1つあります。カタログ側の障害で`npm test`を落とさないためです。
+
+```bash
+npm run test:browser
+```
+
+2段階で走ります。(1) 対応カタログから URL を1本ずつ引き、検知〜取得まで通す。(2) 組み立て済みの`vsix/browser/`をPlaywrightでChromiumに読ませ、各カタログURLを開いたときにツールバーバッジが埋まることを確かめる。初回だけChromiumバイナリ（約78 MiB）を落とし、2回目以降はダウンロードを飛ばします。スクリプトが取得ステップを内包しているため事前準備は不要です。ディスプレイが無い環境では`xvfb-run -a`で包んで実行します。
+
 ## リリース
 
 **IDE拡張:** `release/Ver_X.Y.Z`という名前のブランチを作成してpushします。GitHub Actionsが検査を実行し、VSIXを1回だけ生成してSHA-256を記録し、GitHub Releaseへ添付します。`OVSX_PAT` Secretを設定した場合、安定版はOpen VSXにも公開します。

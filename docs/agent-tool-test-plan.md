@@ -42,14 +42,15 @@ Node.js `node:test` で TypeScript モジュールと VS Code API モックを�
 | 対応サイト導線 | GitHub・skills.sh・Agents Directory の複数 URL を固定フィクスチャで解決し、Skill / Subagent の検知と導入先候補を確認する。実ファイル・実サイトは触らない |
 | IDE の追加経路 | Skill / Subagent の URL、MCP の構造化入力、Plugin の CLI 委譲をそれぞれ確認する |
 
-実サイトの応答は CI に混ぜず、`npm run test:browser-catalogs` を手動で回す。PR は落とさない —
+実サイトの応答は CI に混ぜず、`npm run test:browser` を手動で回す。PR は落とさない —
 カタログ側の障害で開発を止めないためである。このスモークテストは GitHub の検証済み Skill 群と Subagent、
 skills.sh・Agents Directory の公開一覧からランダムに選んだ URL を解決し、検知・GitHub
 アーカイブからの Tool 抽出・**3 OS で書ける名前かの検査**・導入先決定までを確認する。
 `notFound`、`tooLarge`、GitHub の実体確認に失敗した候補は、拡張と同じく候補から除外して次を選ぶ。
 書き込みは行わない。
 
-このスクリプトで分かるのは「URL → 取得元 → 展開」までである。次は原理的に届かないので、
+前半のカタログ確認で分かるのは「URL → 取得元 → 展開」までである。後半は Playwright で
+組み立て済み拡張を Chromium に読み込み、各カタログを開いてツールバーバッジの表示まで確認する。次は原理的に届かないので、
 手動確認に残す。
 
 | 届かないもの | 理由 |
