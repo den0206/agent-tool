@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The Dashboard now shows read-only environment diagnostics for broken links, missing `SKILL.md` files, independent same-name skill copies, and MCP launch commands that are absent from `PATH`. It never starts configured MCP commands or records diagnostic history.
+- The Dashboard now also warns when Claude registers an MCP server with the same name at user and project scope, without guessing which registration takes precedence.
+- The Environment section now separates each agent's supported formats, installed formats, and CLI detection state. Cursor is shown as configuration-detected because it has no CLI interface.
+- Update previews now summarize added, removed, and changed files, flag manifest/configuration changes, and say when the displayed diff is incomplete.
+- Managed, enabled Skills can now be copied between the user profile and the current project. The confirmation shows both paths, never overwrites an existing destination, and leaves the source unchanged.
+- Environment and environment-diagnostics details now sit at the bottom of the Dashboard, are left-aligned and collapsed by default, and can be expanded without saving a UI preference.
+- The Environment details now show the absolute path of each detected agent CLI.
 - Rules are now listed in the Dashboard for both user scope (`~/.claude/rules/*.md`, `~/.cursor/rules/*.mdc`) and project scope (`<project>/.claude/rules/*.md`, `<project>/.cursor/rules/*.mdc`), including rules kept in subdirectories. You can delete rules that you or your team placed there; the extension does not add rules from a URL, and enable/disable are not offered because rules load unconditionally or based on their own `paths:` frontmatter. Codex `AGENTS.md` and Gemini `GEMINI.md` are single-file formats and out of scope.
 
 ### Changed
