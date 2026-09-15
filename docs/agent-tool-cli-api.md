@@ -84,6 +84,24 @@ export type InventoryItem = {
   pluginScope?: 'user' | 'project' | 'local'; // Plugin の登録先
 };
 
+/** 診断が示す読み取り専用の実体。管理操作の Selector には使わない。 */
+export type DiagnosticTarget = {
+  name: string;
+  kind: KindId;
+  scope: ScopeId;
+  sourcePath?: string;
+  projectPath?: string;
+};
+
+/** inventory の生の観測値から導く。保存しない。 */
+export type Diagnostic = {
+  code: 'DUPLICATE_IDENTITY' | 'DUPLICATE_MCP_NAME' | 'BROKEN_LINK' | 'MISSING_SKILL_FILE' | 'MISSING_EXECUTABLE';
+  severity: 'warning' | 'broken';
+  /** 影響を受ける一覧項目。複数実体の比較に使う。 */
+  targets: DiagnosticTarget[];
+  message: string;
+};
+
 export type PreviewCandidate = {
   kind: KindId;
   name: string;
@@ -97,12 +115,30 @@ export type AgentInfo = {
   found: boolean;
   path: string | null;
   version: string | null;
+  configOnly: boolean;       // 設定ディレクトリのみ検出（CLI は未検出）
 };
 
 export type UpdateDiff = {
   currentSha: string | null;   // 初回取得時は記録が無い
   latestSha: string;
   files: Array<{ path: string; before: string; after: string }>;
+  summary: {
+    added: number;
+    removed: number;
+    changed: number;
+    manifestChanged: boolean;
+    omitted: boolean;          // 本文または走査を打ち切った可能性がある
+  };
+};
+
+export type MigrationPreview = {
+  name: string;
+  sourcePath: string;
+  destinationPath: string;
+  sourceScope: ScopeId;
+  destinationScope: ScopeId;
+  mode: 'copy';
+  overwrite: false;
 };
 ```
 
@@ -117,7 +153,7 @@ export function inventory(params: {
   storagePath: string;
   projectPath: string | null;
   user?: boolean;            // 省略時は true。false ならユーザー全体を走査しない
-}): Promise<{ items: InventoryItem[]; issues: string[] }>;
+}): Promise<{ items: InventoryItem[]; issues: string[]; diagnostics: Diagnostic[] }>;
 ```
 
 - `projectPath` が `null` の場合はユーザー全体のみ返す
@@ -127,6 +163,13 @@ export function inventory(params: {
 - プロジェクトのサブディレクトリにあるスキルは `apps/web:deploy` の修飾名で返す（名前で畳むため）
 - 走査は 180 秒キャッシュ。手動更新・書き込み直後・View 非表示で破棄する
 - frontmatter は先頭 4 KB だけ読む。本文は詳細表示中のみ保持する
+- `diagnostics` は同じ走査で得た観測値から導く。registry やログへ保存せず、診断のために
+  MCP コマンドを起動しない
+- `DUPLICATE_IDENTITY` は優先順位を推測しない。エージェント・scope ごとの優先順位が仕様と
+  テストで確定するまで、`realpath` が異なる競合実体だけを返す。symlink で同じ実体を読む
+  場合は競合にしない
+- `MISSING_MANAGED_BODY` は診断しない。実体を失った管理 entry は、読めない走査ルートが無い
+  場合に既存の prune が削除するためである
 
 ---
 
@@ -287,6 +330,33 @@ export function updateApply(params: {
 ```
 
 - 適用中に失敗した場合は同一呼び出し内でロールバックする
+
+---
+
+### `migrationPreview` / `migrate` — 管理下 Skill のスコープ間コピー
+
+```typescript
+export function migrationPreview(params: {
+  storagePath: string;
+  selector: Selector;
+  scope: ScopeId;
+  projectPath?: string;
+}): MigrationPreview;
+
+export function migrate(params: {
+  storagePath: string;
+  selector: Selector;
+  scope: ScopeId;
+  projectPath?: string;
+}): Promise<void>;
+```
+
+- 有効な管理下 Skill だけを user と current project の間で **copy** する。元は残す
+- プレビューは実体の source/destination と `overwrite: false` を返す。宛先に実体または同じ
+  registry entry があれば `ALREADY_EXISTS` で止め、上書きしない
+- 実体・リンク・registry は同じロック内で更新する。失敗時は新しい宛先を除去し、registry を戻す
+- Subagent、Rule、MCP、Plugin、無効な Skill、管理外 Skill は対象外。link/move や Agent ごとの
+  形式変換は行わない
 
 ---
 
