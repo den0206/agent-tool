@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-16
+
 ### Added
 
 - The Dashboard now shows read-only environment diagnostics for broken links, missing `SKILL.md` files, independent same-name skill copies, and MCP launch commands that are absent from `PATH`. It never starts configured MCP commands or records diagnostic history.
