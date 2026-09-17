@@ -62,6 +62,17 @@ body {
 
 code, .repo, .path { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; }
 
+/*
+ * `hidden` を全ての要素で「表示しない」に確定させる。
+ *
+ * ブラウザ既定の `[hidden] { display: none }` は specificity が (0,1,0) で、
+ * `.installed-tag { display: inline-flex }` のような単一クラスと同じ強さ。
+ * 同じ強さのときは cascade で後に書かれた著者側が勝つため、`hidden` を付けても
+ * 消えない要素ができる（実測: `#found-installed` の赤いピルが常時見えていた）。
+ * `!important` を 1 か所に置き、`hidden` の意味を CSS 側でも取り戻す。
+ */
+[hidden] { display: none !important; }
+
 /* --- 動き --------------------------------------------------------------
  * `hidden` の付け外しは `display` を切り替えるので、外した時点で animation が
  * 走り直す。画面の出し入れに JavaScript の合図を足さずに済む。 */
@@ -191,6 +202,22 @@ body.detected #open-settings { display: none; }
   height: 5px;
   border-radius: 50%;
   background: currentColor;
+}
+
+/*
+ * 既に入っているものに添える印。種類の右に赤字のピルで出す。色だけに頼らず、
+ * 文言（`tabInstalledShort` = 「導入済み」/「Installed」）で意味を伝える。
+ */
+.installed-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--danger) 14%, transparent);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .repo { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere; }

@@ -15,7 +15,7 @@ import {
 } from "./install.js";
 import { listSkills, SkillEntry } from "../core/tree.js";
 import {
-  autoOpenEnabled, forgetAll, loadCollection, setAutoOpenEnabled, setTheme, Theme, theme,
+  autoOpenEnabled, forget, forgetAll, loadCollection, setAutoOpenEnabled, setTheme, Theme, theme,
 } from "./store.js";
 import {
   animateDetection, applyI18n, applyLang, applyTheme, byId, clearStatus, setBusy, showStatus,
@@ -184,7 +184,7 @@ function setMode(detected: boolean): void {
   byId("found").hidden = !detected;
 }
 
-async function showLead(raw: string, vetted = false): Promise<void> {
+async function showLead(raw: string, vetted = false, alreadyIn = false): Promise<void> {
   // Skill が並ぶディレクトリなら一覧を出す。列挙は GitHub API を 1 回だけ使う。
   const at = skillIndex(raw);
   if (at !== null) {
@@ -212,6 +212,13 @@ async function showLead(raw: string, vetted = false): Promise<void> {
   byId("found-repo").textContent = found.source.repo;
   byId("security-source").textContent = t("tabSecuritySource", found.source.repo);
   byId("destination").hidden = true;             // 導入を押してから出す
+
+  // 既に入っているものは「導入済み」を赤字で見せ、導入ボタンは押せなくする。
+  // 押せない導入ボタンを残すより、そもそも隠して選択肢を減らす。
+  const tag = byId<HTMLSpanElement>("found-installed");
+  const installBtn = byId<HTMLButtonElement>("install");
+  tag.hidden = !alreadyIn;
+  installBtn.hidden = alreadyIn;
   animateDetection(byId("found"));
 }
 
@@ -222,6 +229,9 @@ function backToNormal(): void {
   index = null;
   byId("destination").hidden = true;
   byId("index").hidden = true;
+  // 導入済みの印を次回に持ち越さない。導入ボタンも既定の表示に戻す。
+  byId("found-installed").hidden = true;
+  byId<HTMLButtonElement>("install").hidden = false;
   setMode(false);
   byId<HTMLInputElement>("url").value = "";
   byId("url-error").hidden = true;
@@ -285,6 +295,14 @@ byId<HTMLButtonElement>("install").addEventListener("click", async () => {
     }
     await install({ ...request, overwrite: true });
     await send({ type: "dismiss" });               // バッジを下ろす。導入済みは収集一覧が持つ
+    // 現在のタブへ「もう一度検知して」と伝える。content script が visited を送り直し、
+    // SW の visit() が走って `installedFromSameSource` が今度こそ真になり、
+    // `installed.set` が張られる。次に popup を開いたとき、SW からも「導入済み」が返る。
+    void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+      if (tab?.id !== undefined) {
+        void chrome.tabs.sendMessage(tab.id, { type: "rescan" }).catch(() => { /* content script 不在 */ });
+      }
+    }).catch(() => { /* tabs へアクセスできない */ });
     backToNormal();
     // 読み上げのために先に出す。`hidden` の間は live region が木に載らない。
     const done = byId("done");
@@ -474,6 +492,41 @@ byId<HTMLButtonElement>("index-dismiss").addEventListener("click", () => {
 });
 
 // --- 収集一覧 -----------------------------------------------------------
+
+/**
+ * service worker の「導入済み」表示を popup 側でもう一度確かめる。
+ *
+ * MV3 の service worker は数十秒で止まり、次に起きたときの `queryPermission` は
+ * `prompt` を返すことがある — その状態では実体があっても "unknown" で終わり、
+ * 逆に許可が生きているときは削除後もキャッシュが残って「導入済み」を出し続ける、
+ * といったズレが起きる。popup は自分の文脈で許可を持って呼ばれるので、ここで
+ * もう一度、収集一覧と実体を突き合わせる。
+ *
+ * 消えていれば収集一覧から落とし、「導入済み」の表示もやめる（呼び出し側は
+ * `alreadyIn=false` で通常の導入ダイアログを出す）。ピッカーは開かない —
+ * popup を開くだけで許可を問う UI が飛び出すのは避けたい。
+ */
+async function verifyStillInstalled(url: string): Promise<boolean> {
+  const found = await resolve(url, true);
+  if (found === null) return false;
+  const match = (await loadCollection()).find(item =>
+    item.name === found.name && item.kind === found.kind
+    && item.repo === found.source.repo);
+  if (match === undefined) return false;          // 一覧に無い時点で違う
+  const { configDir, sub } = splitRoot(match.root);
+  const config = await configHandle(configDir, false).catch(() => null);
+  if (config === null) return true;               // 許可が取れない = 判断しない
+  const subDir = sub === "" ? config
+    : await config.getDirectoryHandle(sub).catch(() => null);
+  if (subDir === null) {                          // 置き場ごと消えている
+    await forget(match);
+    return false;
+  }
+  const entry = match.kind === "skill" ? match.name : `${match.name}.md`;
+  if (await exists(subDir, entry)) return true;
+  await forget(match);
+  return false;
+}
 
 /** 許可が無いルートは実態を見られない。消えたのか残っているのか決めつけない。 */
 type Row = { readonly item: Collected; readonly verified: boolean };
@@ -690,9 +743,27 @@ autoOpen.addEventListener("change", () => void setAutoOpenEnabled(autoOpen.check
 
 void (async () => {
   autoOpen.checked = await autoOpenEnabled();
+
+  // 「今アクティブなタブが Tool ページで、収集一覧に一致があり、実体もある」
+  // を **最優先** に判定する。SW の候補（`candidate.url` = アンインストール前提の
+  // 入れ物）より、収集一覧と FSA の突き合わせの方が真実に近い。
+  //
+  // 例えば `install()` 直後は `dismiss` の反映が非同期で遅れるため、SW からは
+  // まだ古い `candidate.url` が返ることがある。それを先に採ってしまうと、赤字の
+  // 「導入済み」に切り替わらず「導入」ボタンだけが残ってしまう。
+  const [activeTab] = await chrome.tabs.query({
+    active: true, currentWindow: true,
+  }).catch(() => []);
+  const activeUrl = typeof activeTab?.url === "string" ? activeTab.url : "";
+  if (activeUrl !== "" && await verifyStillInstalled(activeUrl)) {
+    byId<HTMLInputElement>("url").value = activeUrl;
+    await showLead(activeUrl, true, true);
+    return;
+  }
+
   // 検知の候補は「今見ているタブのもの」だけを受け取る（別のタブのものを出さない）。
   const candidate = await send({ type: "candidate" }) as
-    { url?: string; index?: SkillIndex | null } | undefined;
+    { url?: string; index?: SkillIndex | null; installed?: string } | undefined;
   // 列挙済みの一覧があればそれを使う。popup から API をもう一度叩かない。
   if (candidate?.index != null && candidate.index.entries.length > 0) {
     await showIndex(candidate.index);
@@ -701,6 +772,18 @@ void (async () => {
   if (typeof candidate?.url === "string" && candidate.url !== "") {
     byId<HTMLInputElement>("url").value = candidate.url;
     await showLead(candidate.url, true);
+    return;
+  }
+  // 既に入っているものは popup を開いたときにだけ「導入済み」で見せる。バッジは
+  // 出していないので、開いた本人にしか見えない — 毎回勧める形にはしない。
+  //
+  // service worker の判定を鵜呑みにせず、popup の文脈でも実体を確かめる。冷えた
+  // service worker では `queryPermission` が `prompt` に戻り、直近まで確かに入って
+  // いたものが空振りに転ぶ、といった食い違いが起き得るため。
+  if (typeof candidate?.installed === "string" && candidate.installed !== "") {
+    const still = await verifyStillInstalled(candidate.installed);
+    byId<HTMLInputElement>("url").value = candidate.installed;
+    await showLead(candidate.installed, true, still);
     return;
   }
   // バッジはタブに残るが、候補は service worker のメモリにしかない（MV3 は数十秒で

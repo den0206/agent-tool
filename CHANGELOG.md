@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- The browser extension popup showed the red "Installed" tag on every detected Tool page, even for skills that were never installed. Its class rule `display: inline-flex` had the same CSS specificity as the browser's built-in `[hidden] { display: none }`, so the author rule won the cascade and the `hidden` attribute did nothing. The same defect kept the install button visible when it should have been hidden. A single `[hidden] { display: none !important }` reset restores the intended behavior for all popup elements.
+- The "Installed" tag no longer waits for a tab reload to appear after a browser-side install. On every popup open the collection-and-disk check for the active tab now runs first, ahead of the service worker's candidate state, so a stale "candidate" left over from before the install cannot suppress the tag. The install handler also tells the current tab's content script to rescan afterwards, which makes the service worker's own detection catch up in the same session.
+
+### Changed
+
+- The browser extension now shows the "Installed" tag inside the popup only when the current page's Skill or Subagent was installed from the same GitHub repository. The check previously matched on name and kind alone, which mislabeled tools that shared a name with an unrelated skill already on disk. The tag is popup-only, with no toolbar badge or automatic popup.
+- Tool pages whose local folder shares a name with another repository's skill now show the install detection instead of staying silent. The install button's confirmation still guards against overwriting an existing folder.
+- The "Installed" tag now fires only when the browser extension can confirm the local folder still exists through the File System Access API. Entries removed outside the browser extension (by the IDE, the file system, or by hand) are dropped from the collection on the next visit if the folder-access permission is granted. When the permission is dormant the tag no longer appears based on the collection alone; the normal install detection appears in that case, and the install button's overwrite confirmation continues to guard against clobbering existing folders. The popup double-checks the folder in its own context on open, so a cold service worker's stale answer cannot outlive it.
+
 ## [0.3.0] — 2026-09-16
 
 ### Added
