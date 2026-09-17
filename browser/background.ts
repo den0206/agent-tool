@@ -1,9 +1,9 @@
 import { detectPage, proofUrls, skillIndex, ToolLead } from "../core/detect.js";
 import { GitHubSource } from "../core/github.js";
 import { listSkills, SkillEntry } from "../core/tree.js";
+import { Collected, MAX_BROWSER_COLLECTION_ENTRIES } from "../core/collection.js";
 import { rootStateOf, splitRoot } from "../core/placement.js";
-import { MAX_BROWSER_COLLECTION_ENTRIES } from "../core/collection.js";
-import { autoOpenEnabled, knownRoots, loadCollection, loadHandle } from "./store.js";
+import { autoOpenEnabled, forget, loadCollection, loadHandle } from "./store.js";
 import { isExtractable } from "./install.js";
 import { fetchJson } from "./fetch.js";
 
@@ -20,6 +20,16 @@ import { fetchJson } from "./fetch.js";
  * 同じページをもう一度開けば、もう一度出る。
  */
 const candidates = new Map<number, string>();
+
+/**
+ * 既に入っているものは**バッジを出さず**、popup を開いたときにだけ「導入済み」として
+ * 見せる。毎回勧めないという方針は変えないが、利用者が自分から popup を開いたときは
+ * 「このページのものは入っている」と分かるようにする。
+ *
+ * 覚えているのは URL だけ — 種類・名前は popup 側が `resolve` でもう一度出す
+ * （直リンクなら追加の取得は無く、カタログでも 1 回で済む）。
+ */
+const installed = new Map<number, string>();
 
 /**
  * カタログは実体パスを約束しないので、展開して中身を確かめるしかない。
@@ -107,41 +117,63 @@ async function exists(found: ToolLead): Promise<boolean> {
 }
 
 /**
- * 既に入っているものを毎回勧めない。許可済みのルートは実態を見る。
+ * 「これは今見ているページの取得元から入っている」と赤字で断言できる強い一致。
  *
- * 名前が一覧に出れば入っているとみなす。IDE 拡張が張った symlink は
- * `getDirectoryHandle` では見つからないので、それだけだと毎回勧めてしまう。
+ * 収集一覧に記録があるだけでは足りない — ブラウザ拡張の外で消されたとき、記録は
+ * 残り続けるからである（`remove` を経由しない削除は `forget` を呼ばない）。
+ * FSA で実体があると確かめられたときにだけ真にする。
+ *
+ * 許可が取れず確かめようがないときは false を返す。収集一覧を信じてしまうと、
+ * サービスワーカーが冷える度に「導入済み」の誤表示が復活する（`queryPermission` は
+ * 冷えた文脈で `prompt` を返し、削除の反映を見逃す）。false のときは通常の導入
+ * ダイアログが出るが、同名の上書きは導入時の確認ダイアログが止める。
+ *
+ * 実体が確かに無いと分かった場合は、その場で収集一覧から落として二度と誤表示させない。
  */
-async function alreadyInstalled(found: ToolLead): Promise<boolean> {
-  const entry = found.kind === "skill" ? found.name : `${found.name}.md`;
-  for (const root of await knownRoots()) {
-    const config = await loadHandle(root);
-    if (config === undefined) continue;
-    // 別のフォルダが設定されている記録は見ない。中身を見て「導入済み」と誤判定する。
-    if (rootStateOf(splitRoot(root).configDir, config.name).kind !== "ok") continue;
-    if (await config.queryPermission({ mode: "read" }) !== "granted") continue;
-    // 保存しているのが設定ディレクトリか置き場そのものかで、見る階層が変わる。
-    const dirs = splitRoot(root).sub === ""
-      ? await Promise.all(["skills", "agents"].map(sub =>
-          config.getDirectoryHandle(sub).catch(() => null)))
-      : [config];
-    for (const dir of dirs) {
-      if (dir === null) continue;
-      try {
-        for await (const [name] of dir.entries()) if (name === entry) return true;
-      } catch { /* 読めないルートは判断しない */ }
-    }
-  }
-  return (await loadCollection()).some(item =>
-    item.name === found.name && item.kind === found.kind);
+async function installedFromSameSource(found: ToolLead): Promise<boolean> {
+  const match = (await loadCollection()).find(item =>
+    item.name === found.name && item.kind === found.kind
+    && item.repo === found.source.repo);
+  if (match === undefined) return false;
+  const verdict = await stillOnDisk(match);
+  if (verdict === "missing") await forget(match);
+  return verdict === "present";
+}
+
+/**
+ * 収集一覧の 1 件が実体としてまだ置き場に残っているか。
+ * 許可が要る API を呼ぶが、`granted` のときだけ叩いてダイアログは出さない。
+ *
+ * `Collected.root` は `.claude/skills` の形（`rootOf(placement)`）で入っており、
+ * IndexedDB のハンドルは設定ディレクトリ（`.claude`）だけを鍵に持つので、
+ * 分けて突き合わせる。
+ */
+async function stillOnDisk(item: Collected): Promise<"present" | "missing" | "unknown"> {
+  const { configDir, sub } = splitRoot(item.root);
+  const config = await loadHandle(configDir);
+  if (config === undefined) return "unknown";
+  if (rootStateOf(configDir, config.name).kind !== "ok") return "unknown";
+  if (await config.queryPermission({ mode: "read" }) !== "granted") return "unknown";
+  // 置き場（`skills` / `agents`）ごと消えていれば実体も無い。
+  const dir = sub === "" ? config : await config.getDirectoryHandle(sub).catch(() => null);
+  if (dir === null) return "missing";
+  const entry = item.kind === "skill" ? item.name : `${item.name}.md`;
+  try {
+    for await (const [name] of dir.entries()) if (name === entry) return "present";
+  } catch { return "unknown"; }               // 読めなければ黙って許すのは呼び出し側
+  return "missing";
 }
 
 const clear = async (tabId: number): Promise<void> => {
   const had = candidates.delete(tabId);
   const hadIndex = shown.delete(tabId);
   const hadLimit = rateLimited.delete(tabId);
-  if (!had && !hadIndex && !hadLimit) return;
-  await chrome.action.setBadgeText({ text: "", tabId }).catch(() => { /* タブが閉じた */ });
+  const hadInstalled = installed.delete(tabId);
+  if (!had && !hadIndex && !hadLimit && !hadInstalled) return;
+  // 導入済み表示はバッジを持たないので、それだけの場合は setBadgeText を呼ばない。
+  if (had || hadIndex || hadLimit) {
+    await chrome.action.setBadgeText({ text: "", tabId }).catch(() => { /* タブが閉じた */ });
+  }
   // rate limit の告知だけがタイトルを差し替える。ここでも必ず元へ戻す。
   if (hadLimit) await chrome.action.setTitle({ tabId, title: "" }).catch(() => { /* 同上 */ });
 };
@@ -197,7 +229,16 @@ async function visit(url: string, tabId: number | undefined, jsonLd?: string): P
 
   const found = detectPage(url, jsonLd ?? "");
   if (found === null) return;
-  if (!await exists(found) || await alreadyInstalled(found)) return;
+  if (!await exists(found)) return;
+  // 取得元まで一致するものだけを「導入済み」として popup で見せる。
+  // バッジは出さない — 毎回勧めないという方針は保つ。
+  if (await installedFromSameSource(found)) {
+    installed.set(tabId, found.url);
+    return;
+  }
+  // 別リポジトリの同名 Skill を持っているだけで検知が消える誤判定を避けるため、
+  // 名前だけの一致は「導入済み」とは扱わない。ただし黙って引くのはやめて、
+  // 導入ボタン付きで見せる（同名上書きは導入時の確認ダイアログが止める）。
   if (!await extractable(found)) return;
 
   candidates.set(tabId, found.url);
@@ -208,10 +249,16 @@ async function visit(url: string, tabId: number | undefined, jsonLd?: string): P
  * 今見ているタブの候補。popup が開いたときに訊く。
  * 一覧は列挙済みのものをそのまま渡す — popup がもう一度 API を叩かないため。
  */
-async function activeCandidate(): Promise<{ url: string; index: Index | null }> {
+async function activeCandidate(): Promise<{
+  url: string; index: Index | null; installed: string;
+}> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id === undefined) return { url: "", index: null };
-  return { url: candidates.get(tab.id) ?? "", index: shown.get(tab.id) ?? null };
+  if (tab?.id === undefined) return { url: "", index: null, installed: "" };
+  return {
+    url: candidates.get(tab.id) ?? "",
+    index: shown.get(tab.id) ?? null,
+    installed: installed.get(tab.id) ?? "",
+  };
 }
 
 /** 今の表示をやめる。「今はしない」と導入後の両方が呼ぶ。次に開けばまた出る。 */
