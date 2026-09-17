@@ -46,6 +46,7 @@
   --scrim: light-dark(#1b1a2b4d, #0000009e);
   /* 行やボタンの下地。線を増やさずに「触れる」ことだけを示す。 */
   --hover: color-mix(in srgb, var(--accent) 10%, transparent);
+  --ok: light-dark(#2d8f5f, #7dc383);
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
@@ -222,10 +223,34 @@ body.detected #open-settings { display: none; }
 
 .repo { display: block; margin-top: 3px; color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere; }
 
-/* 二段目。導入を押してから出す。 */
-#destination { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+/*
+ * 二段目。導入を押してから出す。
+ * 上段 (種類 + 名前) と視覚的に分けるため、下地に accent-wash をごく薄く敷き、
+ * カード内で「これは導入先の確認だ」という段を作る。カード自体のグラデは維持。
+ */
+#destination {
+  margin: 12px -14px 0;
+  padding: 12px 14px 0;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent-wash) 55%, transparent);
+}
 #destination:not([hidden]) { animation: rise 0.16s var(--ease) both; }
 #destination .repo:first-child { margin-top: 0; }
+
+/*
+ * 導入先セレクタのラベルだけ、小さな大文字ラベルに寄せる。
+ * permission-note / security-summary の見出しと本文は detection.css が扱う
+ * (背景色・チェック印を含めて 1 か所に集約しておく)。
+ */
+#destination .choose label {
+  display: block;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+#destination #picker-hint { margin-top: 12px; padding-bottom: 12px; }
 
 /* 導入先は 1 行。候補を並べて場所を取らない。 */
 .choose { display: flex; gap: 9px; align-items: center; margin-top: 11px; }
@@ -263,7 +288,14 @@ select:focus-visible {
 
 /* --- 操作 -------------------------------------------------------------- */
 
+/*
+ * 検知カードの操作行は Install を主役にする。押させたい方向へ視線が寄るよう、
+ * Install に flex:1 を与え、あとで を素の枠だけに落とす。
+ * `#index` の操作行は 1 個ボタン (dismiss) なのでこの規則には触らない。
+ */
 .actions { display: flex; gap: 8px; margin-top: 12px; }
+#found .actions #install { flex: 1; justify-content: center; }
+#found .actions #dismiss { flex: 0 0 auto; color: var(--muted); }
 
 button {
   padding: 7px 13px;
@@ -453,24 +485,78 @@ input[type=url]:focus-visible {
 
 /* --- 導入したもの。設定の最下部に畳んで置く ---------------------------- */
 
+/*
+ * root カードや `#prefs` と同じ体裁で並べ、一連の設定行として揃える。
+ * 見出しは summary 側にすべて載せ、右端に件数バッジを添える。
+ */
 #collection-section {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  margin: 18px 0 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  box-shadow: var(--lift);
+  overflow: hidden;
 }
 
-/* 開閉は `details` に任せる。三角は既定のものをそのまま使う。 */
+/*
+ * 既定の disclosure marker (三角) は消し、自作のキャレットを左に置く。
+ * Firefox / Safari のマーカーは `list-style: none` で消え、Chrome は
+ * `::-webkit-details-marker` を要求する。両方書いて安全側に寄せる。
+ */
 #collection-section summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
   cursor: pointer;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--ink);
+  font-size: 12.5px;
   font-weight: 600;
-  transition: color 0.15s var(--ease);
+  list-style: none;
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
 }
+#collection-section summary::-webkit-details-marker { display: none; }
+#collection-section summary::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  transition: transform 0.18s var(--ease);
+}
+#collection-section[open] summary::before { transform: rotate(90deg); }
+#collection-section summary .summary-title { flex: 1; }
+#collection-section summary:hover { background: var(--hover); }
+#collection-section summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-#collection-section summary:hover { color: var(--accent); }
-#collection-section summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-#collection-section[open] > :not(summary) { animation: rise 0.16s var(--ease) both; }
+/*
+ * 件数バッジ。inline-flex で子 (数字) を中央へ確実に置く。text-align + padding だと
+ * "1" のような細い字が視覚的に左寄りになるため、寸法固定 + `tabular-nums` で揃える。
+ * 0 件のときは中身が空文字なので `:empty` で消える。
+ */
+.count-badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.count-badge:empty { display: none; }
+
+/* 開いた側の中身は箱の内側に少し余白を持たせる。summary は 0 で保つ。 */
+#collection-section[open] > :not(summary) { padding: 0 12px; animation: rise 0.16s var(--ease) both; }
+#collection-section[open] > :not(summary):last-child { padding-bottom: 12px; }
 
 /* 件数が増えても設定画面そのものは伸ばさない。一覧の中だけをスクロールさせる。 */
 #collection { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; }
@@ -520,6 +606,33 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
 .lead { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
 #settings-view .hint { margin: 0 0 14px; }
 
+/*
+ * セクションラベル。全 UPPERCASE の小見出しで、続く箱の意味を先に告げる。
+ * 隣接セレクタで余白を吸って、上のセクションと詰めすぎない距離を取る。
+ */
+.section-label {
+  margin: 18px 0 8px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+#settings-view .hint + .section-label { margin-top: 6px; }
+
+/* 支援技術のためだけに残す legend など。視覚上は隠すが読み上げには残す。 */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .root {
   display: flex;
   gap: 12px;
@@ -535,6 +648,47 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
 
 .root:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .root + .root { margin-top: 7px; }
+
+/*
+ * 未設定の行 (取り消しボタンがなく、CTA だけの状態)。破線にして「まだ空だ」と
+ * 一目で分かるようにする。実線カードと混ざると触った/触ってないの区別が付かない。
+ * `:has(button.primary):not(:has(.clear))` で unset だけを掴む
+ * (mismatch は `.root.bad` で赤枠、`.clear` も併存)。
+ */
+.root:not(.bad):has(button.primary):not(:has(.clear)) {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+}
+
+/*
+ * 未設定の行の CTA は素の primary (紫塗り) だと未設定と接続済みが同じ強さで並び、
+ * どこを触るべきかが逆に迷子になる。アクセントの外郭だけにして、行そのものは静かに保つ。
+ * TS 側は `state.kind !== "ok"` に `.primary` を付けるため、mismatch (`.root.bad`) は
+ * 従来通りの塗り (赤枠と合わせて強い印) を維持する。
+ */
+.root:not(.bad):has(button.primary):not(:has(.clear)) button.primary {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+.root:not(.bad):has(button.primary):not(:has(.clear)) button.primary:hover {
+  background: var(--hover);
+  box-shadow: none;
+}
+
+/* 接続済みの行は名前の前に小さなドットを添え、状態を色文以外でも読ませる。 */
+.root:not(.bad):not(:has(button.primary)) .root-name::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  vertical-align: 1px;
+}
 
 /* 別のフォルダが設定されている行。直さないと導入できないので、はっきり出す。 */
 .root.bad, .root.bad:hover { border-color: var(--danger); }
@@ -557,11 +711,17 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
 .root:hover .clear { border-color: var(--line); }
 .root-actions .clear:hover { border-color: var(--danger); color: var(--danger); }
 
-/* 設定のまとまり。区切り線はここが 1 本だけ持つ — 行ごとに持たせると毎行に線が入る。 */
+/*
+ * 設定のまとまり。root カードの列と同じ体裁にして、面として揃える。
+ * 見出しは上の `.section-label` が担うので、ここは箱と余白だけを持つ。
+ */
 #prefs {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  box-shadow: var(--lift);
 }
 
 .switch {
@@ -577,10 +737,99 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
 .switch input { margin: 0; accent-color: var(--accent); }
 .switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* 配色の 3 択。枠は出さず、見出しと行だけを残す。 */
-#theme { margin: 13px 0 0; padding: 0; border: 0; }
-#theme legend { padding: 0; color: var(--muted); font-size: 12px; }
-#theme .switch { margin-top: 7px; }
+/*
+ * 自動で開くの行だけ、ラベルを左に、トグルを右に振り分ける。
+ * `.switch` の DOM は `<input> → <span>` の順なので、視覚上の順を入れ替えるために
+ * `row-reverse` を使う (`order` で並べ替えると tab の順序が壊れる)。
+ * `#prefs > .switch` は今のところ auto-open だけを含む。
+ * theme の `.switch` は fieldset の中なのでこの規則には当たらない。
+ */
+#prefs > .switch { flex-direction: row-reverse; justify-content: space-between; gap: 12px; }
+#prefs > .switch > span { flex: 1; }
+
+/*
+ * 自動で開くの ON/OFF。checkbox を素のまま出すより、大きく確かなトグルに寄せる。
+ * `appearance: none` で描画は自分で持ち、状態は :checked に紐付ける。
+ */
+#auto-open {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--paper);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+#auto-open::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 1px 2px var(--shade);
+  transition: transform 0.18s var(--ease), background 0.18s var(--ease);
+}
+#auto-open:checked { background: var(--accent); border-color: var(--accent); }
+#auto-open:checked::after { transform: translateX(14px); background: #fff; }
+#auto-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/*
+ * 配色の 3 択。値が排他な小さな候補は縦 radio より segmented control の方が読みやすい。
+ * 見出しは前の `.section-label` が担うので、fieldset の legend は視覚上は隠す。
+ * radio 本体も視覚から消し、選択は `:has(input:checked)` で label 側に描く。
+ */
+#theme {
+  display: flex;
+  gap: 4px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+#theme .switch {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+#theme .switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+#theme .switch:has(input:checked) {
+  background: var(--card);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: var(--lift);
+}
+#theme .switch:hover:not(:has(input:checked)) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--ink);
+}
+#theme .switch:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

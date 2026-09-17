@@ -120,6 +120,12 @@
   "tabThemeDark": {
     "message": "Dark"
   },
+  "settingsRoots": {
+    "message": "Destinations"
+  },
+  "settingsBehavior": {
+    "message": "Behavior"
+  },
   "settingsTitle": {
     "message": "Choose where Agent Tool can write"
   },

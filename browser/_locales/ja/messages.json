@@ -123,6 +123,12 @@
   "settingsTitle": {
     "message": "Agent Tool が書き込める場所を選ぶ"
   },
+  "settingsRoots": {
+    "message": "導入先"
+  },
+  "settingsBehavior": {
+    "message": "動作"
+  },
   "settingsChoose": {
     "message": "フォルダを選ぶ"
   },

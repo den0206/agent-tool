@@ -121,39 +121,51 @@
       <section id="settings-view" hidden>
         <h2 data-i18n="settingsTitle"></h2>
         <p id="hint" class="hint"></p>
+
+        <div class="section-label" data-i18n="settingsRoots"></div>
         <div id="roots"></div>
         <p id="settings-status" class="status" role="status"></p>
 
+        <div class="section-label" data-i18n="settingsBehavior"></div>
         <div id="prefs">
           <label class="switch">
             <input id="auto-open" type="checkbox">
             <span data-i18n="tabAutoOpenToggle"></span>
           </label>
-
-          <!--
-            配色。3 つから 1 つなので radio にする（checkbox は 3 つとも入る状態を作れる）。
-            見た目は上の行に合わせる。値は `color-scheme` にそのまま入る。
-          -->
-          <fieldset id="theme">
-            <legend data-i18n="tabThemeLabel"></legend>
-            <label class="switch">
-              <input type="radio" name="theme" value="light dark">
-              <span data-i18n="tabThemeSystem"></span>
-            </label>
-            <label class="switch">
-              <input type="radio" name="theme" value="light">
-              <span data-i18n="tabThemeLight"></span>
-            </label>
-            <label class="switch">
-              <input type="radio" name="theme" value="dark">
-              <span data-i18n="tabThemeDark"></span>
-            </label>
-          </fieldset>
         </div>
 
-        <!-- ここから導入したもの。普段は畳んでおく。開閉は `details` に任せる。 -->
+        <!--
+          配色。3 つから 1 つなので radio にする（checkbox は 3 つとも入る状態を作れる）。
+          値は `color-scheme` にそのまま入る。見出しはセクションラベルが担い、
+          fieldset の legend は支援技術のためだけに置く (視覚的には隠す)。
+        -->
+        <div class="section-label" data-i18n="tabThemeLabel"></div>
+        <fieldset id="theme">
+          <legend class="visually-hidden" data-i18n="tabThemeLabel"></legend>
+          <label class="switch">
+            <input type="radio" name="theme" value="light dark">
+            <span data-i18n="tabThemeSystem"></span>
+          </label>
+          <label class="switch">
+            <input type="radio" name="theme" value="light">
+            <span data-i18n="tabThemeLight"></span>
+          </label>
+          <label class="switch">
+            <input type="radio" name="theme" value="dark">
+            <span data-i18n="tabThemeDark"></span>
+          </label>
+        </fieldset>
+
+        <!--
+          ここから導入したもの。普段は畳んでおく。開閉は `details` に任せる。
+          `<span>` を分けて置くのは、右端に件数バッジを載せるため。件数は
+          `renderCollection` が `#collection-count` に入れる。
+        -->
         <details id="collection-section">
-          <summary data-i18n="tabCollection"></summary>
+          <summary>
+            <span class="summary-title" data-i18n="tabCollection"></span>
+            <span id="collection-count" class="count-badge" aria-hidden="true"></span>
+          </summary>
           <button id="verify" type="button" hidden data-i18n="tabVerify"></button>
           <ul id="collection"></ul>
           <p id="collection-empty" class="empty" data-i18n="tabCollectionEmpty"></p>
