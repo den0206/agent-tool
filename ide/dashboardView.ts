@@ -23,6 +23,7 @@ const webviewText = (): Record<string, string> => ({
   title: vscode.l10n.t("Agent Tool"),
   subtitle: vscode.l10n.t("AI agent tools in this workspace"),
   refresh: vscode.l10n.t("Refresh"),
+  browserExtension: vscode.l10n.t("Get the browser extension"),
   checkUpdates: vscode.l10n.t("Check for updates"),
   pinned: vscode.l10n.t("Pinned"),
   clipboard: vscode.l10n.t("Found a URL in your clipboard"),
@@ -255,6 +256,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
       <h1>Agent Tool</h1>
     </div>
     <div class="actions">
+      <button class="ghost" id="browser-extension">${text0.browserExtension} ↗</button>
       <button class="icon-btn" id="refresh" title="${text0.refresh}" aria-label="${text0.refresh}"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13.3 8a5.3 5.3 0 1 1-1.55-3.75"/><path d="M13.5 3v3h-3"/></svg></button>
     </div>
   </header>
@@ -545,6 +547,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     panel.classList.remove('hidden');
   }
   document.querySelector('#refresh').onclick=()=>vscode.postMessage({type:'refresh'});
+  document.querySelector('#browser-extension').onclick=()=>vscode.postMessage({type:'openBrowserExtension'});
   document.querySelector('#add-form').onsubmit=e=>{e.preventDefault(); vscode.postMessage({type:'analyzeTool',url:document.querySelector('#tool-url').value});};
   window.addEventListener('message',e=>{
     if (e.data.type==='inventory') {

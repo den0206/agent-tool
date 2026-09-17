@@ -27,11 +27,11 @@ function stubVscode(overrides = {}) {
   };
   const stub = {
     l10n: { t: (text, ...args) => args.reduce((acc, value, i) => acc.replace(`{${i}}`, value), text) },
-    Uri: { joinPath: () => ({ fsPath: "" }), file: fsPath => ({ fsPath }) },
+    Uri: { joinPath: () => ({ fsPath: "" }), file: fsPath => ({ fsPath }), parse: value => ({ value }) },
     ProgressLocation: { Notification: 15 },
     StatusBarAlignment: { Right: 2 },
     RelativePattern: class { constructor(base, pattern) { this.base = base; this.pattern = pattern; } },
-    env: { remoteName: undefined, clipboard: { readText: async () => "" } },
+    env: { remoteName: undefined, clipboard: { readText: async () => "" }, openExternal: uri => { state.externalUri = uri; return Promise.resolve(true); } },
     workspace: {
       isTrusted: true, workspaceFolders: undefined,
       createFileSystemWatcher: () => {
@@ -149,6 +149,15 @@ test("未信頼ワークスペースではツール操作を表示しない", as
   });
   assert.deepEqual(state.picks, []);
   assert.match(state.warnings[0], /trust this workspace/);
+});
+
+test("Dashboard からブラウザ拡張のストアページを開く", async () => {
+  const { stub, state } = stubVscode();
+  activateWith(stub, fakeEnv().appSupport);
+  showView(state);
+  state.onMessage({ type: "openBrowserExtension" });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(state.externalUri.value, "https://chromewebstore.google.com/detail/agent-tool/allbohfeiidaiemnagikcghaialfafhp");
 });
 
 /**
