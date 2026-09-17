@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-17
+
 ### Added
 
 - The IDE Dashboard header now links to the Agent Tool browser extension in the Chrome Web Store.
