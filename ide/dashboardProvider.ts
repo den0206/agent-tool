@@ -5,6 +5,7 @@ import * as agentTool from './agentTool';
 import { dashboardHtml, type DashboardItem } from './dashboardView';
 
 const KINDS: KindId[] = ['skill', 'subagent', 'rule', 'mcp', 'plugin'];
+const BROWSER_EXTENSION_URL = 'https://chromewebstore.google.com/detail/agent-tool/allbohfeiidaiemnagikcghaialfafhp';
 
 /** 書き込みを拒む理由。空文字なら書ける。表示と可否の判定を 1 か所にする。 */
 const readOnlyReason = (): '' | 'untrusted' | 'remote' =>
@@ -51,6 +52,8 @@ export class DashboardProvider
       if (message?.type === 'refresh') void this.refresh(true);
       if (message?.type === 'checkUpdates')
         void vscode.commands.executeCommand('agent-tool.checkUpdates');
+      if (message?.type === 'openBrowserExtension')
+        void vscode.env.openExternal(vscode.Uri.parse(BROWSER_EXTENSION_URL));
       if (message?.type === 'addSkill')
         void vscode.commands.executeCommand(
           'agent-tool.addSkill',

@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- The IDE Dashboard header now links to the Agent Tool browser extension in the Chrome Web Store.
+
 ### Changed
 
 - The browser extension popup has been refreshed. On the detected card the Install button now fills the row (Dismiss stays compact beside it) and the destination panel that appears after the first Install click gets a subtle accent-tinted background so it reads as a distinct step. On the settings screen the sections carry small uppercase labels ("Destinations", "Behavior", "Palette"); unset destination rows switch to a dashed outline (visibly "empty" vs. filled) while connected rows get a small green status dot before the agent name; the preferences block is wrapped as one card; the auto-open checkbox becomes a full toggle switch; the palette is moved out of the preferences card into its own segmented control; and the "installed items" area at the bottom is now a card with a custom disclosure caret and a count badge on the right. The card gradient, brand bar, and existing detection animations are all preserved.
