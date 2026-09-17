@@ -153,11 +153,15 @@ test("未信頼ワークスペースではツール操作を表示しない", as
 
 test("Dashboard からブラウザ拡張のストアページを開く", async () => {
   const { stub, state } = stubVscode();
-  activateWith(stub, fakeEnv().appSupport);
-  showView(state);
-  state.onMessage({ type: "openBrowserExtension" });
-  await new Promise(resolve => setImmediate(resolve));
-  assert.equal(state.externalUri.value, "https://chromewebstore.google.com/detail/agent-tool/allbohfeiidaiemnagikcghaialfafhp");
+  const { context } = activateWith(stub, fakeEnv().appSupport);
+  try {
+    showView(state);
+    state.onMessage({ type: "openBrowserExtension" });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(state.externalUri.value, "https://chromewebstore.google.com/detail/agent-tool/allbohfeiidaiemnagikcghaialfafhp");
+  } finally {
+    for (const item of context.subscriptions) item.dispose?.();
+  }
 });
 
 /**
