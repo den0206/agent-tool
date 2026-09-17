@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The IDE dashboard has been refreshed. The tool list is now grouped into hairline-divided sections with per-kind counts; agents live in a compact segmented control at the top; the scope switch is a small segmented pill (User Global first and selected by default) next to the project name, with `Check for updates` moved to the right of that row so it no longer sits beside the top-right refresh icon. A slim banner surfaces pending updates and lets you filter to them in one click. Running MCP servers get a soft-glow green dot, stopped ones dim to grey; `@latest` MCPs carry an inline warning icon next to the name; pinned tools show a pin glyph. Bundled tools are collapsed by default; Environment and Diagnostics move to collapsible footer sections. Everything continues to use the editor theme, so light and dark themes render correctly.
+
 ### Fixed
 
 - The browser extension popup showed the red "Installed" tag on every detected Tool page, even for skills that were never installed. Its class rule `display: inline-flex` had the same CSS specificity as the browser's built-in `[hidden] { display: none }`, so the author rule won the cascade and the `hidden` attribute did nothing. The same defect kept the install button visible when it should have been hidden. A single `[hidden] { display: none !important }` reset restores the intended behavior for all popup elements.
