@@ -65,13 +65,23 @@ jobs:
           sha256sum vsix/agent-tool-browser.zip | tee vsix/agent-tool-browser.zip.sha256
       - name: Submit browser extension to Chrome Web Store
         # alpha / beta はGitHub Releasesだけに公開する。ストアは安定版だけへ出す。
+        # 後段の失敗で再実行したとき同じ版を出し直さないよう、提出済み・公開済みの版なら飛ばす。
         if: ${{ !contains(steps.version.outputs.version, '-') && env.CHROME_CLIENT_ID != '' && env.CHROME_CLIENT_SECRET != '' && env.CHROME_REFRESH_TOKEN != '' && env.CHROME_PUBLISHER_ID != '' && env.CHROME_EXTENSION_ID != '' }}
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           access_token="$(curl --fail --silent --show-error https://oauth2.googleapis.com/token \
             --data-urlencode "client_id=$CHROME_CLIENT_ID" \
             --data-urlencode "client_secret=$CHROME_CLIENT_SECRET" \
             --data-urlencode "refresh_token=$CHROME_REFRESH_TOKEN" \
             --data-urlencode 'grant_type=refresh_token' | node -e "let body=''; process.stdin.on('data', chunk => body += chunk).on('end', () => { const token = JSON.parse(body).access_token; if (!token) process.exit(1); process.stdout.write(token) })")"
+          if curl --fail --silent --show-error \
+            -H "Authorization: Bearer $access_token" \
+            "https://chromewebstore.googleapis.com/v2/publishers/$CHROME_PUBLISHER_ID/items/$CHROME_EXTENSION_ID:fetchStatus" \
+            | node -e "let body=''; process.stdin.on('data', chunk => body += chunk).on('end', () => { const found=[]; JSON.parse(body, (key, value) => { if (key === 'crxVersion') found.push(value); return value; }); process.exit(found.includes(process.env.RELEASE_VERSION) ? 0 : 1) })"; then
+            echo "Chrome Web Store には $RELEASE_VERSION を提出済みです"
+            exit 0
+          fi
           curl --fail --silent --show-error \
             -H "Authorization: Bearer $access_token" \
             -X POST -T vsix/agent-tool-browser.zip \
@@ -82,7 +92,8 @@ jobs:
             "https://chromewebstore.googleapis.com/v2/publishers/$CHROME_PUBLISHER_ID/items/$CHROME_EXTENSION_ID:publish"
       - name: Publish stable release to Open VSX
         if: ${{ !contains(steps.version.outputs.version, '-') && env.OVSX_PAT != '' }}
-        run: npx --yes ovsx@1.2.0 publish vsix/agent-tool.vsix -p "$OVSX_PAT"
+        # 再実行で公開済みの版に当たっても止めない。
+        run: npx --yes ovsx@1.2.0 publish vsix/agent-tool.vsix -p "$OVSX_PAT" --skip-duplicate
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
