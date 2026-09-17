@@ -19,9 +19,12 @@ export type DashboardItem = {
   floating?: string;
 };
 
+/**
+ * Webview の文言。`vscode.l10n.t` は拡張ホストでしか使えないので、
+ * ここで引き当ててからスクリプトへ渡す（不変条件 6: en / ja を同時に持つ）。
+ */
 const webviewText = (): Record<string, string> => ({
   title: vscode.l10n.t("Agent Tool"),
-  subtitle: vscode.l10n.t("AI agent tools in this workspace"),
   refresh: vscode.l10n.t("Refresh"),
   browserExtension: vscode.l10n.t("Get the browser extension"),
   checkUpdates: vscode.l10n.t("Check for updates"),
@@ -37,10 +40,10 @@ const webviewText = (): Record<string, string> => ({
   analyze: vscode.l10n.t("Analyze"),
   analyzing: vscode.l10n.t("Analyzing URL…"),
   urlLabel: vscode.l10n.t("Public GitHub URL"),
-  yourTools: vscode.l10n.t("Your tools"),
   updates: vscode.l10n.t("Updates available"),
   updateBanner: vscode.l10n.t("{0} tools have updates"),
   showOnly: vscode.l10n.t("Show only"),
+  showAll: vscode.l10n.t("Show all"),
   environment: vscode.l10n.t("Environment"),
   cliDetected: vscode.l10n.t("CLI detected"),
   configurationFound: vscode.l10n.t("Configuration found"),
@@ -95,10 +98,13 @@ const webviewText = (): Record<string, string> => ({
  * 選ばれた 1 件だけを拡張ホストに読ませる。
  * `onlyUpdates` は更新件数のクリックで立つ絞り込み。件数を全体で数えているので、
  * 一覧もエージェントとスコープを跨いで出し、件数に入らない他プロジェクト欄は畳む。
+ * そうしないと数字と一覧が食い違う。
  */
 export function dashboardHtml(webview: vscode.Webview): string {
+  // 推測できない値にする。`Date.now()` は当てられるので nonce の意味が薄い。
   const nonce = randomUUID().replace(/-/g, '');
   const text0 = webviewText();
+  // `</script>` で閉じられないよう `<` を退避してから埋め込む。
   const text = JSON.stringify(text0).replace(/</g, "\\u003c");
   return `<!doctype html><html lang="${(vscode.env.language ?? "").startsWith("ja") ? "ja" : "en"}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
     :root {
@@ -220,7 +226,6 @@ export function dashboardHtml(webview: vscode.Webview): string {
 
     /* Footer sections (Environment / Diagnostics) */
     .footer-section { margin-top:14px; }
-    .footer-section:first-of-type { border-top:1px solid var(--at-border-soft); padding-top:12px; margin-top:14px; }
     .footer-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; background:transparent; color:var(--at-fg-mute); border:0; padding:0 0 8px; font:inherit; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
     .footer-toggle .caret { display:inline-flex; align-items:center; gap:6px; }
     .footer-toggle .side { color:var(--at-fg-faint); font-size:10px; letter-spacing:0; text-transform:none; font-weight:400; }
@@ -261,6 +266,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     </div>
   </header>
   <div class="banner hidden" id="banner"></div>
+  <div class="banner hidden" id="load-error"></div>
   <div class="banner hidden" id="update-banner"></div>
   <div class="section-label">${text0.addSection}</div>
   <form class="add-form" id="add-form">
@@ -387,7 +393,6 @@ export function dashboardHtml(webview: vscode.Webview): string {
   function render() {
     const agents=Object.keys(agentNames).filter(a=>items.some(x=>x.agents.includes(a)));
     if (!agents.includes(agent)) agent=agents[0]??'';
-    const managed=items.filter(x=>x.origin!=='bundled').length;
     const updates=items.filter(x=>x.hasUpdate).length;
     if (updates===0) onlyUpdates=false;
     const visible=onlyUpdates
@@ -398,7 +403,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const ub = document.querySelector('#update-banner');
     if (updates > 0) {
       ub.innerHTML = '<span class="icon">'+warnSvg+'</span><div class="grow">'+esc(T.updateBanner.replace('{0}', updates))+'</div>'
-        + '<button class="link" id="only-updates" aria-pressed="'+onlyUpdates+'">'+esc(onlyUpdates?T.showLess:T.showOnly)+'</button>';
+        + '<button class="link" id="only-updates" title="'+esc(T.showUpdates)+'" aria-pressed="'+onlyUpdates+'">'+esc(onlyUpdates?T.showAll:T.showOnly)+'</button>';
       ub.classList.remove('hidden');
       const btn = document.querySelector('#only-updates');
       if (btn) btn.onclick = () => { onlyUpdates=!onlyUpdates; hideDetail(); render(); };
@@ -412,9 +417,9 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const nav = document.querySelector('#agents');
     nav.innerHTML = agents.length
       ? agents.map(a=>{
-          const cnt = items.filter(x=>x.agents.includes(a)).length;
+          const cnt = items.filter(x=>x.agents.includes(a) && x.origin!=='bundled').length;
           return '<button class="agent '+(a===agent?'active':'')+'" data-agent="'+a+'" role="tab" aria-selected="'+(a===agent)+'">'
-            + '<span class="agent-dot"></span><span>'+esc(agentShort[a])+'</span><span style="color:var(--at-fg-faint); font-size:10.5px">·'+cnt+'</span></button>';
+            + '<span class="agent-dot"></span><span>'+esc(agentShort[a])+'</span><span style="color:var(--at-fg-faint); font-size:10.5px">'+cnt+'</span></button>';
         }).join('')
       : (loaded ? '<div class="empty" style="width:100%">'+esc(T.noAgents)+'</div>' : '');
 
@@ -493,12 +498,11 @@ export function dashboardHtml(webview: vscode.Webview): string {
     box.innerHTML = text ? '<span class="icon">'+warnSvg+'</span><span>'+esc(text)+'</span>' : '';
     box.classList.toggle('hidden', text==='');
     box.classList.toggle('readonly', text!=='' && (readOnly==='untrusted' || readOnly==='remote'));
-    // load-error banner surfaced separately
-    const errs = (loadError?[loadError]:[]).concat(issues);
-    if (errs.length && !text) {
-      box.innerHTML = '<span class="icon">'+warnSvg+'</span><span>'+esc(T.loadFailed)+'<br>'+errs.map(esc).join('<br>')+'</span>';
-      box.classList.remove('hidden');
-    }
+    // Keep load failures visible alongside the read-only notice, or a broken registry goes unnoticed.
+    const errs=(loadError?[loadError]:[]).concat(issues);
+    const failBox=document.querySelector('#load-error');
+    failBox.innerHTML = errs.length ? '<span class="icon">'+warnSvg+'</span><span>'+esc(T.loadFailed)+'<br>'+errs.map(esc).join('<br>')+'</span>' : '';
+    failBox.classList.toggle('hidden', errs.length===0);
   }
   function diagnosticText(d) {
     const name=d.targets&&d.targets[0]?d.targets[0].name:'';
