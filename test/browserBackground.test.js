@@ -78,6 +78,7 @@ test('自動表示を切っても検知のバッジと候補は残す', async ()
         badges.push(value);
       },
       setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {},
       // openPopup を実装側が `.catch(() => {})` で握るため、throw では回帰を検知できない。
       // 呼び出し回数を数えて明示的にゼロを確かめる。
       openPopup: async () => {
@@ -131,6 +132,7 @@ test('API 枠切れで一覧が読めなかったら "!" バッジで告げる',
     action: {
       setBadgeText: async (value) => { badges.push(value); },
       setBadgeBackgroundColor: async (value) => { colors.push(value); },
+      setBadgeTextColor: async () => {},
       setTitle: async (value) => { titles.push(value); },
       openPopup: async () => { opened += 1; },
     },
@@ -222,6 +224,7 @@ test('導入済みの検知はバッジを出さず、popup を開いたとき�
     action: {
       setBadgeText: async (value) => { badges.push(value); },
       setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {},
       openPopup: async () => { opened += 1; },
     },
   };
@@ -304,6 +307,7 @@ test('別リポジトリの同名 Skill だけでは「導入済み」と扱わ�
     action: {
       setBadgeText: async () => {},
       setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {},
       openPopup: async () => {},
     },
   };
@@ -329,12 +333,10 @@ test('別リポジトリの同名 Skill だけでは「導入済み」と扱わ�
 });
 
 /**
- * 収集一覧に残っていても、実体が消えていれば「導入済み」を出さず、その場で一覧から
- * 落とす。IDE 拡張・ファイルシステム・手動削除など、ブラウザ拡張の外で消された経路
- * に対応する。FSA の許可が生きているときにだけ確かめられる — 許可が取れないときは
- * `installedFromSameSource` が false を返して「導入済み」を出さない（次のテストで担保）。
+ * 収集一覧に残っていても、実体が見つからなければ「導入済み」を出さない。
+ * 同じ basename の別フォルダを選んでいる可能性があるので、検知の側では一覧から落とさない。
  */
-test('収集一覧に残っていても実体が消えていれば「導入済み」を出さず落とす', async () => {
+test('実体が見つからなければ「導入済み」を出さず、収集一覧も書き換えない', async () => {
   const saved = {
     chrome: globalThis.chrome,
     fetch: globalThis.fetch,
@@ -345,7 +347,7 @@ test('収集一覧に残っていても実体が消えていれば「導入済�
     {name: 'pdf', kind: 'skill', repo: 'acme/repo', root: '.claude/skills'},
   ];
   const written = [];
-  // `.claude/skills` を指すが中身が空のハンドル。`pdf` が見つからないので "missing"。
+  // `.claude/skills` を指すが中身が空のハンドル。`pdf` が見つからない。
   const skillsDir = {
     entries: async function* () { /* 何も置いていない */ },
   };
@@ -395,6 +397,7 @@ test('収集一覧に残っていても実体が消えていれば「導入済�
     action: {
       setBadgeText: async () => {},
       setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {},
       openPopup: async () => {},
     },
   };
@@ -414,8 +417,7 @@ test('収集一覧に残っていても実体が消えていれば「導入済�
       visit({type: 'candidate'}, {}, resolve);
     });
     assert.equal(answer.installed, '');           // 赤字の「導入済み」は出さない
-    // 収集一覧からその1件が落ちている（forgetAll が呼ばれて空の配列を書く）。
-    assert.deepEqual(written.at(-1), []);
+    assert.deepEqual(written, []);                // 収集一覧は検知の側で書き換えない
   } finally {
     globalThis.chrome = saved.chrome;
     globalThis.fetch = saved.fetch;
@@ -478,6 +480,7 @@ test('FSA の許可が取れないときは収集一覧に記録があっても�
     action: {
       setBadgeText: async () => {},
       setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {},
       openPopup: async () => {},
     },
   };

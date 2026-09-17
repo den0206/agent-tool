@@ -3,7 +3,7 @@ import { GitHubSource } from "../core/github.js";
 import { listSkills, SkillEntry } from "../core/tree.js";
 import { Collected, MAX_BROWSER_COLLECTION_ENTRIES } from "../core/collection.js";
 import { rootStateOf, splitRoot } from "../core/placement.js";
-import { autoOpenEnabled, forget, loadCollection, loadHandle } from "./store.js";
+import { autoOpenEnabled, loadCollection, loadHandle } from "./store.js";
 import { isExtractable } from "./install.js";
 import { fetchJson } from "./fetch.js";
 
@@ -128,16 +128,15 @@ async function exists(found: ToolLead): Promise<boolean> {
  * 冷えた文脈で `prompt` を返し、削除の反映を見逃す）。false のときは通常の導入
  * ダイアログが出るが、同名の上書きは導入時の確認ダイアログが止める。
  *
- * 実体が確かに無いと分かった場合は、その場で収集一覧から落として二度と誤表示させない。
+ * 実体が見つからなくても収集一覧からは落とさない。同じ名前の別の設定ディレクトリを
+ * 選んでいると区別できず（ハンドルは basename しか持たない）、残っている記録を消してしまう。
+ * 落とすのは利用者が一覧を開いたときの `reconcile` に任せる。
  */
 async function installedFromSameSource(found: ToolLead): Promise<boolean> {
   const match = (await loadCollection()).find(item =>
     item.name === found.name && item.kind === found.kind
     && item.repo === found.source.repo);
-  if (match === undefined) return false;
-  const verdict = await stillOnDisk(match);
-  if (verdict === "missing") await forget(match);
-  return verdict === "present";
+  return match !== undefined && await stillOnDisk(match);
 }
 
 /**
@@ -148,20 +147,19 @@ async function installedFromSameSource(found: ToolLead): Promise<boolean> {
  * IndexedDB のハンドルは設定ディレクトリ（`.claude`）だけを鍵に持つので、
  * 分けて突き合わせる。
  */
-async function stillOnDisk(item: Collected): Promise<"present" | "missing" | "unknown"> {
+async function stillOnDisk(item: Collected): Promise<boolean> {
   const { configDir, sub } = splitRoot(item.root);
   const config = await loadHandle(configDir);
-  if (config === undefined) return "unknown";
-  if (rootStateOf(configDir, config.name).kind !== "ok") return "unknown";
-  if (await config.queryPermission({ mode: "read" }) !== "granted") return "unknown";
-  // 置き場（`skills` / `agents`）ごと消えていれば実体も無い。
+  if (config === undefined) return false;
+  if (rootStateOf(configDir, config.name).kind !== "ok") return false;
+  if (await config.queryPermission({ mode: "read" }) !== "granted") return false;
   const dir = sub === "" ? config : await config.getDirectoryHandle(sub).catch(() => null);
-  if (dir === null) return "missing";
+  if (dir === null) return false;
   const entry = item.kind === "skill" ? item.name : `${item.name}.md`;
   try {
-    for await (const [name] of dir.entries()) if (name === entry) return "present";
-  } catch { return "unknown"; }               // 読めなければ黙って許すのは呼び出し側
-  return "missing";
+    for await (const [name] of dir.entries()) if (name === entry) return true;
+  } catch { /* 読めなければ導入済みとは言わない */ }
+  return false;
 }
 
 const clear = async (tabId: number): Promise<void> => {
@@ -185,7 +183,7 @@ async function announce(tabId: number, text: string, open: boolean): Promise<voi
   await chrome.action.setBadgeBackgroundColor({ color: "#5b4bd6", tabId }).catch(() => { /* 同上 */ });
   // 文字色を明示。既定は Chrome が地の色から自動で決めるため、機種や配色設定で
   // グレー寄りに落ちて数字が中心からずれて見えることがある。白で固定する。
-  await chrome.action.setBadgeTextColor?.({ color: "#ffffff", tabId }).catch(() => { /* Chrome 110 未満 */ });
+  await chrome.action.setBadgeTextColor({ color: "#ffffff", tabId }).catch(() => { /* 同上 */ });
   // `openPopup` は Chrome 127 以降で、それ未満と
   // 操作の文脈によっては開けない。そのときはバッジだけにする（manifest の
   // `minimum_chrome_version` は `light-dark()` が要る 123 に置く。これは必須ではない）。
@@ -202,7 +200,7 @@ async function announceRateLimited(tabId: number): Promise<void> {
   rateLimited.add(tabId);
   await chrome.action.setBadgeText({ text: "!", tabId }).catch(() => { /* タブが閉じた */ });
   await chrome.action.setBadgeBackgroundColor({ color: "#c9411c", tabId }).catch(() => { /* 同上 */ });
-  await chrome.action.setBadgeTextColor?.({ color: "#ffffff", tabId }).catch(() => { /* Chrome 110 未満 */ });
+  await chrome.action.setBadgeTextColor({ color: "#ffffff", tabId }).catch(() => { /* 同上 */ });
   await chrome.action.setTitle({ tabId, title: chrome.i18n.getMessage("badgeRateLimited") })
     .catch(() => { /* 同上 */ });
 }
@@ -278,8 +276,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     void visit(payload.url, sender.tab?.id, payload.jsonLd);
     return false;
   }
-  // 導入後も「今はしない」と同じ。導入済みかどうかは収集一覧が持っているので
-  // （`alreadyInstalled`）、service worker が別に覚える必要が無い。
+  // 導入後も「今はしない」と同じ。導入済みの表示は popup が送る `rescan` で張り直す。
   if (payload.type === "dismiss") { void clearActive(); return false; }
   if (payload.type === "candidate") {
     void activeCandidate().then(respond);
@@ -300,4 +297,5 @@ chrome.tabs.onRemoved.addListener(tabId => {
   candidates.delete(tabId);
   shown.delete(tabId);
   rateLimited.delete(tabId);
+  installed.delete(tabId);
 });
