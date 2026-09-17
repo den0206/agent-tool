@@ -588,6 +588,8 @@ async function renderCollection(): Promise<void> {
   box.replaceChildren();
   byId("collection-empty").hidden = rows.length > 0;
   byId("verify").hidden = rows.every(row => row.verified);
+  // 件数バッジ。0 のときは空文字にして CSS で消す (見出しの右が空になる)。
+  byId("collection-count").textContent = rows.length > 0 ? String(rows.length) : "";
 
   for (const { item, verified } of rows) {
     const row = document.createElement("li");
