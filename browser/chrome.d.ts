@@ -22,6 +22,7 @@ declare namespace chrome {
   namespace action {
     function setBadgeText(details: { text: string; tabId?: number }): Promise<void>;
     function setBadgeBackgroundColor(details: { color: string; tabId?: number }): Promise<void>;
+    function setBadgeTextColor(details: { color: string; tabId?: number }): Promise<void>;
     function setTitle(details: { title: string; tabId?: number }): Promise<void>;
     function openPopup(): Promise<void>;
   }

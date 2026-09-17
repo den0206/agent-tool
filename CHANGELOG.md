@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- The browser extension toolbar action badge (the small purple pill on the icon with the number of detected tools) now sets its text color to white explicitly. On some Chrome builds the default text color is auto-derived from the badge background and lands on a muted grey, which visibly de-centers narrow digits like "1". Explicit white restores legibility and perceived alignment. The change silently no-ops on Chrome versions older than 110.
 - The browser extension popup showed the red "Installed" tag on every detected Tool page, even for skills that were never installed. Its class rule `display: inline-flex` had the same CSS specificity as the browser's built-in `[hidden] { display: none }`, so the author rule won the cascade and the `hidden` attribute did nothing. The same defect kept the install button visible when it should have been hidden. A single `[hidden] { display: none !important }` reset restores the intended behavior for all popup elements.
 - The "Installed" tag no longer waits for a tab reload to appear after a browser-side install. On every popup open the collection-and-disk check for the active tab now runs first, ahead of the service worker's candidate state, so a stale "candidate" left over from before the install cannot suppress the tag. The install handler also tells the current tab's content script to rescan afterwards, which makes the service worker's own detection catch up in the same session.
 

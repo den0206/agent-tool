@@ -183,6 +183,9 @@ async function announce(tabId: number, text: string, open: boolean): Promise<voi
   await chrome.action.setBadgeText({ text, tabId }).catch(() => { /* タブが閉じた */ });
   // popup の `--accent` と同じ紫。バッジはアイコンの上に出るので、そこで色がずれない。
   await chrome.action.setBadgeBackgroundColor({ color: "#5b4bd6", tabId }).catch(() => { /* 同上 */ });
+  // 文字色を明示。既定は Chrome が地の色から自動で決めるため、機種や配色設定で
+  // グレー寄りに落ちて数字が中心からずれて見えることがある。白で固定する。
+  await chrome.action.setBadgeTextColor?.({ color: "#ffffff", tabId }).catch(() => { /* Chrome 110 未満 */ });
   // `openPopup` は Chrome 127 以降で、それ未満と
   // 操作の文脈によっては開けない。そのときはバッジだけにする（manifest の
   // `minimum_chrome_version` は `light-dark()` が要る 123 に置く。これは必須ではない）。
@@ -199,6 +202,7 @@ async function announceRateLimited(tabId: number): Promise<void> {
   rateLimited.add(tabId);
   await chrome.action.setBadgeText({ text: "!", tabId }).catch(() => { /* タブが閉じた */ });
   await chrome.action.setBadgeBackgroundColor({ color: "#c9411c", tabId }).catch(() => { /* 同上 */ });
+  await chrome.action.setBadgeTextColor?.({ color: "#ffffff", tabId }).catch(() => { /* Chrome 110 未満 */ });
   await chrome.action.setTitle({ tabId, title: chrome.i18n.getMessage("badgeRateLimited") })
     .catch(() => { /* 同上 */ });
 }
