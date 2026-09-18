@@ -24,6 +24,12 @@ export function archiveUrl(source: GitHubSource, revision?: string): string {
   return `https://github.com/${source.repo}/archive/${reference}.zip`;
 }
 
+/** ブラウザ拡張へ渡す、取得元の Skill ディレクトリ URL。 */
+export function sourcePageUrl(source: GitHubSource): string {
+  const suffix = source.subdir === undefined ? "" : `/${source.subdir}`;
+  return `https://github.com/${source.repo}/tree/${source.branch ?? DEFAULT_REF}${suffix}`;
+}
+
 /**
  * `registry.repos` のキー。`checkUpdates` が書き、`hasUpdate` と更新適用が読む。
  * 3 か所で組み立てるとズレて更新が永久に出なくなるので、ここだけに置く。
