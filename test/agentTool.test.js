@@ -45,7 +45,7 @@ test("旧版の退避ツールは最初の書き込み可能な一覧で戻す",
   ].join("");
   const result = spawnSync(process.execPath, ["-e", script], {
     cwd: process.cwd(), encoding: "utf8",
-    env: { ...process.env, HOME: env.home, AGENT_TOOL_STORAGE: env.appSupport },
+    env: { ...process.env, HOME: env.home, USERPROFILE: env.home, AGENT_TOOL_STORAGE: env.appSupport },
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(join(env.home, ".agents", "skills", "pdf", "SKILL.md")), true);
@@ -68,7 +68,7 @@ test("旧版の退避ツールと復元先が衝突したらどちらも残す",
   ].join("");
   const result = spawnSync(process.execPath, ["-e", script], {
     cwd: process.cwd(), encoding: "utf8",
-    env: { ...process.env, HOME: env.home, AGENT_TOOL_STORAGE: env.appSupport },
+    env: { ...process.env, HOME: env.home, USERPROFILE: env.home, AGENT_TOOL_STORAGE: env.appSupport },
   });
   assert.notEqual(result.status, 0);
   assert.equal(readFileSync(join(env.appSupport, "disabled-skills", "pdf", "SKILL.md"), "utf8"), "disabled\n");
