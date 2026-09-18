@@ -57,15 +57,20 @@ export type PreviewCandidate = {
 /** `storagePath` は `context.globalStorageUri.fsPath`。OS 別パスは VS Code が解決する。 */
 const envOf = (storagePath: string): Env => ({ home: homedir(), appSupport: storagePath });
 
-/** 旧版の退避ディレクトリを初回の書き込み可能な一覧表示で戻す。 */
-async function restoreRetiredTools(storagePath: string): Promise<void> {
+/**
+ * 旧版の退避ディレクトリを初回の書き込み可能な一覧表示で戻す。
+ * 復元先が別の実体で埋まっていれば、その 1 件だけを skip して issues に載せ、
+ * 他の復元は続ける — ここで throw すると Dashboard 自体が開けなくなる。
+ */
+async function restoreRetiredTools(storagePath: string): Promise<string[]> {
   const env = envOf(storagePath);
   const retired = read(env).resources.some(item => {
     if (item.project !== undefined || (item.kind !== "skill" && item.kind !== "subagent")) return false;
     return existsSync(join(env.appSupport, item.kind === "skill" ? "disabled-skills" : "disabled-agents",
       item.kind === "skill" ? item.name : `${item.name}.md`));
   });
-  if (!retired) return;
+  if (!retired) return [];
+  const issues: string[] = [];
   await mutate(storagePath, (registry, env) => {
     for (const item of registry.resources) {
       if (item.project !== undefined || (item.kind !== "skill" && item.kind !== "subagent")) continue;
@@ -74,8 +79,8 @@ async function restoreRetiredTools(storagePath: string): Promise<void> {
       if (!existsSync(old)) continue;
       const plan = layout(item.name, item.kind, env, USER, item.root);
       if (existsSync(plan.store)) {
-        throw new AgentToolError("ALREADY_EXISTS",
-          `${plan.store} already exists; the disabled copy was left at ${old}`);
+        issues.push(`${item.name}: an active copy already exists at ${plan.store}; the disabled copy was kept at ${old}`);
+        continue;
       }
       guard.assertValidName(item.name);
       guard.assertSafeCreation(old, join(old, ".."), env.appSupport);
@@ -85,6 +90,7 @@ async function restoreRetiredTools(storagePath: string): Promise<void> {
       link(item.name, item.kind, env, registry);
     }
   });
+  return issues;
 }
 
 /** 走査と操作で同じ実行系を使う。手動指定した CLI パスは registry が持つ。 */
@@ -114,11 +120,12 @@ export async function inventory(params: {
   writable?: boolean;
 }): Promise<{ items: InventoryItem[]; issues: string[]; diagnostics: Diagnostic[] }> {
   const env = envOf(params.storagePath);
-  if (params.writable === true) await restoreRetiredTools(params.storagePath);
-  return buildInventory({
+  const restoreIssues = params.writable === true ? await restoreRetiredTools(params.storagePath) : [];
+  const built = await buildInventory({
     env, projectPath: params.projectPath, run: runnerFor(env), user: params.user,
     writable: params.writable,
   });
+  return { ...built, issues: [...restoreIssues, ...built.issues] };
 }
 
 /** 他プロジェクトの一覧を出すための候補。`~/.claude.json` の既知パスだけを返す。 */
