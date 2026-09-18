@@ -117,49 +117,34 @@ async function exists(found: ToolLead): Promise<boolean> {
 }
 
 /**
- * 「これは今見ているページの取得元から入っている」と赤字で断言できる強い一致。
+ * 「これは今見ているページの取得元から入っている」と popup で断言できる強い一致。
  *
- * 収集一覧に記録があるだけでは足りない — ブラウザ拡張の外で消されたとき、記録は
- * 残り続けるからである（`remove` を経由しない削除は `forget` を呼ばない）。
- * FSA で実体があると確かめられたときにだけ真にする。
+ * 収集一覧に記録があり、かつ設定ディレクトリのハンドルが IndexedDB に残っていれば
+ * 導入済みとして扱う。実体が読めるかは popup が開くときに確かめる — サービスワーカーは
+ * ユーザー操作の外なので、`queryPermission` は同じセッションで一度も導入していない
+ * 冷えた文脈では `prompt` を返す。ここで false に落とすと、ブラウザを開き直すたびに
+ * 「導入済み」表示が消え、popup に URL 入力欄と Install ボタンだけが並んで、実際には
+ * 入っているのに未導入のように見える（実測でこの回帰が報告されている）。
  *
- * 許可が取れず確かめようがないときは false を返す。収集一覧を信じてしまうと、
- * サービスワーカーが冷える度に「導入済み」の誤表示が復活する（`queryPermission` は
- * 冷えた文脈で `prompt` を返し、削除の反映を見逃す）。false のときは通常の導入
- * ダイアログが出るが、同名の上書きは導入時の確認ダイアログが止める。
- *
- * 実体が見つからなくても収集一覧からは落とさない。同じ名前の別の設定ディレクトリを
- * 選んでいると区別できず（ハンドルは basename しか持たない）、残っている記録を消してしまう。
- * 落とすのは利用者が一覧を開いたときの `reconcile` に任せる。
+ * 誤表示のリスク: 収集一覧の外で消されたものは「導入済み」のまま残る。ただし popup の
+ * Install ボタンは常時押せる（別 Agent への追加を許すため）ので、利用者は同じ導線で
+ * 入れ直せる。同名上書きは導入時の確認ダイアログが止める。
  */
 async function installedFromSameSource(found: ToolLead): Promise<boolean> {
-  const match = (await loadCollection()).find(item =>
+  const matches = (await loadCollection()).filter(item =>
     item.name === found.name && item.kind === found.kind
     && item.repo === found.source.repo);
-  return match !== undefined && await stillOnDisk(match);
+  for (const match of matches) if (await handleStillKnown(match)) return true;
+  return false;
 }
 
-/**
- * 収集一覧の 1 件が実体としてまだ置き場に残っているか。
- * 許可が要る API を呼ぶが、`granted` のときだけ叩いてダイアログは出さない。
- *
- * `Collected.root` は `.claude/skills` の形（`rootOf(placement)`）で入っており、
- * IndexedDB のハンドルは設定ディレクトリ（`.claude`）だけを鍵に持つので、
- * 分けて突き合わせる。
- */
-async function stillOnDisk(item: Collected): Promise<boolean> {
-  const { configDir, sub } = splitRoot(item.root);
+/** 記録に対応する設定ディレクトリのハンドルが残っているか。実体の実在は popup 側で確かめる。 */
+async function handleStillKnown(item: Collected): Promise<boolean> {
+  const { configDir } = splitRoot(item.root);
   const config = await loadHandle(configDir);
   if (config === undefined) return false;
   if (rootStateOf(configDir, config.name).kind !== "ok") return false;
-  if (await config.queryPermission({ mode: "read" }) !== "granted") return false;
-  const dir = sub === "" ? config : await config.getDirectoryHandle(sub).catch(() => null);
-  if (dir === null) return false;
-  const entry = item.kind === "skill" ? item.name : `${item.name}.md`;
-  try {
-    for await (const [name] of dir.entries()) if (name === entry) return true;
-  } catch { /* 読めなければ導入済みとは言わない */ }
-  return false;
+  return await config.queryPermission({ mode: "read" }) !== "denied";
 }
 
 const clear = async (tabId: number): Promise<void> => {

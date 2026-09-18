@@ -333,10 +333,10 @@ test('別リポジトリの同名 Skill だけでは「導入済み」と扱わ�
 });
 
 /**
- * 収集一覧に残っていても、実体が見つからなければ「導入済み」を出さない。
- * 同じ basename の別フォルダを選んでいる可能性があるので、検知の側では一覧から落とさない。
+ * ハンドルが IndexedDB に無いときは「導入済み」を出さない。同じ basename の別フォルダを
+ * 選んでいる可能性があるので、検知の側では収集一覧から落とさない。
  */
-test('実体が見つからなければ「導入済み」を出さず、収集一覧も書き換えない', async () => {
+test('設定ディレクトリのハンドルが無ければ「導入済み」を出さず、収集一覧も書き換えない', async () => {
   const saved = {
     chrome: globalThis.chrome,
     fetch: globalThis.fetch,
@@ -347,15 +347,6 @@ test('実体が見つからなければ「導入済み」を出さず、収集�
     {name: 'pdf', kind: 'skill', repo: 'acme/repo', root: '.claude/skills'},
   ];
   const written = [];
-  // `.claude/skills` を指すが中身が空のハンドル。`pdf` が見つからない。
-  const skillsDir = {
-    entries: async function* () { /* 何も置いていない */ },
-  };
-  const handle = {
-    name: '.claude',                           // rootStateOf('.claude', '.claude') が ok
-    queryPermission: async () => 'granted',
-    getDirectoryHandle: async (sub) => sub === 'skills' ? skillsDir : Promise.reject(),
-  };
   globalThis.indexedDB = {
     open: () => {
       const result = {};
@@ -365,8 +356,7 @@ test('実体が見つからなければ「導入済み」を出さず、収集�
             objectStore: () => ({
               get: (key) => {
                 if (storeName === 'collection' && key === 'list') return request(stored);
-                // ハンドルは configDir（`.claude`）だけを鍵にして保存する。
-                if (storeName === 'handles' && key === '.claude') return request(handle);
+                // ハンドルは持っていない（利用者が一度も許可していない状態）。
                 return request(undefined);
               },
               getAllKeys: () => request([]),
@@ -403,20 +393,19 @@ test('実体が見つからなければ「導入済み」を出さず、収集�
   };
   try {
     await import(
-      `../out/web/browser/background.js?stale-entry=${Date.now()}`
+      `../out/web/browser/background.js?no-handle=${Date.now()}`
     );
     visit(
       {type: 'visited', url: 'https://skills.sh/acme/repo/pdf'},
       {tab: {id: 21}},
     );
-    // stillOnDisk は 非同期のイテレータを回すので、待ちの回数を増やしておく。
     for (let i = 0; i < 6; i += 1) {
       await new Promise((resolve) => setImmediate(resolve));
     }
     const answer = await new Promise((resolve) => {
       visit({type: 'candidate'}, {}, resolve);
     });
-    assert.equal(answer.installed, '');           // 赤字の「導入済み」は出さない
+    assert.equal(answer.installed, '');           // ハンドルが無いので「導入済み」は出さない
     assert.deepEqual(written, []);                // 収集一覧は検知の側で書き換えない
   } finally {
     globalThis.chrome = saved.chrome;
@@ -426,18 +415,17 @@ test('実体が見つからなければ「導入済み」を出さず、収集�
 });
 
 /**
- * FSA の許可が切れているとき（サービスワーカーが冷えて `queryPermission` が
- * `prompt` を返すとき）、収集一覧に記録があっても「導入済み」と出さない。
- * 記録を信じ切ると、ブラウザ拡張の外で削除されたものが冷える度に復活する。
+ * FSA の許可が `prompt`（冷えた service worker）でも、ハンドルと収集一覧が残っていれば
+ * 「導入済み」として popup で見せる。ブラウザを開き直すたびに「導入済み」が消えると、
+ * 実際には入っているものが未導入のように見える回帰になる。
  */
-test('FSA の許可が取れないときは収集一覧に記録があっても「導入済み」を出さない', async () => {
+test('許可が prompt でもハンドルと記録があれば「導入済み」を出す', async () => {
   const saved = {
     chrome: globalThis.chrome,
     fetch: globalThis.fetch,
     indexedDB: globalThis.indexedDB,
   };
   let visit;
-  // `queryPermission` が `prompt` を返す = 冷えた service worker と同じ状態。
   const handle = {
     name: '.claude',
     queryPermission: async () => 'prompt',
@@ -498,7 +486,143 @@ test('FSA の許可が取れないときは収集一覧に記録があっても�
     const answer = await new Promise((resolve) => {
       visit({type: 'candidate'}, {}, resolve);
     });
+    assert.equal(answer.installed, 'https://skills.sh/mattpocock/skills/grill-me');
+  } finally {
+    globalThis.chrome = saved.chrome;
+    globalThis.fetch = saved.fetch;
+    globalThis.indexedDB = saved.indexedDB;
+  }
+});
+
+/**
+ * 許可が `denied`（利用者が明示的に拒否した）ときは、記録があっても「導入済み」を出さない。
+ * 拒否は「読ませない」という意思表示なので、記録を根拠に断言しない。
+ */
+test('許可が denied なら記録があっても「導入済み」を出さない', async () => {
+  const saved = {
+    chrome: globalThis.chrome,
+    fetch: globalThis.fetch,
+    indexedDB: globalThis.indexedDB,
+  };
+  let visit;
+  const handle = {
+    name: '.claude',
+    queryPermission: async () => 'denied',
+    getDirectoryHandle: async () => { throw new Error('should not reach'); },
+  };
+  globalThis.indexedDB = {
+    open: () => {
+      const result = {};
+      queueMicrotask(() => {
+        result.result = {
+          transaction: (storeName) => ({
+            objectStore: () => ({
+              get: (key) => {
+                if (storeName === 'collection' && key === 'list') return request([
+                  {name: 'pdf', kind: 'skill', repo: 'acme/repo', root: '.claude/skills'},
+                ]);
+                if (storeName === 'handles' && key === '.claude') return request(handle);
+                return request(undefined);
+              },
+              getAllKeys: () => request([]),
+            }),
+          }),
+          close: () => {},
+        };
+        result.onsuccess?.();
+      });
+      return result;
+    },
+  };
+  globalThis.fetch = async () => { throw new Error('no network'); };
+  globalThis.chrome = {
+    runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
+    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    tabs: {onRemoved: {addListener: () => {}}, query: async () => [{id: 51}]},
+    action: {
+      setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {}, openPopup: async () => {},
+    },
+  };
+  try {
+    await import(`../out/web/browser/background.js?denied=${Date.now()}`);
+    visit({type: 'visited', url: 'https://skills.sh/acme/repo/pdf'}, {tab: {id: 51}});
+    for (let i = 0; i < 6; i += 1) await new Promise((resolve) => setImmediate(resolve));
+    const answer = await new Promise((resolve) => visit({type: 'candidate'}, {}, resolve));
     assert.equal(answer.installed, '');
+  } finally {
+    globalThis.chrome = saved.chrome;
+    globalThis.fetch = saved.fetch;
+    globalThis.indexedDB = saved.indexedDB;
+  }
+});
+
+/**
+ * 別 Agent へ追加した状態では、同じ取得元の記録が複数並ぶ。1 件目の許可が切れていても、
+ * どこかの Agent に実体が残っていれば「導入済み」と出す — 先頭 1 件だけ見ると、
+ * 「別 Agent に追加」を使った利用者だけ「導入済み」が消える回帰になる。
+ */
+test('別 Agent への追加で複数記録が並んでも、どれか 1 件でも残っていれば「導入済み」を出す', async () => {
+  const saved = {
+    chrome: globalThis.chrome,
+    fetch: globalThis.fetch,
+    indexedDB: globalThis.indexedDB,
+  };
+  let visit;
+  const presentDir = {
+    entries: async function* () { yield ['pdf', {}]; },
+  };
+  // `.cursor` はまだ許可が取れない（`prompt`）。`.claude` は許可済みで実体あり。
+  const cursor = {
+    name: '.cursor', queryPermission: async () => 'prompt',
+    getDirectoryHandle: async () => { throw new Error('should not reach'); },
+  };
+  const claude = {
+    name: '.claude', queryPermission: async () => 'granted',
+    getDirectoryHandle: async (sub) => sub === 'skills' ? presentDir : Promise.reject(),
+  };
+  globalThis.indexedDB = {
+    open: () => {
+      const result = {};
+      queueMicrotask(() => {
+        result.result = {
+          transaction: (storeName) => ({
+            objectStore: () => ({
+              get: (key) => {
+                if (storeName === 'collection' && key === 'list') return request([
+                  {name: 'pdf', kind: 'skill', repo: 'acme/repo', root: '.cursor/skills', agent: 'cursor'},
+                  {name: 'pdf', kind: 'skill', repo: 'acme/repo', root: '.claude/skills', agent: 'claude'},
+                ]);
+                if (storeName === 'handles' && key === '.claude') return request(claude);
+                if (storeName === 'handles' && key === '.cursor') return request(cursor);
+                return request(undefined);
+              },
+              getAllKeys: () => request([]),
+            }),
+          }),
+          close: () => {},
+        };
+        result.onsuccess?.();
+      });
+      return result;
+    },
+  };
+  globalThis.fetch = async () => { throw new Error('fetch は呼ばれないはず'); };
+  globalThis.chrome = {
+    runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
+    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    tabs: {onRemoved: {addListener: () => {}}, query: async () => [{id: 41}]},
+    action: {
+      setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {}, openPopup: async () => {},
+    },
+  };
+  try {
+    await import(`../out/web/browser/background.js?multi-agent=${Date.now()}`);
+    visit({type: 'visited', url: 'https://skills.sh/acme/repo/pdf'}, {tab: {id: 41}});
+    for (let i = 0; i < 6; i += 1) await new Promise((resolve) => setImmediate(resolve));
+    const answer = await new Promise((resolve) => visit({type: 'candidate'}, {}, resolve));
+    assert.equal(answer.installed, 'https://skills.sh/acme/repo/pdf');
   } finally {
     globalThis.chrome = saved.chrome;
     globalThis.fetch = saved.fetch;
