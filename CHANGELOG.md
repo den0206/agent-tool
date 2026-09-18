@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-18
+
 ### Changed
 
 - Tool disabling has been removed. Tools disabled by an earlier version are restored when the IDE Dashboard next opens in a writable local window.
