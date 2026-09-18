@@ -294,19 +294,6 @@ export function remove(params: {
 
 ---
 
-### `toggle` — 有効化 / 無効化
-
-```typescript
-export function toggle(params: {
-  storagePath: string;
-  selector: Selector;
-}): Promise<{ enabled: boolean }>;
-```
-
-- user スコープだけ。project は退避先を持たないので `isTogglable` が false になる
-
----
-
 ### `updatePreview` — 更新差分プレビュー
 
 ```typescript

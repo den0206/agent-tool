@@ -10,7 +10,7 @@ import { removeLedger } from "./writeGuard";
 
 /**
  * ブラウザ拡張が残した取得元の台帳を registry へ取り込む（設計決定 D-14）。
- * 取り込めば、既存の削除・無効化・更新検知がそのまま働く。
+ * 取り込めば、既存の削除・更新検知がそのまま働く。
  *
  * 読むのは走査ホワイトリストのルート直下の `.agent-tool` だけで、ここから
  * ホームやワークスペースへ広がることはない。
@@ -72,14 +72,14 @@ const toEntry = (ledger: Ledger, root: string | undefined): Entry => ({
   ...(ledger.subdir === undefined ? {} : { subdir: ledger.subdir }),
   ...(ledger.sha === undefined ? {} : { sha: ledger.sha }),
   ...(root === undefined ? {} : { root }),
-  pinned: false, disabled: false,
+  pinned: false,
 });
 
 /**
  * registry へ足して台帳を消す。呼び出し側がロックの中で呼ぶ。
  * 台帳の削除に失敗しても registry の更新は残す — 次回に同じものを入れ直すだけで害はない。
  *
- * 実体のあるルートまで記録する。持たないと `layout` が管理ストアを指し、削除・無効化が
+ * 実体のあるルートまで記録する。持たないと `layout` が管理ストアを指し、削除が
  * 実体を見失い、更新適用は別の場所へ新版を書いて実体を二重化する。
  */
 export function absorb(env: Env, registry: Registry, found: readonly Found[]): void {

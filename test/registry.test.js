@@ -13,7 +13,6 @@ const seed = (env, body) => writeFileIn(registryFile(env), body);
 test("欠けているキーは既定値で埋める", () => {
   const registry = decode({ resources: [{ name: "a", kind: "skill" }] });
   assert.equal(registry.resources[0].pinned, false);
-  assert.equal(registry.resources[0].disabled, false);
   assert.deepEqual(registry.repos, {});
   assert.deepEqual(registry.agents, {});
 });
@@ -51,7 +50,7 @@ test("自分より新しいスキーマは拒否する", () => {
 test("保存した内容を読み戻せる", async () => {
   const env = fakeEnv();
   const registry = empty();
-  upsert(registry, { name: "mine", kind: "skill", repo: "https://example.com/x", pinned: true, disabled: false });
+  upsert(registry, { name: "mine", kind: "skill", repo: "https://example.com/x", pinned: true });
   await save(env, registry);
   assert.equal(entry(read(env), "mine", "skill").repo, "https://example.com/x");
   assert.equal(entry(read(env), "mine", "skill").pinned, true);
@@ -61,7 +60,7 @@ test("保存した内容を読み戻せる", async () => {
 test("既定値を書き出さず、キーをソートする", async () => {
   const env = fakeEnv();
   const registry = empty();
-  upsert(registry, { name: "mine", kind: "skill", pinned: false, disabled: false });
+  upsert(registry, { name: "mine", kind: "skill", pinned: false });
   await save(env, registry);
   const raw = readFileSync(registryFile(env), "utf8");
   assert.ok(!raw.includes("\"pinned\""), raw);
@@ -77,8 +76,8 @@ test("保存は一時ファイルを残さない", async () => {
 
 test("update は read-modify-write を 1 度で行う", async () => {
   const env = fakeEnv();
-  await update(env, registry => upsert(registry, { name: "a", kind: "skill", pinned: false, disabled: false }));
-  await update(env, registry => upsert(registry, { name: "b", kind: "skill", pinned: false, disabled: false }));
+  await update(env, registry => upsert(registry, { name: "a", kind: "skill", pinned: false }));
+  await update(env, registry => upsert(registry, { name: "b", kind: "skill", pinned: false }));
   assert.deepEqual(read(env).resources.map(resource => resource.name), ["a", "b"]);
 });
 
@@ -86,7 +85,7 @@ test("update は read-modify-write を 1 度で行う", async () => {
 test("同時に走る update が互いの変更を消さない", async () => {
   const env = fakeEnv();
   await Promise.all(["a", "b", "c"].map(name =>
-    update(env, registry => upsert(registry, { name, kind: "skill", pinned: false, disabled: false }))));
+    update(env, registry => upsert(registry, { name, kind: "skill", pinned: false }))));
   assert.deepEqual(read(env).resources.map(resource => resource.name).sort(), ["a", "b", "c"]);
 });
 

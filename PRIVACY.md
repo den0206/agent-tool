@@ -24,7 +24,7 @@ below.
 | Directory handles you grant via the File System Access API | Your browser's local IndexedDB | So the browser extension can reuse the folders you picked when browser permission is still available |
 | A list of what the browser extension has installed (name, source, install path, timestamp) | Your browser's local IndexedDB | So installed items can be shown, updated, and removed later |
 | An auto-open and a theme preference | Your browser's local IndexedDB | Two on/off settings you control from the popup |
-| `registry.json` (pinned/disabled state, cached metadata) | Your local `globalStorageUri` (the Cursor/VS Code extension's own data folder) | So the IDE extension does not need to re-scan on every view |
+| `registry.json` (pinned state and source metadata) | Your local `globalStorageUri` (the Cursor/VS Code extension's own data folder) | To track installed tools and their update source |
 
 None of this leaves your device. Uninstalling either extension removes its
 stored data (browser: through the browser's own extension data controls;

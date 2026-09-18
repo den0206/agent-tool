@@ -3,7 +3,7 @@ import { Env } from "./env";
 import { AgentToolError } from "../core/errors";
 import { Candidate, Staging } from "./fetcher";
 import { entry, Registry, upsert } from "./registry";
-import { enable, layout, Place, USER } from "./skillManager";
+import { layout, link, Place, USER } from "./skillManager";
 import * as guard from "./writeGuard";
 
 /** 取得物が staging の外を指していないか。展開時の検査に対する二重チェック。 */
@@ -60,12 +60,11 @@ export function install(candidate: Candidate, staging: Staging, env: Env, regist
     subdir: staging.source.subdir,
     sha: staging.resolvedSha,
     pinned: false,
-    disabled: false,
     project,
   });
   try {
     // プロジェクトの実体は一覧が読む場所にそのまま置くので、リンクは張らない。
-    if (place.scope === "user") enable(candidate.name, candidate.kind, env, registry);
+    if (place.scope === "user") link(candidate.name, candidate.kind, env, registry);
   } catch (error) {
     registry.resources = before;
     for (const path of plan.links) {

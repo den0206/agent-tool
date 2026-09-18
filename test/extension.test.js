@@ -90,9 +90,9 @@ test("activate は CLI を起動せずに全コマンドを登録する", () => 
   const { stub, state } = stubVscode();
   activateWith(stub, fakeEnv().appSupport);
   for (const name of [
-    "agent-tool.toggleTool", "agent-tool.addSkill", "agent-tool.addMcp", "agent-tool.removeTool",
+    "agent-tool.addSkill", "agent-tool.addMcp", "agent-tool.removeTool",
     "agent-tool.previewUpdate", "agent-tool.applyUpdate", "agent-tool.refreshInventory",
-    "agent-tool.openToolActions", "agent-tool.checkUpdates", "agent-tool.togglePin",
+    "agent-tool.openToolActions", "agent-tool.checkUpdates", "agent-tool.togglePin", "agent-tool.addSkillToAnotherAgent",
     "agent-tool.inventory.focus",
   ]) {
     assert.ok(state.commands.has(name), name);
@@ -386,6 +386,7 @@ function runWebviewScript() {
 
   const script = html.slice(html.lastIndexOf("<script"), html.lastIndexOf("</script>"));
   const body = script.slice(script.indexOf(">") + 1);
+  const elements = new Map();
   const element = () => ({
     innerHTML: "", textContent: "", value: "", dataset: {},
     classList: { add() {}, remove() {}, toggle() {} },
@@ -394,13 +395,25 @@ function runWebviewScript() {
   const listeners = [];
   const context = {
     acquireVsCodeApi: () => ({ postMessage() {} }),
-    document: { querySelector: element, querySelectorAll: () => [] },
+    document: { querySelector: selector => {
+      if (!elements.has(selector)) elements.set(selector, element());
+      return elements.get(selector);
+    }, querySelectorAll: () => [] },
     window: { addEventListener: (_type, handler) => listeners.push(handler) },
   };
   vm.createContext(context);
   new vm.Script(body).runInContext(context);
-  return { context, send: message => listeners.forEach(handler => handler({ data: message })) };
+  return { context, elements, send: message => listeners.forEach(handler => handler({ data: message })) };
 }
+
+test("管理下 Skill を別の AI Agent に追加すると取得元を開く", async () => {
+  const { stub, state } = stubVscode();
+  activateWith(stub, fakeEnv().appSupport);
+  await state.commands.get("agent-tool.addSkillToAnotherAgent")({ tool: {
+    sourceUrl: "https://github.com/owner/repo/tree/main/skills/pdf",
+  } });
+  assert.equal(state.externalUri.value, "https://github.com/owner/repo/tree/main/skills/pdf");
+});
 
 test("カードのタップで説明を開き、もう一度で閉じる", () => {
   const { context, send } = runWebviewScript();

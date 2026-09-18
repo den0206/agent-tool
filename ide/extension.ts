@@ -92,14 +92,6 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.commands.registerCommand(name, body));
   };
 
-  command("agent-tool.toggleTool", async (node: ToolNode) => {
-    if (!node?.tool || !node.agent || !await canWrite()) return;
-    const selector = selectorOf(node);
-    const result = await withProgress(vscode.l10n.t("Agent Tool: Updating tool"),
-      () => agentTool.toggle({ storagePath, selector }));
-    if (result.ok) void dashboard.refresh(true);
-  });
-
   command("agent-tool.addSkill", async (providedUrl?: string) => {
     if (!await canWrite()) return;
     const url = providedUrl ?? await vscode.window.showInputBox({
@@ -261,6 +253,11 @@ export function activate(context: vscode.ExtensionContext): void {
     if (result.ok) void dashboard.refresh(true);
   });
 
+  command("agent-tool.addSkillToAnotherAgent", async (node: ToolNode) => {
+    if (!node?.tool?.sourceUrl || !await canWrite()) return;
+    await vscode.env.openExternal(vscode.Uri.parse(node.tool.sourceUrl));
+  });
+
   command("agent-tool.togglePin", async (node: ToolNode) => {
     if (!node?.tool || !node.agent || !await canWrite()) return;
     const result = await withProgress(vscode.l10n.t("Agent Tool: Updating tool"),
@@ -289,12 +286,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   command("agent-tool.openToolActions", async (item: DashboardItem) => {
     if (!await canWrite()) return;
-    const agent = item.agents.length === 1
-      ? item.agents[0]
+    const agent = item.agents.length === 0 || item.agents.length === 1
+      ? item.agents[0] ?? "claude"
       : await vscode.window.showQuickPick(item.agents, { placeHolder: vscode.l10n.t("Choose an agent") });
     if (!agent) return;
     const node: ToolNode = { tool: item, scope: item.scope, agent };
-    // 実体を管理できない対象には有効化・更新を出さない。
+    // 実体を管理できない対象には更新を出さない。
     // 削除だけは宛先が別にある — MCP は設定ファイルか CLI、Plugin はエージェントの CLI。
     // 同梱物は消してもエージェントの更新で戻るので、そもそも出さない。
     const manageable = agentTool.isManageable(selectorOf(node));
@@ -303,8 +300,6 @@ export function activate(context: vscode.ExtensionContext): void {
         && (item.kind === "mcp"
           || (item.kind === "plugin" && (agent === "claude" || agent === "codex"))));
     const actions = [
-      ...(agentTool.isTogglable(selectorOf(node))
-        ? [{ label: vscode.l10n.t("Enable or disable"), value: "agent-tool.toggleTool" }] : []),
       ...(manageable && item.hasUpdate
         ? [{ label: vscode.l10n.t("Preview update"), value: "agent-tool.previewUpdate" },
            { label: vscode.l10n.t("Apply update"), value: "agent-tool.applyUpdate" }] : []),
@@ -312,8 +307,10 @@ export function activate(context: vscode.ExtensionContext): void {
         ? [{ label: item.pinned ? vscode.l10n.t("Unpin (follow updates again)")
                : vscode.l10n.t("Pin (stop following updates)"),
             value: "agent-tool.togglePin" }] : []),
-      ...(manageable && item.kind === "skill" && item.origin === "managed"
+      ...(manageable && item.enabled && item.kind === "skill" && item.origin === "managed"
         ? [{ label: vscode.l10n.t("Copy to another scope"), value: "agent-tool.copySkill" }] : []),
+      ...(manageable && item.enabled && item.kind === "skill" && item.origin === "managed" && item.sourceUrl
+        ? [{ label: vscode.l10n.t("Add to another AI agent"), value: "agent-tool.addSkillToAnotherAgent" }] : []),
       ...(removable ? [{ label: vscode.l10n.t("Remove"), value: "agent-tool.removeTool" }] : []),
     ];
     if (actions.length === 0) {

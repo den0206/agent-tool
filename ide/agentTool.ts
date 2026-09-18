@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { AgentId, KindId, ScopeId } from "../core/agent";
@@ -14,7 +15,7 @@ import { MCPScope, MCPServer } from "./mcpServer";
 import { mcpStatus as pollMcpStatus } from "./processScanner";
 import { knownProjects } from "./projectScan";
 import { cliOverrides, entry, Entry, load, read, Registry, save, update, upsert } from "./registry";
-import { disable, enable, layout, Place, remove as removeManaged, removeUnmanaged, USER } from "./skillManager";
+import { layout, link, Place, remove as removeManaged, removeUnmanaged, USER } from "./skillManager";
 import { SOURCES, sourcePath } from "./source";
 import { updateApply as applyUpdate, Http, updatePreview as previewUpdate, resolveSha, UpdateDiff } from "./updater";
 import * as guard from "./writeGuard";
@@ -56,6 +57,36 @@ export type PreviewCandidate = {
 /** `storagePath` は `context.globalStorageUri.fsPath`。OS 別パスは VS Code が解決する。 */
 const envOf = (storagePath: string): Env => ({ home: homedir(), appSupport: storagePath });
 
+/** 旧版の退避ディレクトリを初回の書き込み可能な一覧表示で戻す。 */
+async function restoreRetiredTools(storagePath: string): Promise<void> {
+  const env = envOf(storagePath);
+  const retired = read(env).resources.some(item => {
+    if (item.project !== undefined || (item.kind !== "skill" && item.kind !== "subagent")) return false;
+    return existsSync(join(env.appSupport, item.kind === "skill" ? "disabled-skills" : "disabled-agents",
+      item.kind === "skill" ? item.name : `${item.name}.md`));
+  });
+  if (!retired) return;
+  await mutate(storagePath, (registry, env) => {
+    for (const item of registry.resources) {
+      if (item.project !== undefined || (item.kind !== "skill" && item.kind !== "subagent")) continue;
+      const old = join(env.appSupport, item.kind === "skill" ? "disabled-skills" : "disabled-agents",
+        item.kind === "skill" ? item.name : `${item.name}.md`);
+      if (!existsSync(old)) continue;
+      const plan = layout(item.name, item.kind, env, USER, item.root);
+      if (existsSync(plan.store)) {
+        throw new AgentToolError("ALREADY_EXISTS",
+          `${plan.store} already exists; the disabled copy was left at ${old}`);
+      }
+      guard.assertValidName(item.name);
+      guard.assertSafeCreation(old, join(old, ".."), env.appSupport);
+      guard.prepare(plan.store, join(plan.store, ".."),
+        guard.isInside(plan.store, env.home) ? env.home : env.appSupport);
+      guard.move(old, plan.store);
+      link(item.name, item.kind, env, registry);
+    }
+  });
+}
+
 /** 走査と操作で同じ実行系を使う。手動指定した CLI パスは registry が持つ。 */
 const runnerFor = (env: Env): Run => {
   const overrides = cliOverrides(load(env));
@@ -83,6 +114,7 @@ export async function inventory(params: {
   writable?: boolean;
 }): Promise<{ items: InventoryItem[]; issues: string[]; diagnostics: Diagnostic[] }> {
   const env = envOf(params.storagePath);
+  if (params.writable === true) await restoreRetiredTools(params.storagePath);
   return buildInventory({
     env, projectPath: params.projectPath, run: runnerFor(env), user: params.user,
     writable: params.writable,
@@ -269,9 +301,6 @@ function migration(params: { storagePath: string; selector: Selector; scope: Sco
   if (sourceEntry === undefined) {
     throw new AgentToolError("NOT_IN_REGISTRY", `${selector.name} has no known source, so it cannot be copied`);
   }
-  if (sourceEntry.disabled) {
-    throw new AgentToolError("OPERATION_FAILED", `${selector.name} must be enabled before it can be copied`);
-  }
   guard.assertBody(selector.sourcePath, "skill", env, registry, sourcePlace);
   const destinationPath = layout(selector.name, "skill", env, destination).store;
   if (guard.exists(destinationPath) || entry(registry, selector.name, "skill", destinationProject) !== undefined) {
@@ -294,7 +323,7 @@ export async function migrate(params: {
   await mutate(params.storagePath, (registry, env) => {
     const plan = migration(params, env, registry);
     const project = plan.destination.scope === "project" ? plan.destination.path : undefined;
-    const target = { ...plan.sourceEntry, project, root: undefined, disabled: false };
+    const target = { ...plan.sourceEntry, project, root: undefined };
     const layoutPlan = layout(params.selector.name, "skill", env, plan.destination);
     const anchor = plan.destination.scope === "project" ? plan.destination.path
       : guard.isInside(layoutPlan.store, env.home) ? env.home : env.appSupport;
@@ -303,7 +332,7 @@ export async function migrate(params: {
     try {
       guard.copy(plan.source, layoutPlan.store);
       upsert(registry, target);
-      if (plan.destination.scope === "user") enable(params.selector.name, "skill", env, registry);
+      if (plan.destination.scope === "user") link(params.selector.name, "skill", env, registry);
     } catch (error) {
       registry.resources = before;
       for (const link of layoutPlan.links) {
@@ -340,14 +369,6 @@ const projectOf = (selector: Selector): string | undefined => {
   return place.scope === "project" ? place.path : undefined;
 };
 
-/**
- * 有効化・無効化は退避先がある user だけ。プロジェクト内に隠し退避先を作らない。
- * Rule は URL からの導入経路を持たず registry に載らないため、`assertMutable` が
- * 通らずに toggle が失敗する。表示・削除だけを提供して toggle は出さない（D-20）。
- */
-export const isTogglable = (selector: Selector): boolean =>
-  isManageable(selector) && selector.scope === "user" && selector.kind !== "rule";
-
 function assertManageable(selector: Selector): void {
   if (isManageable(selector)) return;
   throw new AgentToolError("OPERATION_FAILED", selector.scope === "project"
@@ -369,21 +390,6 @@ export async function remove(params: { storagePath: string; selector: Selector }
     // Rule は同名でもエージェントごとに別ファイル。選ばれた行の agent だけを消す（D-20）。
     else removeUnmanaged(name, kind, env, place, params.selector.agent);
   });
-}
-
-export async function toggle(params: { storagePath: string; selector: Selector }):
-  Promise<{ enabled: boolean }> {
-  assertManageable(params.selector);
-  if (!isTogglable(params.selector)) {
-    throw new AgentToolError("OPERATION_FAILED",
-      `${params.selector.name} belongs to the project; enable and disable are not available there`);
-  }
-  const { name, kind } = params.selector;
-  const env = envOf(params.storagePath);
-  const wasEnabled = entry(read(env), name, kind)?.disabled !== true;
-  await mutate(params.storagePath, (registry, scoped) =>
-    wasEnabled ? disable(name, kind, scoped, registry) : enable(name, kind, scoped, registry));
-  return { enabled: !wasEnabled };
 }
 
 /**

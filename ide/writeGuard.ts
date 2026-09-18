@@ -7,7 +7,7 @@ import { basename, dirname, extname, isAbsolute, join, resolve, sep } from "node
 import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ruleRoots } from "../core/agent";
 import { LEDGER_DIR } from "../core/ledger";
 import { RULE_SOURCES, SKILL_SOURCES, SUBAGENT_SOURCES } from "./source";
-import { agentStore, disabledAgentStore, Env, managedRoots } from "./env";
+import { agentStore, Env, managedRoots } from "./env";
 import { AgentToolError } from "../core/errors";
 import { assertReadable, entry, Registry } from "./registry";
 
@@ -98,7 +98,7 @@ export function assertValidName(name: string): void {
 /**
  * 削除・移動してよいか。許すのは 2 つだけ:
  *   1. 自分が張ったリンク（リンク先が実体置き場の配下）
- *   2. registry に載っている実体（実体置き場 or 退避ディレクトリの配下）
+ *   2. registry に載っている実体（実体置き場の配下）
  * Windows の Subagent は hardlink なのでリンクとして見えず、実体との同一性で判定する。
  */
 export function assertMutable(path: string, env: Env, registry: Registry): void {
@@ -127,7 +127,6 @@ export function assertMutable(path: string, env: Env, registry: Registry): void 
 
   const root = managedRoots(env).find(candidate => isInside(target, candidate));
   if (root) {
-    // 退避ディレクトリは appSupport の下にあり、ホームの外に置かれることがある。
     assertSafeCreation(target, root, isInside(root, env.home) ? env.home : env.appSupport);
   } else if (!isHardLinkedIntoStore(target, name, env)) {
     throw new AgentToolError("WRITE_GUARD_DENIED", `${target} is outside the managed roots`);
@@ -143,7 +142,7 @@ function isHardLinkedIntoStore(path: string, name: string, env: Env): boolean {
   if (process.platform !== "win32" || extname(path) !== ".md") return false;
   try {
     const link = statSync(path);
-    return [agentStore(env), disabledAgentStore(env)].some(store => {
+    return [agentStore(env)].some(store => {
       try {
         const source = statSync(join(store, `${name}.md`));
         return source.ino === link.ino && source.dev === link.dev;
@@ -161,7 +160,7 @@ function isHardLinkedIntoStore(path: string, name: string, env: Env): boolean {
  * `~/.agents/skills -> /outside` のような付け替えで管理外へ到達するため。
  *
  * リンクそのものは拒まない。`~/.claude` や `~/.agents` を dotfiles リポジトリへ張るのは
- * 普通の構成で、一律に弾くと有効化も更新もできなくなる。
+ * 普通の構成で、一律に弾くと導入も更新もできなくなる。
  * 拒むのは信頼できる根（ホーム / プロジェクト）の外へ出るリンクだけ。
  */
 export function assertSafeCreation(path: string, root: string, anchor?: string): void {
@@ -349,7 +348,7 @@ export function createLink(target: string, path: string, kind: "dir" | "file"): 
     linkSync(target, path);
   } catch (error) {
     // hardlink は同一ボリューム内でしか張れない。コピーへは落とさない —
-    // 実体が 2 つになると、更新も無効化も片方にしか効かなくなる。
+    // 実体が 2 つになると、更新も旧版の復元も片方にしか効かなくなる。
     throw new AgentToolError("OPERATION_FAILED",
       `${path} could not be hard-linked to ${target} (different volume?): ${(error as Error).message}`);
   }
@@ -419,7 +418,7 @@ export function move(from: string, to: string): void {
   try {
     renameSync(from, to);
   } catch (error) {
-    // ボリュームをまたぐと rename は EXDEV で失敗する（退避先が別ドライブのとき）。
+    // ボリュームをまたぐと rename は EXDEV で失敗する。
     if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
     cpSync(from, to, { recursive: true, verbatimSymlinks: true });
     rmSync(from, { recursive: true, force: true });

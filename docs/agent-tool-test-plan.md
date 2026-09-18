@@ -38,7 +38,7 @@ Node.js `node:test` で TypeScript モジュールと VS Code API モックを�
 | 実体ツリー hash | 導入直後と再計算時が一致し、変更後は削除を拒否する |
 | 収集一覧の退避 | 101件目で最古を捨てる対象を返す（一覧を受け取る純粋関数） |
 | 書ける名前か | Windows の予約デバイス名・`<>:"\|?*`・末尾のピリオドと空白を落とし、実在する名前は通す |
-| 台帳の生成 | 取得元と commit SHA を書き、pinned / disabled と実体ツリー hash を持たない |
+| 台帳の生成 | 取得元と commit SHA を書き、pinned と実体ツリー hash を持たない |
 | 対応サイト導線 | GitHub・skills.sh・Agents Directory の複数 URL を固定フィクスチャで解決し、Skill / Subagent の検知と導入先候補を確認する。実ファイル・実サイトは触らない |
 | IDE の追加経路 | Skill / Subagent の URL、MCP の構造化入力、Plugin の CLI 委譲をそれぞれ確認する |
 

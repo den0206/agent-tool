@@ -1,4 +1,5 @@
 const { strict: assert } = require("node:assert");
+const { spawnSync } = require("node:child_process");
 const { existsSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { test } = require("node:test");
@@ -27,6 +28,52 @@ test("一覧は storagePath だけで組み立てられる", async () => {
   const { items, issues } = await inventory({ env, projectPath: null });
   assert.ok(Array.isArray(items));
   assert.ok(Array.isArray(issues));
+});
+
+test("旧版の退避ツールは最初の書き込み可能な一覧で戻す", () => {
+  const env = fakeEnv();
+  writeFileIn(join(env.appSupport, "registry.json"), JSON.stringify({
+    schemaVersion: "1",
+    resources: [{ name: "pdf", kind: "skill", pinned: false, disabled: true }],
+  }));
+  writeFileIn(join(env.appSupport, "disabled-skills", "pdf", "SKILL.md"),
+    "---\nname: pdf\ndescription: d\n---\n");
+  const script = [
+    'const tool = require("./out/ide/agentTool.js");',
+    'tool.inventory({storagePath:process.env.AGENT_TOOL_STORAGE,projectPath:null,writable:true})',
+    '.catch(error=>{console.error(error);process.exitCode=1;});',
+  ].join("");
+  const result = spawnSync(process.execPath, ["-e", script], {
+    cwd: process.cwd(), encoding: "utf8",
+    env: { ...process.env, HOME: env.home, AGENT_TOOL_STORAGE: env.appSupport },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(env.home, ".agents", "skills", "pdf", "SKILL.md")), true);
+  assert.equal(existsSync(join(env.appSupport, "disabled-skills", "pdf")), false);
+});
+
+test("旧版の退避ツールと復元先が衝突したらどちらも残す", () => {
+  const env = fakeEnv();
+  const registryPath = join(env.appSupport, "registry.json");
+  writeFileIn(registryPath, JSON.stringify({
+    schemaVersion: "1",
+    resources: [{ name: "pdf", kind: "skill", pinned: false, disabled: true }],
+  }));
+  writeFileIn(join(env.appSupport, "disabled-skills", "pdf", "SKILL.md"), "disabled\n");
+  writeFileIn(join(env.home, ".agents", "skills", "pdf", "SKILL.md"), "active\n");
+  const script = [
+    'const tool = require("./out/ide/agentTool.js");',
+    'tool.inventory({storagePath:process.env.AGENT_TOOL_STORAGE,projectPath:null,writable:true})',
+    '.catch(error=>{console.error(error);process.exitCode=1;});',
+  ].join("");
+  const result = spawnSync(process.execPath, ["-e", script], {
+    cwd: process.cwd(), encoding: "utf8",
+    env: { ...process.env, HOME: env.home, AGENT_TOOL_STORAGE: env.appSupport },
+  });
+  assert.notEqual(result.status, 0);
+  assert.equal(readFileSync(join(env.appSupport, "disabled-skills", "pdf", "SKILL.md"), "utf8"), "disabled\n");
+  assert.equal(readFileSync(join(env.home, ".agents", "skills", "pdf", "SKILL.md"), "utf8"), "active\n");
+  assert.equal(JSON.parse(readFileSync(registryPath, "utf8")).resources[0].disabled, true);
 });
 
 // --- MCP の CLI 引数 ---
@@ -141,8 +188,6 @@ test("project スコープの削除は user スコープの実体に触れない
   const selector = { name: "shared", kind: "skill", scope: "project", agent: "claude" };
   await assert.rejects(agentTool.remove({ storagePath: env.appSupport, selector }),
     code("OPERATION_FAILED"));
-  await assert.rejects(agentTool.toggle({ storagePath: env.appSupport, selector }),
-    code("OPERATION_FAILED"));
   assert.ok(existsSync(join(store, "SKILL.md")));
 });
 
@@ -241,11 +286,8 @@ test("project スコープはワークスペースが分かるときだけ管理
   const selector = extra => ({ name: "pdf", kind: "skill", scope: "project", agent: "claude", ...extra });
   assert.equal(agentTool.isManageable(selector()), false);
   assert.equal(agentTool.isManageable(selector({ projectPath: "/w" })), true);
-  // 退避先を持たないので、有効化・無効化は出さない。
-  assert.equal(agentTool.isTogglable(selector({ projectPath: "/w" })), false);
   // サブディレクトリのスキルは `.claude/skills` 直下ではない。
   assert.equal(agentTool.isManageable(selector({ projectPath: "/w", name: "apps/web:deploy" })), false);
-  assert.equal(agentTool.isTogglable({ name: "pdf", kind: "skill", scope: "user", agent: "claude" }), true);
 });
 
 /** 黙って user に入れると、プロジェクトに入れたつもりのものが全プロジェクトへ漏れる。 */
@@ -263,7 +305,7 @@ test("管理下の有効な Skill は既存物を上書きせず project へコ�
   writeFileIn(join(sourcePath, "SKILL.md"), "# PDF\n");
   const { empty, read, save } = require("../out/ide/registry.js");
   const registry = empty();
-  registry.resources = [{ name: "pdf", kind: "skill", repo: "o/r", pinned: false, disabled: false }];
+  registry.resources = [{ name: "pdf", kind: "skill", repo: "o/r", pinned: false }];
   await save(env, registry);
   const previousHome = process.env.HOME;
   const previousUserProfile = process.env.USERPROFILE;
@@ -293,7 +335,7 @@ test("project → 別 project へのコピーは API 層で拒否する", async 
   writeFileIn(join(source, ".claude", "skills", "shared", "SKILL.md"), "# S\n");
   const { empty, save } = require("../out/ide/registry.js");
   const registry = empty();
-  registry.resources = [{ name: "shared", kind: "skill", project: source, repo: "o/r", pinned: false, disabled: false }];
+  registry.resources = [{ name: "shared", kind: "skill", project: source, repo: "o/r", pinned: false }];
   await save(env, registry);
   const previousHome = process.env.HOME;
   const previousUserProfile = process.env.USERPROFILE;
@@ -315,9 +357,9 @@ test("更新確認は最新 SHA を registry に記録する", async () => {
   const { empty, save, read } = require("../out/ide/registry.js");
   const registry = empty();
   registry.resources = [
-    { name: "pdf", kind: "skill", repo: "o/r", sha: "old", pinned: false, disabled: false },
-    { name: "fixed", kind: "skill", repo: "o/pinned", sha: "old", pinned: true, disabled: false },
-    { name: "local", kind: "skill", pinned: false, disabled: false },
+    { name: "pdf", kind: "skill", repo: "o/r", sha: "old", pinned: false },
+    { name: "fixed", kind: "skill", repo: "o/pinned", sha: "old", pinned: true },
+    { name: "local", kind: "skill", pinned: false },
   ];
   await save(env, registry);
 
@@ -344,8 +386,8 @@ test("確認できなかった取得元は理由を返し、他の記録は残�
   const { empty, save, read } = require("../out/ide/registry.js");
   const registry = empty();
   registry.resources = [
-    { name: "ok", kind: "skill", repo: "o/ok", sha: "a", pinned: false, disabled: false },
-    { name: "gone", kind: "skill", repo: "o/gone", sha: "a", pinned: false, disabled: false },
+    { name: "ok", kind: "skill", repo: "o/ok", sha: "a", pinned: false },
+    { name: "gone", kind: "skill", repo: "o/gone", sha: "a", pinned: false },
   ];
   await save(env, registry);
 

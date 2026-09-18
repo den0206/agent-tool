@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Tool disabling has been removed. Tools disabled by an earlier version are restored when the IDE Dashboard next opens in a writable local window.
+
+### Fixed
+- Installed managed Skills can now be added to another AI agent from the IDE Dashboard or browser extension without removing the original.
+
 ## [0.4.0] — 2026-09-17
 
 ### Added
