@@ -213,12 +213,11 @@ async function showLead(raw: string, vetted = false, alreadyIn = false): Promise
   byId("security-source").textContent = t("tabSecuritySource", found.source.repo);
   byId("destination").hidden = true;             // 導入を押してから出す
 
-  // 既に入っているものは「導入済み」を赤字で見せ、導入ボタンは押せなくする。
-  // 押せない導入ボタンを残すより、そもそも隠して選択肢を減らす。
+  // 導入済みでも、別の Agent を選んで同じ取得元を追加できる。
   const tag = byId<HTMLSpanElement>("found-installed");
   const installBtn = byId<HTMLButtonElement>("install");
   tag.hidden = !alreadyIn;
-  installBtn.hidden = alreadyIn;
+  installBtn.hidden = false;
   animateDetection(byId("found"));
 }
 

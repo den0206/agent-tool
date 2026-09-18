@@ -5,7 +5,7 @@ const { tmpdir } = require("node:os");
 const { test } = require("node:test");
 const { discard, extract, fetchPage, identify, isSubagentMatter, safeJoin, singleTopLevel, stage } = require("../out/ide/fetcher.js");
 const { PAGE_LIMIT } = require("../out/core/limits.js");
-const { archiveUrl, catalog, fromJsonLd, narrowToSkill, needsPage, parseUrl, skillHint, sourceKey } = require("../out/core/github.js");
+const { archiveUrl, catalog, fromJsonLd, narrowToSkill, needsPage, parseUrl, skillHint, sourceKey, sourcePageUrl } = require("../out/core/github.js");
 const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
 const { writeZip } = require("./zipFixture.js");
 
@@ -102,6 +102,12 @@ test("zipball の URL を組み立てる", () => {
   assert.equal(archiveUrl({ repo: "o/r", branch: "master" }),
     "https://github.com/o/r/archive/refs/heads/master.zip");
   assert.equal(archiveUrl({ repo: "o/r" }, "abc"), "https://github.com/o/r/archive/abc.zip");
+});
+
+test("ブラウザ拡張へ渡す取得元 URL は Skill のディレクトリを指す", () => {
+  assert.equal(sourcePageUrl({ repo: "o/r", branch: "main", subdir: "skills/pdf" }),
+    "https://github.com/o/r/tree/main/skills/pdf");
+  assert.equal(sourcePageUrl({ repo: "o/r" }), "https://github.com/o/r/tree/HEAD");
 });
 
 test("registry.repos のキーはブランチ未指定を HEAD で表す", () => {
