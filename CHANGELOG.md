@@ -12,6 +12,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 - Installed managed Skills can now be added to another AI agent from the IDE Dashboard or browser extension without removing the original.
+- The browser extension no longer loses the "Installed" state after a browser restart or when the service worker is cold; the popup now trusts the local install record as long as the directory handle is still known and its permission is not denied.
 
 ## [0.4.0] — 2026-09-17
 
