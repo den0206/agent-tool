@@ -52,28 +52,44 @@ test("旧版の退避ツールは最初の書き込み可能な一覧で戻す",
   assert.equal(existsSync(join(env.appSupport, "disabled-skills", "pdf")), false);
 });
 
-test("旧版の退避ツールと復元先が衝突したらどちらも残す", () => {
+test("旧版の退避ツールと復元先が衝突しても他の復元と Dashboard は止めない", () => {
   const env = fakeEnv();
   const registryPath = join(env.appSupport, "registry.json");
   writeFileIn(registryPath, JSON.stringify({
     schemaVersion: "1",
-    resources: [{ name: "pdf", kind: "skill", pinned: false, disabled: true }],
+    resources: [
+      { name: "pdf", kind: "skill", pinned: false, disabled: true },
+      { name: "review", kind: "skill", pinned: false, disabled: true },
+    ],
   }));
   writeFileIn(join(env.appSupport, "disabled-skills", "pdf", "SKILL.md"), "disabled\n");
   writeFileIn(join(env.home, ".agents", "skills", "pdf", "SKILL.md"), "active\n");
+  writeFileIn(join(env.appSupport, "disabled-skills", "review", "SKILL.md"),
+    "---\nname: review\ndescription: d\n---\n");
+  const outPath = join(env.appSupport, "inventory.json");
   const script = [
+    'const fs = require("node:fs");',
     'const tool = require("./out/ide/agentTool.js");',
     'tool.inventory({storagePath:process.env.AGENT_TOOL_STORAGE,projectPath:null,writable:true})',
+    '.then(result=>fs.writeFileSync(process.env.AGENT_TOOL_OUT, JSON.stringify(result.issues)))',
     '.catch(error=>{console.error(error);process.exitCode=1;});',
   ].join("");
   const result = spawnSync(process.execPath, ["-e", script], {
     cwd: process.cwd(), encoding: "utf8",
-    env: { ...process.env, HOME: env.home, USERPROFILE: env.home, AGENT_TOOL_STORAGE: env.appSupport },
+    env: { ...process.env, HOME: env.home, USERPROFILE: env.home,
+           AGENT_TOOL_STORAGE: env.appSupport, AGENT_TOOL_OUT: outPath },
   });
-  assert.notEqual(result.status, 0);
+  assert.equal(result.status, 0, result.stderr);
+  // 衝突した pdf は両方残す。
   assert.equal(readFileSync(join(env.appSupport, "disabled-skills", "pdf", "SKILL.md"), "utf8"), "disabled\n");
   assert.equal(readFileSync(join(env.home, ".agents", "skills", "pdf", "SKILL.md"), "utf8"), "active\n");
-  assert.equal(JSON.parse(readFileSync(registryPath, "utf8")).resources[0].disabled, true);
+  // 衝突しなかった review は復元する。
+  assert.equal(existsSync(join(env.home, ".agents", "skills", "review", "SKILL.md")), true);
+  assert.equal(existsSync(join(env.appSupport, "disabled-skills", "review")), false);
+  // 衝突は issues として利用者に見える。
+  const issues = JSON.parse(readFileSync(outPath, "utf8"));
+  assert.ok(issues.some(msg => msg.includes("pdf") && msg.includes("already exists")),
+    `issues should mention pdf collision: ${JSON.stringify(issues)}`);
 });
 
 // --- MCP の CLI 引数 ---
