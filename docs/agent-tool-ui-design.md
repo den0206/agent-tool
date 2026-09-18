@@ -50,10 +50,9 @@ AGENT TOOL                                    [＋ Add] [⟳ Refresh]
 | 記号 | 意味 |
 |---|---|
 | `●` / `○` | CLI: found / not found。MCP Server: running / stopped |
-| `✓` / `✗` | Tool: enabled / disabled |
+| `✓` | Tool: active |
 | `⬆` | 更新あり（数字付きは件数） |
 | `[⬆]` | 更新ボタン（インライン） |
-| `[⊘]` | 有効化/無効化トグルボタン |
 | `[🗑]` | 削除ボタン |
 | `[●]` | MCP ステータス表示（クリックでプロセス情報） |
 | `⚠` / `✗` | 診断: 要確認 / 壊れている |
@@ -89,9 +88,8 @@ AGENT TOOL                                    [＋ Add] [⟳ Refresh]
 
 | 状態 | 表示例 |
 |---|---|
-| 有効・更新なし | `✓ my-skill                [⊘] [🗑]` |
-| 有効・更新あり | `✓ my-skill  ⬆             [⬆] [⊘] [🗑]` |
-| 無効 | `✗ my-skill                [⊘] [🗑]` |
+| 有効・更新なし | `✓ my-skill                [🗑]` |
+| 有効・更新あり | `✓ my-skill  ⬆             [⬆] [🗑]` |
 | ピン留め | `✓ my-skill · 📌 固定中` — 更新を追わない。`•••` から切り替える |
 | 版が固定できていない MCP | `✓ chrome · 実行中 · 版を固定してください` — `@latest` 指定 |
 
@@ -109,7 +107,10 @@ AGENT TOOL                                    [＋ Add] [⟳ Refresh]
 
 管理下で有効な Skill の `•••` には「別のスコープへコピー」を出す。user と Current Project の
 宛先を選ぶと、確認画面で source と destination をそのまま示し、「既存ファイルは上書きしない」と
-明示する。コピー後も元は残す。Subagent、Rule、MCP、Plugin、無効・管理外の Skill には出さない。
+明示する。コピー後も元は残す。Subagent、Rule、MCP、Plugin、管理外の Skill には出さない。
+
+取得元を持つ管理下の有効 Skill には「別の AI Agent に追加」も出す。取得元をブラウザで開き、
+ブラウザ拡張の導入先選択で Agent を選ぶ。元の Skill は変更しない。
 
 ### 3.4 診断
 
@@ -212,16 +213,7 @@ Tree View 上部に候補カードを表示する:
    → Undo は提供しない（設計決定 D-5）。取り消せないことは 5.1 の確認ダイアログで示す
 ```
 
-### 4.3 有効化 / 無効化
-
-```
-1. アイテムの [⊘] をクリック
-2. 確認なし（破壊的操作ではない）
-3. toggle コマンド実行
-4. ✓ ↔ ✗ がリアルタイムで切り替わる
-```
-
-### 4.4 更新（差分プレビュー → 適用）
+### 4.3 更新（差分プレビュー → 適用）
 
 ```
 1. アイテムの [⬆] をクリック
@@ -313,7 +305,6 @@ Webview だけにする。
 | コマンド ID | 説明 |
 |---|---|
 | `agent-tool.openToolActions` | カードの `•••` から呼ぶ操作一覧 |
-| `agent-tool.toggleTool` | ツールの有効・無効を切り替え（user スコープのみ） |
 | `agent-tool.togglePin` | 更新の固定を切り替え（固定中は更新を追わない） |
 | `agent-tool.copySkill` | 管理下 Skill を別スコープへコピー（確認あり・上書きなし） |
 | `agent-tool.removeTool` | ツールを削除（確認あり） |
@@ -405,8 +396,6 @@ TS 拡張は `vscode.workspace.createFileSystemWatcher` と `RelativePattern` �
 | `~/.codex/skills/**` | Codex Skill |
 | `~/.claude/agents/**` | User Global サブエージェント |
 | `~/.cursor/agents/**` | Cursor サブエージェント |
-| `<globalStorageUri>/disabled-skills/**` | 無効化された Skill 実体 |
-| `<globalStorageUri>/disabled-agents/**` | 無効化された Subagent 実体 |
 | `<workspaceFolder>/.claude/skills/**` | Current Project スキル |
 | `<workspaceFolder>/.claude/agents/**` | Current Project サブエージェント |
 | `<workspaceFolder>/.mcp.json` | Current Project MCP |

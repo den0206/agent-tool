@@ -136,7 +136,7 @@ This produces `vsix/browser/`. Open `chrome://extensions` (or the Brave/Edge equ
 
 - It writes only into folders you pick yourself, through the File System Access API. It never requests `<all_urls>`.
 - Pages you visit are never stored. Only the directory handles, the list of what it installed, and the auto-open and theme settings are kept — all locally, in the browser's own IndexedDB.
-- It records where each tool came from next to the files it wrote. If you also use the IDE extension, it picks those up on its next scan, so the tool can be removed, disabled, and updated from the dashboard like anything else.
+- It records where each tool came from next to the files it wrote. If you also use the IDE extension, it picks those up on its next scan, so the tool can be removed and updated from the dashboard like anything else.
 - See [`PRIVACY.md`](PRIVACY.md) for the full policy.
 
 ## Development

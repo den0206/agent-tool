@@ -69,8 +69,6 @@ project スコープの実体は `managedRoots` の外（ワークスペース�
 `apps/web:deploy` のような修飾名はサブディレクトリのもので直下ではない。`assertValidName` が `:` を
 拒否するため、そもそも作成・削除の対象にならない（一覧では `isManageable` が false になる）。
 
-プロジェクト内には退避先を作らない。したがって project スコープに有効化・無効化は無い。
-
 ### 2.2.1.1 取り込んだ実体（`assertRecordedArtifact`）
 
 ブラウザ拡張が書いた実体は自分が許可されたルート（`~/.claude/skills` など）にあり、
@@ -139,7 +137,7 @@ project スコープの実体は `managedRoots` の外（ワークスペース�
 VS Code の `workspace.isTrusted` が `false` の場合:
 
 - **許可**: `inventory` コマンドによる一覧取得（読み取りのみ）
-- **禁止**: `add` / `remove` / `toggle` / `update-apply` / `mcp-add` / `mcp-remove`
+- **禁止**: `add` / `remove` / `update-apply` / `mcp-add` / `mcp-remove`
 - UI: 書き込みボタンを無効化し、信頼バナーを表示する（[UI 設計 8.2](agent-tool-ui-design.md#82-未信頼ワークスペース) 参照）
 
 ---
@@ -149,7 +147,7 @@ VS Code の `workspace.isTrusted` が `false` の場合:
 `vscode.env.remoteName` が非 null（SSH / Dev Container / Codespaces）の場合:
 
 - **一覧表示は許可する**。既知の走査対象を読み取り専用で表示する
-- **書き込み操作はすべて拒否する**。追加・削除・有効化・更新適用などはローカルウィンドウでのみ行う
+- **書き込み操作はすべて拒否する**。追加・削除・更新適用などはローカルウィンドウでのみ行う
 - `inventory` には `writable: false` を渡し、台帳の取り込みや entry の除去など走査中の副作用も止める
 - UI: Remote の一覧は read-only バナーを表示し、変更操作は実行時にも拒否する
 - この方針は [UI 設計 8.1](agent-tool-ui-design.md#81-remote-環境)、`product-requirements.md`、`CLAUDE.md` の「Remote では書き込みを行わない」と揃える

@@ -16,8 +16,6 @@ export type Entry = {
   sha?: string;
   /** 上流が方針転換したときに更新を止める。 */
   pinned: boolean;
-  /** 無効化されている（実体が退避ディレクトリにある）。 */
-  disabled: boolean;
   /** project スコープで入れたプロジェクトの絶対パス。未設定は user スコープ。 */
   project?: string;
   /**
@@ -25,7 +23,7 @@ export type Entry = {
    *
    * ブラウザ拡張は自分が許可されたルート（`~/.claude/skills` など）へ直接書くので、
    * 取り込んだ entry の実体は管理ストアに無い。ここを持たないと `layout` が
-   * `~/.agents/skills/<name>` を指し、削除・無効化が実体を見失い、更新適用は
+   * `~/.agents/skills/<name>` を指し、削除が実体を見失い、更新適用は
    * 別の場所に新版を書いて実体を二重化する。
    */
   root?: string;
@@ -77,7 +75,7 @@ export function decode(raw: unknown): Registry {
         name, kind: kind as KindId,
         repo: str(entry.repo), branch: str(entry.branch),
         subdir: str(entry.subdir), sha: str(entry.sha),
-        pinned: entry.pinned === true, disabled: entry.disabled === true,
+        pinned: entry.pinned === true,
         project: str(entry.project),
         root: str(entry.root),
       }];

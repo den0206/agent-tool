@@ -20,7 +20,7 @@ function fixture() {
     managedSkill(name) {
       const dir = makeDir(join(skillStore(env), name));
       writeFileIn(join(dir, "SKILL.md"), `---\nname: ${name}\ndescription: d\n---\n`);
-      upsert(registry, { name, kind: "skill", pinned: false, disabled: false });
+      upsert(registry, { name, kind: "skill", pinned: false });
       return dir;
     },
   };
@@ -40,7 +40,7 @@ test("registry に無い外部スキルは拒否される", () => {
 
 test("実体置き場の外は拒否される", () => {
   const f = fixture();
-  upsert(f.registry, { name: "canvas", kind: "skill", pinned: false, disabled: false });
+  upsert(f.registry, { name: "canvas", kind: "skill", pinned: false });
   const outside = makeDir(join(f.env.home, ".cursor/skills-cursor/canvas"));
   assert.throws(() => assertMutable(outside, f.env, f.registry), code("WRITE_GUARD_DENIED"));
 });
@@ -103,7 +103,7 @@ for (const relative of [
 
 test("パス境界を跨ぐ .. は拒否される", () => {
   const f = fixture();
-  upsert(f.registry, { name: "auth.json", kind: "skill", pinned: false, disabled: false });
+  upsert(f.registry, { name: "auth.json", kind: "skill", pinned: false });
   const escape = join(skillStore(f.env), "../../.codex/auth.json");
   assert.throws(() => assertMutable(escape, f.env, f.registry), code("WRITE_GUARD_DENIED"));
 });
@@ -111,7 +111,7 @@ test("パス境界を跨ぐ .. は拒否される", () => {
 /** 前方一致だけだと `.agents/skills-other` が通ってしまう。 */
 test("接頭辞が同じだけの別ディレクトリは拒否される", () => {
   const f = fixture();
-  upsert(f.registry, { name: "x", kind: "skill", pinned: false, disabled: false });
+  upsert(f.registry, { name: "x", kind: "skill", pinned: false });
   const sibling = makeDir(join(f.env.home, ".agents/skills-other/x"));
   assert.throws(() => assertMutable(sibling, f.env, f.registry), code("WRITE_GUARD_DENIED"));
 });

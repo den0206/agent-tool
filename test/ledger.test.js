@@ -6,7 +6,7 @@ const { absorb, key, prune, scan } = require("../out/ide/ledger.js");
 const { LEDGER_DIR } = require("../out/core/ledger.js");
 const { empty, entry, upsert } = require("../out/ide/registry.js");
 const { assertLedger, assertRecordedArtifact, removeLedger } = require("../out/ide/writeGuard.js");
-const { disable, enable, layout, link, remove: removeManaged, USER } = require("../out/ide/skillManager.js");
+const { layout, link, remove: removeManaged, USER } = require("../out/ide/skillManager.js");
 const { install } = require("../out/ide/installer.js");
 
 const code = expected => error => error.code === expected;
@@ -89,7 +89,7 @@ test("取り込むと registry に載り、台帳は消える", () => {
   // `root` まで載せる。実体は管理ストアではなくブラウザ拡張が許可されたルートにある。
   assert.deepEqual(registry.resources, [{
     name: "pdf", kind: "skill", repo: "owner/repo", sha: "abc",
-    root: ".claude/skills", pinned: false, disabled: false,
+    root: ".claude/skills", pinned: false,
   }]);
   assert.equal(existsSync(file), false);
   // 実体には触れない
@@ -104,7 +104,7 @@ test("取得元の任意キーは持っていた分だけ移す", () => {
   const registry = empty();
   absorb(f.env, registry, scan(f.env));
   assert.deepEqual(Object.keys(registry.resources[0]).sort(),
-    ["disabled", "kind", "name", "pinned", "repo", "root"]);
+    ["kind", "name", "pinned", "repo", "root"]);
 });
 
 test("同じ名前を二度取り込んでも 1 件のまま", () => {
@@ -154,7 +154,7 @@ test("パスに使えない名前の台帳は消さない", () => {
 // --- 実体を失った entry -------------------------------------------------
 
 const managed = (name, project) => ({
-  name, kind: "skill", repo: "owner/repo", pinned: false, disabled: false,
+  name, kind: "skill", repo: "owner/repo", pinned: false,
   ...(project === undefined ? {} : { project }),
 });
 
@@ -250,7 +250,7 @@ const cannotRevokeRead = process.platform === "win32" || process.getuid?.() === 
 
 test("読めないルートがあるときは entry を落とさない", { skip: cannotRevokeRead }, async () => {
   // 権限・退避されたクラウド同期・切れたネットワークホームでは走査が空になる。
-  // これを「消えた」と扱うと、実体が残っているのに pinned / disabled / 取得元を失う。
+  // これを「消えた」と扱うと、実体が残っているのに pinned / 取得元を失う。
   const f = fixture();
   f.skill("pdf");
   await inventory({ env: f.env, projectPath: null, run: async () => "", writable: true });
@@ -307,42 +307,6 @@ test("取り込んだ Subagent も、あるルートから削除できる", asyn
 
   removeManaged("reviewer", "subagent", f.env, registry);
   assert.equal(existsSync(join(f.env.home, ".claude", "agents", "reviewer.md")), false);
-});
-
-test("取り込んだ実体を無効化し、元のルートへ戻せる", async () => {
-  const f = fixture();
-  f.skill("pdf");
-  const registry = await absorbed(f);
-
-  disable("pdf", "skill", f.env, registry);
-  assert.equal(existsSync(join(f.root, "pdf")), false);
-  assert.equal(existsSync(join(f.env.appSupport, "disabled-skills", "pdf", "SKILL.md")), true);
-  assert.equal(entry(registry, "pdf", "skill").disabled, true);
-
-  enable("pdf", "skill", f.env, registry);
-  // 管理ストアではなく、**取り込んだルート**へ戻ること。
-  assert.equal(existsSync(join(f.root, "pdf", "SKILL.md")), true);
-  assert.equal(existsSync(join(f.env.home, ".agents", "skills", "pdf")), false);
-  assert.equal(entry(registry, "pdf", "skill").disabled, false);
-});
-
-/**
- * `root` は registry.json の 1 フィールドで、利用者が手で書き換えられる。壊れた値で
- * 戻すと、どのエージェントも読まず走査にも掛からない場所へ実体が移り、消えたのと
- * 同じになる。`disable` と `remove` と同じ検査を戻す側にも掛ける。
- */
-test("壊れた root が指す既知ルートの外へは戻さない", async () => {
-  const f = fixture();
-  f.skill("pdf");
-  const registry = await absorbed(f);
-  disable("pdf", "skill", f.env, registry);
-
-  upsert(registry, { ...entry(registry, "pdf", "skill"), root: ".claude" });
-  assert.throws(() => enable("pdf", "skill", f.env, registry),
-    error => error.code === "WRITE_GUARD_DENIED");
-  // 退避したものはそのまま。中途半端な場所に置き去りにしない。
-  assert.equal(existsSync(join(f.env.home, ".claude", "pdf")), false);
-  assert.equal(existsSync(join(f.env.appSupport, "disabled-skills", "pdf", "SKILL.md")), true);
 });
 
 test("取り込んだ実体にはリンクを張らない（自分自身を指すリンクを作らない）", async () => {

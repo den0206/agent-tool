@@ -59,7 +59,7 @@ const entries = (root: string): string[] => {
 /**
  * 「無い」のか「読めない」のか。走査は両方を空として扱うが、registry から実体の
  * 無い entry を落とす `prune` は区別しないといけない。読めないだけのルートを
- * 「消えた」と扱うと、実体が残っているのに pinned / disabled / 取得元を失う。
+ * 「消えた」と扱うと、実体が残っているのに pinned / 取得元を失う。
  */
 export const isUnreadable = (root: string): boolean => {
   if (!existsSync(root)) return false;
@@ -129,7 +129,7 @@ export function scanSubagentRoot(root: string, label: string): Subagent[] {
     .filter(name => name.endsWith(".md") && !name.startsWith("."))
     .flatMap((file): Subagent[] => {
       const path = join(root, file);
-      // 識別子はファイル名。frontmatter の name とズレると有効化・無効化が実体を見失う。
+      // 識別子はファイル名。frontmatter の name とズレると削除・旧版の復元が実体を見失う。
       const name = file.slice(0, -3);
       if (isBrokenLink(path)) return [{ name, path, root: label, status: "brokenLink" }];
       if (!existsSync(path)) return [];

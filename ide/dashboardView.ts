@@ -11,6 +11,7 @@ export type DashboardItem = {
   sourcePath?: string;
   pluginScope?: 'user' | 'project' | 'local';
   repoUrl?: string;
+  sourceUrl?: string;
   summary?: string;
   hasUpdate: boolean;
   pinned?: boolean;
@@ -397,7 +398,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     if (updates===0) onlyUpdates=false;
     const visible=onlyUpdates
       ? items.filter(x=>x.hasUpdate)
-      : items.filter(x=>x.agents.includes(agent) && x.scope===scope);
+      : items.filter(x=>x.scope===scope && x.agents.includes(agent));
 
     // Update banner (click toggles filter)
     const ub = document.querySelector('#update-banner');

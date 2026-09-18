@@ -21,7 +21,7 @@ export const LEDGER_DIR = ".agent-tool";
 export const ledgerPath = (name: string): string => `${LEDGER_DIR}/${name}.json`;
 
 /**
- * 台帳を組み立てる。`pinned` / `disabled` は利用者が IDE 拡張で決める状態なので持たない。
+ * 台帳を組み立てる。`pinned` は利用者が IDE 拡張で決める状態なので持たない。
  * 実体ツリー hash も持たない（用途が違う。削除の可否判定はブラウザ拡張の収集一覧で行う）。
  */
 export const ledger = (

@@ -122,8 +122,7 @@ const destinationFor = (entry: Entry, env: Env): string => {
   // `root` を渡さないと、取り込んだ実体（`~/.claude/skills` など）の隣ではなく
   // 管理ストアへ新版を書き、実体が 2 つになる。
   const plan = layout(entry.name, entry.kind, env, placeOf(entry), entry.root);
-  // project は退避先を持たないので、実体はつねに置き場にある。
-  return entry.disabled && plan.parked !== undefined ? plan.parked : plan.store;
+  return plan.store;
 };
 
 /** 実体の相対パスを集める。ディレクトリでなければそれ自身だけ。 */

@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ruleRoots, ScopeId, skillRoots, subagentRoots } from "../core/agent";
-import { sourceKey } from "../core/github";
-import { agentStore, disabledAgentStore, disabledStore, Env, Run, skillStore } from "./env";
+import { sourceKey, sourcePageUrl } from "../core/github";
+import { agentStore, Env, Run, skillStore } from "./env";
 import * as mcp from "./mcpScanner";
 import { floatingPackage, MCPScope, MCPServer, summary as mcpSummary } from "./mcpServer";
 import * as plugins from "./pluginScanner";
@@ -24,6 +24,8 @@ export type InventoryItem = {
   readonly origin: "managed" | "user" | "bundled";
   readonly sourcePath?: string;
   readonly repoUrl?: string;
+  /** ブラウザ拡張へ渡す、取得元を特定できる URL。 */
+  readonly sourceUrl?: string;
   readonly hasUpdate: boolean;
   /** 更新を追わないと利用者が決めたもの。 */
   readonly pinned: boolean;
@@ -54,9 +56,6 @@ export type Diagnostic = {
   readonly targets: DiagnosticTarget[];
   readonly message: string;
 };
-
-/** 無効化して退避したものの擬似ルート。どのエージェントからも見えない。 */
-export const PARKED = "(disabled)";
 
 /**
  * `@latest` 指定を一覧へ載せる。判定は `mcpServer.floatingPackage` が持っていて、
@@ -90,7 +89,7 @@ function skillDiagnostics(found: Skill[], kind: "skill" | "subagent", scope: Sco
         message: `${item.name} has no SKILL.md` });
       continue;
     }
-    if (!isLoadable(item.status) || item.root === PARKED) continue;
+    if (!isLoadable(item.status)) continue;
     try {
       const paths = bodies.get(item.name) ?? new Map<string, Skill>();
       paths.set(realpathSync(item.path), item);
@@ -151,8 +150,7 @@ export function hasUpdate(entry: Entry | undefined, registry: Registry): boolean
  */
 function origin(name: string, kind: KindId, roots: string[], registry: Registry,
                 project?: string): InventoryItem["origin"] {
-  const visible = roots.filter(root => root !== PARKED);
-  if (visible.length > 0 && visible.every(root => BUNDLED_SKILL_ROOTS.has(root))) return "bundled";
+  if (roots.length > 0 && roots.every(root => BUNDLED_SKILL_ROOTS.has(root))) return "bundled";
   return entryOf(registry, name, kind, project) !== undefined ? "managed" : "user";
 }
 
@@ -176,17 +174,20 @@ function group(found: Skill[], kind: KindId, scope: ScopeId, registry: Registry,
 
   return [...groups].map(([, items]) => {
     const name = items[0].name;
-    // リンク切れ・SKILL.md 欠落は「有効」にしない。退避中はどこからも見えない。
-    const visible = new Set(items.filter(item => isLoadable(item.status) && item.root !== PARKED)
+    // リンク切れ・SKILL.md 欠落は「有効」にしない。
+    const visible = new Set(items.filter(item => isLoadable(item.status))
       .map(item => item.root));
     const entry = entryOf(registry, name, kind, project);
     return {
       name, kind, scope,
       agents: AGENT_IDS.filter(agent => rootsFor(agent).some(root => visible.has(root))),
-      enabled: !items.some(item => item.root === PARKED),
+      enabled: true,
       origin: origin(name, kind, items.map(item => item.root), registry, project),
       sourcePath: items[0].path,
       repoUrl: entry?.repo,
+      // リポジトリ直下の Skill はブラウザ拡張が名前を特定できないので導線を出さない。
+      sourceUrl: entry?.repo === undefined || entry.subdir === undefined ? undefined
+        : sourcePageUrl({ repo: entry.repo, branch: entry.branch, subdir: entry.subdir }),
       hasUpdate: hasUpdate(entry, registry),
       pinned: entry?.pinned === true,
       summary: items.find(item => item.description !== undefined)?.description,
@@ -203,7 +204,6 @@ function userSubagents(found: Skill[], registry: Registry): InventoryItem[] {
 }
 
 function userRules(env: Env, registry: Registry): InventoryItem[] {
-  // Rule には toggle が無い（registry に載らないため）ので、退避先は走査しない。
   const found = scanRules(env);
   return group(found, "rule", "user", registry, ruleRoots);
 }
@@ -234,11 +234,8 @@ export async function inventory(params: {
   const registry = load(env);
   const issues: string[] = [];
   const diagnostics: Diagnostic[] = [];
-  // 無効化した実体も一度だけ読む。ここで得た観測値を一覧と診断で共用する。
-  const userSkillFound = includeUser
-    ? [...scanSkills(env), ...scanSkillRoot(disabledStore(env), PARKED)] : [];
-  const userSubagentFound = includeUser
-    ? [...scanSubagents(env), ...scanSubagentRoot(disabledAgentStore(env), PARKED)] : [];
+  const userSkillFound = includeUser ? scanSkills(env) : [];
+  const userSubagentFound = includeUser ? scanSubagents(env) : [];
   const projectSkills = projectPath === null ? [] : projectSkillRoots(projectPath).flatMap(({ prefix, path }) =>
     scanSkillRoot(path, ".claude/skills").map(skill => prefix === "" ? skill : { ...skill, name: `${prefix}:${skill.name}` }));
   const projectSubagents = projectPath === null ? []
@@ -323,9 +320,8 @@ export async function inventory(params: {
 
   // 実体を失った entry を落とす。走査できたルートの分だけを対象にする。
   // 読めなかったルートが 1 つでもあれば行わない — 読めないだけのものを「消えた」と
-  // 扱うと、実体が残っているのに pinned / disabled / 取得元が永久に失われる。
+  // 扱うと、実体が残っているのに pinned / 取得元が永久に失われる。
   const blocked = writable ? unreadableRoots(env, [
-    disabledStore(env), disabledAgentStore(env),
     ...(projectPath === null ? []
       : [...projectSkillRoots(projectPath).map(root => root.path),
          projectSubagentRoot(projectPath),

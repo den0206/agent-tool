@@ -1,7 +1,7 @@
 const { strict: assert } = require("node:assert");
 const { join } = require("node:path");
 const { test } = require("node:test");
-const { disabledStore, registryFile, skillStore } = require("../out/ide/env.js");
+const { registryFile, skillStore } = require("../out/ide/env.js");
 const { inventory, hasUpdate } = require("../out/ide/inventory.js");
 const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
 
@@ -36,16 +36,6 @@ test("別の実体を持つ同名スキルを競合として診断する", async
   assert.equal(diagnostics.find(d => d.code === "DUPLICATE_IDENTITY").targets.length, 2);
 });
 
-/** 退避先を読まないと、無効化したものを再有効化する手段がなくなる。 */
-test("無効化した実体を退避先から拾う", async () => {
-  const env = fakeEnv();
-  skill(disabledStore(env), "parked");
-  const { items } = await inventory({ env, projectPath: null });
-  const item = find(items, "parked");
-  assert.equal(item.enabled, false);
-  assert.deepEqual(item.agents, []);        // 退避中はどのエージェントからも見えない
-});
-
 /** 同梱ルートにしか無いものだけ bundled。ユーザーが同名を持てばそれは自分のもの。 */
 test("同梱スキルと自分のスキルを取り違えない", async () => {
   const env = fakeEnv();
@@ -64,6 +54,17 @@ test("registry に載っているものは managed になる", async () => {
   const item = find((await inventory({ env, projectPath: null })).items, "mine");
   assert.equal(item.origin, "managed");
   assert.equal(item.repoUrl, "https://example.com/mine");
+  assert.equal(item.sourceUrl, undefined);
+});
+
+test("取得元の Skill ディレクトリが分かるときだけブラウザ導線を出す", async () => {
+  const env = fakeEnv();
+  skill(skillStore(env), "mine");
+  seedRegistry(env, { resources: [{
+    name: "mine", kind: "skill", repo: "owner/repo", branch: "main", subdir: "skills/mine",
+  }] });
+  const item = find((await inventory({ env, projectPath: null })).items, "mine");
+  assert.equal(item.sourceUrl, "https://github.com/owner/repo/tree/main/skills/mine");
 });
 
 /** リンク切れは「有効」にしない。エージェントは読み込めない。 */

@@ -26,7 +26,7 @@ export const SUBAGENT_SOURCES: Source[] = [
 
 /**
  * Rule の走査対象。各エージェントが直読みする `.claude/rules` と `.cursor/rules` だけ。
- * 共有ストアも退避先も無い（registry に載らず、無効化を提供しないため）（D-20）。
+ * 共有ストアは無い（registry に載らないため）（D-20）。
  */
 export const RULE_SOURCES: Source[] = dirs(flat(ruleRoots));
 
@@ -37,8 +37,6 @@ export const PLUGIN_SOURCES: Source[] = flat(pluginSources);
 /** 拡張自身の保存領域。 */
 export const APP_SOURCES: Source[] = [
   { kind: "file", root: "appSupport", path: "registry.json" },
-  { kind: "dir", root: "appSupport", path: "disabled-skills" },
-  { kind: "dir", root: "appSupport", path: "disabled-agents" },
   { kind: "file", root: "home", path: ".agents/.skill-lock.json" }, // 読み取り専用
 ];
 
