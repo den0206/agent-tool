@@ -3,7 +3,8 @@ import * as agentTool from "./agentTool";
 import { AgentId, KindId } from "../core/agent";
 import { AgentToolError } from "../core/errors";
 import { mcpServers } from "./pasteInput";
-import { DashboardItem, DashboardProvider } from "./dashboard";
+import { DashboardProvider } from "./dashboardProvider";
+import { DashboardItem } from "./dashboardView";
 
 type ToolNode = { tool: DashboardItem; scope: DashboardItem["scope"]; agent?: string };
 

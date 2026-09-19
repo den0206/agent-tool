@@ -11,7 +11,6 @@ function loadExtension(stub, tool) {
     : request === "./agentTool" && tool !== undefined ? tool : load(request, ...rest);
   try {
     delete require.cache[require.resolve("../out/ide/extension.js")];
-    delete require.cache[require.resolve("../out/ide/dashboard.js")];
     delete require.cache[require.resolve("../out/ide/dashboardProvider.js")];
     delete require.cache[require.resolve("../out/ide/dashboardView.js")];
     return require("../out/ide/extension.js");
@@ -176,7 +175,7 @@ test("Webview の HTML は構文が通り、文言を l10n から引く", () => 
     env: { remoteName: undefined, language: "en", clipboard: { readText: async () => "" } },
     l10n: { t: text => bundle[text] ?? text },
   });
-  const { DashboardProvider } = loadExtension(stub) && require("../out/ide/dashboard.js");
+  const { DashboardProvider } = loadExtension(stub) && require("../out/ide/dashboardProvider.js");
   const provider = new DashboardProvider(fakeEnv().appSupport);
   let html = "";
   provider.resolveWebviewView({
@@ -217,7 +216,7 @@ test("遅い MCP 状態確認を重ねて起動しない", async () => {
       calls += 1;
       return new Promise(resolve => { finish = resolve; });
     },
-  }) && require("../out/ide/dashboard.js");
+  }) && require("../out/ide/dashboardProvider.js");
   const provider = new DashboardProvider(fakeEnv().appSupport);
   const view = {
     webview: { options: {}, cspSource: "vscode-resource:", html: "", onDidReceiveMessage: () => ({ dispose() {} }), postMessage: () => Promise.resolve(true) },
@@ -369,7 +368,7 @@ function runWebviewScript() {
     env: { remoteName: undefined, language: "en", clipboard: { readText: async () => "" } },
     l10n: { t: text => bundle[text] ?? text },
   });
-  const { DashboardProvider } = loadExtension(stub) && require("../out/ide/dashboard.js");
+  const { DashboardProvider } = loadExtension(stub) && require("../out/ide/dashboardProvider.js");
   const provider = new DashboardProvider(fakeEnv().appSupport);
   let html = "";
   provider.resolveWebviewView({
