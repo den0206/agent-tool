@@ -1,6 +1,6 @@
 ---
 name: diagnose-tool-page
-description: 対応サイトの Tool ページなのに Agent Tool が検知・導入できないとき、どの段で落ちているかを切り分けて直す。「このページが検知されない」「導入できない」「検知はするが入らない」と言われて URL を渡されたときに使う。対応サイトでなければ調査せず add-catalog-site へ回す。
+description: 対応サイトの Tool ページなのに Agent Tool が検知・導入できないとき、どの段で落ちているかを切り分けて直す。「このページが検知されない」「導入できない」「検知はするが入らない」と言われて URL を渡されたときに使う。対応サイトでなければ調査せず add-catalog-site か diagnose-jev-page へ回す。
 ---
 
 # 検知・導入できないページを調べる
@@ -13,7 +13,8 @@ description: 対応サイトの Tool ページなのに Agent Tool が検知・�
    いま通っている経路は書き換えない。直したあとに §5 の回帰確認を必ず通す。
    書き換えても影響を出さずに改善(リファクタリング等)できる場合はユーザーに提示した上で対応する
 2. **対応サイトでなければ調査しない。** §0 で止めて
-   [`add-catalog-site`](../add-catalog-site/SKILL.md) へ回す。
+   [`add-catalog-site`](../add-catalog-site/SKILL.md) か
+   [`diagnose-jev-page`](../diagnose-jev-page/SKILL.md) へ回す。
 3. **直せないものは直さない。** §4 に当たったら実装せず、**原因と根拠**を利用者へ返す。
    サイト側のデータ誤りを、こちらの不具合として直そうとしない。
 
@@ -53,10 +54,11 @@ console.log("needsPage:", needsPage(url));' "<URL>"
 | どれか 1 つでも `null` 以外 | 対応サイト。§1 へ進む                        |
 | **全部 `null`**             | **対応サイトではない。ここで調査を止める。** |
 
-対応サイトでないときは、こう伝えて終わる。実装も調査も続けない。
+対応サイトでないときは、こう伝えて終わる。このSkillでの実装も調査も続けない。
 
-> このサイトはまだ対応していません。対応サイトを増やす手順は `add-catalog-site` にあります。
-> そちらで「取得元がページのどこにあるか」から調べる必要があります。
+> このサイトはまだ対応していません。行き先は2つあります。
+> URL 規約か JSON-LD で取得元が決まるサイトなら `add-catalog-site`（決定論的に対応する）。
+> ページの本文からしか分からないなら `diagnose-jev-page`（Jev 補助検知で拾う）。
 
 ---
 
@@ -225,10 +227,10 @@ npm run package:browser
 これに加えて、**既存の検知経路が通ることを必ず確かめる**。直した対象だけを見て終わらない。
 
 ```bash
-npm run test:browser-catalogs     # GitHub / GitHub(subagent) / skills.sh / Agents Directory
+node scripts/test-browser-catalogs.mjs     # GitHub / GitHub(subagent) / skills.sh / Agents Directory
 ```
 
-さらに、直接それぞれを 1 本ずつ通す（`test:browser-catalogs` は無作為に引くので、
+さらに、直接それぞれを 1 本ずつ通す（`test-browser-catalogs.mjs` は無作為に引くので、
 落ちた経路が毎回当たるとは限らない）。
 
 ```bash
@@ -255,7 +257,7 @@ for (const url of [
 
 ## やらないこと
 
-- 対応サイトでない URL の調査。§0.2 で止めて `add-catalog-site` へ回す
+- 対応サイトでない URL の調査。§0.2 で止めて `add-catalog-site` か `diagnose-jev-page` へ回す
 - 上限（50 MB / 64 MB / 200 MB / 10,000 件）を緩めること
 - いま通っている経路を書き換えること。足すのは落ちたときの分岐だけ
 - サイト側のデータ誤りを、こちらの不具合として回避実装すること
