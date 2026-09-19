@@ -86,7 +86,13 @@ export function components(raw: string): Components | null {
   }
   const reference = rest.slice(1);
   if (reference.length === 0) return { repo, path: [], isFile: false };
-  return { repo, branch: reference[0], path: reference.slice(1), isFile: marker === "blob" };
+  // `/blob/` でも、パスの末尾に拡張子が無ければディレクトリを指している。GitHub は
+  // `/blob/<ref>/<ディレクトリ>` を `/tree/` の表示へ読み替えるので、そのまま案内して
+  // いるサイトがある（実測: aitmpl.com は Skill ディレクトリを `/blob/` で出す）。
+  // 文字列として `blob` を信じると、名前も subdir も 1 段ずれ、raw が 404 になる。
+  const path = reference.slice(1);
+  const isFile = marker === "blob" && /\.[A-Za-z0-9]+$/.test(path[path.length - 1] ?? "");
+  return { repo, branch: reference[0], path, isFile };
 }
 
 /**

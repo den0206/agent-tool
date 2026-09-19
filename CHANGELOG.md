@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- A GitHub `/blob/` URL that points at a directory (GitHub itself redirects these to the `/tree/` view) is now read as a directory, so Skills published that way resolve to the right name and path instead of failing verification.
+
 ## [0.5.0] — 2026-09-18
 
 ### Changed

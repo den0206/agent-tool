@@ -72,6 +72,20 @@ test("SKILL.md を直接指されたら親を採る", () => {
   assert.deepEqual(found.proofs, ["skills/pdf/SKILL.md"]);
 });
 
+/**
+ * GitHub は `/blob/<ref>/<ディレクトリ>` を `/tree/` の表示へ読み替えるので、
+ * Skill ディレクトリを `/blob/` で案内しているカタログがある（実測: aitmpl.com）。
+ * `blob` を文字どおり「ファイル」と読むと、名前も subdir も 1 段ずれ、raw が 404 になる。
+ */
+test("拡張子の無い blob URL はディレクトリとして読む", () => {
+  const found = lead("https://github.com/owner/repo/blob/main/cli-tool/components/skills/design/frontend");
+  assert.equal(found.name, "frontend");
+  assert.equal(found.source.subdir, "cli-tool/components/skills/design/frontend");
+  assert.deepEqual(found.proofs, ["cli-tool/components/skills/design/frontend/SKILL.md"]);
+  // 拡張子があるものは今までどおりファイルとして読む。
+  assert.equal(lead("https://github.com/owner/repo/blob/main/skills/pdf/SKILL.md").name, "pdf");
+});
+
 test("Subagent はファイル指定だけを受ける", () => {
   const file = lead("https://github.com/owner/repo/blob/main/agents/reviewer.md");
   assert.equal(file.kind, "subagent");
@@ -379,7 +393,8 @@ test("置き場を指す URL は一覧の足がかりにする", () => {
 test("1 件に決まる URL と対象外は一覧にしない", () => {
   assert.equal(skillIndex("https://github.com/acme/tools/tree/main/skills/pdf"), null);
   assert.equal(skillIndex("https://www.skills.sh/acme/tools/pdf"), null);
-  assert.equal(skillIndex("https://github.com/acme/tools/blob/main/skills"), null);
+  // `/blob/` でも拡張子が無ければディレクトリと読む（GitHub も `/tree/` へ読み替える）。
+  assert.equal(skillIndex("https://github.com/acme/tools/blob/main/skills/pdf/SKILL.md"), null);
   assert.equal(skillIndex("https://github.com/acme/tools"), null);
   assert.equal(skillIndex("https://example.com/acme/tools/tree/main/skills"), null);
 });
