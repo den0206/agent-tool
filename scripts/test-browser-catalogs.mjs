@@ -32,6 +32,7 @@ async function resolve(url) {
 }
 
 void (async () => {
+  console.log("\n== 対応サイトの判定と取得（test-browser-catalogs）==");
   await warnIfGitHubRateLimited();
   for (const [site, randomUrl] of sites) {
     attempts:

@@ -112,6 +112,7 @@ try {
       "--no-default-browser-check",
     ],
   });
+  console.log("\n== 拡張を読み込んだ実ブラウザの検知（test-browser-e2e）==");
   await warnIfGitHubRateLimited();
   const worker = await waitForWorker();
 
@@ -151,6 +152,13 @@ try {
       }
     } catch (error) {
       if (error instanceof TypeError) { console.log(`skip ${name}: network unavailable`); continue; }
+      // タブが先に消えると `chrome.action.getBadgeText({ tabId })` が投げる。検知の結果では
+      // なく計測の取りこぼしなので、実サイト由来の障害と同じく skip する（catalogs と同じ
+      // 方針）。ここで落とすと `&&` で繋いだ後続スクリプトまで実行されなくなる。
+      if (/No tab with id/.test(String(error.message))) {
+        console.log(`skip ${name}: タブが先に閉じてバッジを読めませんでした`);
+        continue;
+      }
       console.error(`✗ ${name}: ${url} → ${error.message}`);
       failed++;
     } finally {
