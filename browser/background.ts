@@ -5,7 +5,7 @@ import { Collected, MAX_BROWSER_COLLECTION_ENTRIES } from "../core/collection.js
 import { rootStateOf, splitRoot } from "../core/placement.js";
 import { autoOpenEnabled, loadCollection, loadHandle } from "./store.js";
 import { isExtractable } from "./install.js";
-import { fetchJson } from "./fetch.js";
+import { rateLimitWatch } from "./fetch.js";
 
 /**
  * 検知の判定はここで行う。content script は URL を送るだけにする
@@ -85,20 +85,11 @@ async function enumerate(
   const cached = listed.get(key);
   if (cached !== undefined) return { kind: "entries", entries: cached };
 
-  let rateLimitHit = false;
-  const observant: typeof fetch = async (input, init) => {
-    const response = await fetch(input, init);
-    if ((response.status === 403 || response.status === 429)
-        && response.headers.get("x-ratelimit-remaining") === "0") {
-      rateLimitHit = true;
-    }
-    return response;
-  };
-
-  const entries = await listSkills(at.source, at.subdir, url => fetchJson(url, observant));
+  const watch = rateLimitWatch();
+  const entries = await listSkills(at.source, at.subdir, watch.get);
   if (entries.length === 0) {
     // 枠切れ = 読めなかったことを利用者に伝える。「並んでいない」と誤解させない。
-    return rateLimitHit ? { kind: "rateLimited" } : { kind: "entries", entries: [] };
+    return watch.hit() ? { kind: "rateLimited" } : { kind: "entries", entries: [] };
   }
   const oldest = listed.keys().next().value;
   if (listed.size >= MAX_BROWSER_COLLECTION_ENTRIES && oldest !== undefined) listed.delete(oldest);
