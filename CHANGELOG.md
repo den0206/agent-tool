@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Repository archives are fetched as `tar.gz` and unpacked through the same reader the browser extension already used, so the extension now ships with no runtime dependencies and one archive format instead of two.
+- The one-time restore of tools disabled by version 0.4.0 has been removed. If you still have such tools, install 0.5.0 once before upgrading, or move them out of the extension's `disabled-skills` / `disabled-agents` folders by hand.
+- The detection card in the browser extension keeps its entrance animation but no longer draws the sparkle marks beside it.
+
 ### Fixed
 
 - A GitHub `/blob/` URL that points at a directory (GitHub itself redirects these to the `/tree/` view) is now read as a directory, so Skills published that way resolve to the right name and path instead of failing verification.

@@ -200,7 +200,7 @@ export function checkUpdates(params: {
   `hasUpdate` と更新適用の 3 か所でズレると、更新が永久に出なくなる
 - **既定ブランチ名は推測しない**。ブランチ未指定は `HEAD`（`DEFAULT_REF`）で引き、
   キーにも `#HEAD` と載せる。`main` と決め打つと既定ブランチが `master` のリポジトリは
-  追加も更新確認もできない。`HEAD` は zipball・API・raw のどこでも既定ブランチに解決する
+  追加も更新確認もできない。`HEAD` はアーカイブ・API・raw のどこでも既定ブランチに解決する
 - 固定中（`pinned`）の取得元は問い合わせない
 - 定期ポーリングは持たない。明示的な操作（`agent-tool.checkUpdates`）でだけ走る
 - 失敗した取得元は `issues` に理由を入れ、成功した分の記録は残す
@@ -275,7 +275,7 @@ Rule は URL 導入の対象外（D-20）。`remove` と表示は Rule も受け
 
 - `scope === 'project'` の場合は `projectPath` が必須
 - `Fetcher` → `Installer` → WriteGuard のパスを通る
-- zip 展開は `yauzl` 等の npm パッケージを使用（`ditto` は廃止）
+- アーカイブの取得と展開は `core/archive.ts` の tar.gz 読み取りを IDE 拡張とブラウザ拡張で共有する
 
 ---
 
@@ -478,7 +478,7 @@ Claude の削除には一覧から取得した `scope` をそのまま渡す。M
    貼り付け入力の判別（`pasteInput.ts`）、種別判定と配置先の決定、台帳の生成と解釈
 2. **アーカイブ** — エントリ名の検証（`safeSegments`）と各上限（`limits.ts`）。tar.gz の
    読み取り（`archive.ts`）は `DecompressionStream` だけで書けるので `core/` に置く。
-   zip は `yauzl` を使うので `ide/` に残す
+   取得元は codeload の tar.gz 1 本にして、IDE 拡張とブラウザ拡張が同じ展開経路を通る
 
 I/O を伴うものは `core/` に入れない。実体ツリー hash はパスと内容の一覧を受け取って値を返し、
 収集一覧の退避は一覧を受け取って捨てる対象を返す。ツリーの走査と IndexedDB の読み書きは

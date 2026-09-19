@@ -1,17 +1,13 @@
-import {
-  createWriteStream, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
-import { pipeline } from "node:stream/promises";
-import { open as openZip, Entry, ZipFile } from "yauzl";
+import { basename, dirname, join, relative } from "node:path";
 import { KindId } from "../core/agent";
 import { AgentToolError } from "../core/errors";
-import { safeSegments } from "../core/archive";
-import { ENTRY_LIMIT, EXTRACTED_SIZE_LIMIT, PAGE_LIMIT, SINGLE_FILE_LIMIT, SIZE_LIMIT } from "../core/limits";
+import { ArchiveError, readTarGz } from "../core/archive";
+import { PAGE_LIMIT, SIZE_LIMIT } from "../core/limits";
 import * as frontmatter from "./frontmatter";
 import { archiveUrl, GitHubSource } from "../core/github";
-import { isInside, isValidName } from "./writeGuard";
+import { exists as isPath, isDirectory, isInside, isValidName } from "./writeGuard";
 
 /**
  * 取得した中身の解釈結果。自動では入れない —
@@ -71,22 +67,19 @@ export async function fetchPage(url: string, fetchImpl: typeof fetch = fetch): P
   return text + decoder.decode();
 }
 
-/** zip を落として展開し、中身から種別を判定する。`git clone` は使わない。 */
+/** tar.gz を落として展開し、中身から種別を判定する。`git clone` は使わない。 */
 export async function stage(source: GitHubSource, options: {
   resolvedSha?: string;
   fetchImpl?: typeof fetch;
 } = {}): Promise<Staging> {
   const root = mkdtempSync(join(tmpdir(), "agent-tool-fetch-"));
   try {
-    const archive = join(root, "archive.zip");
-    await download(archiveUrl(source, options.resolvedSha),
-      archive, source.repo, options.fetchImpl ?? fetch);
-
     const unpacked = join(root, "unpacked");
-    const links = await extract(archive, unpacked);
-    rmSync(archive, { force: true });          // zip 本体はもう要らない
+    const body = await download(archiveUrl(source, options.resolvedSha),
+      source.repo, options.fetchImpl ?? fetch);
+    const links = await extract(body, unpacked);
 
-    // zipball は `<repo>-<branch>/` を 1 段かぶせる。それを剥がす。
+    // アーカイブは `<repo>-<ref>/` を 1 段かぶせる。それを剥がす。
     const top = singleTopLevel(unpacked);
     const base = source.subdir === undefined ? top : join(top, source.subdir);
     if (!isPath(base)) fail(`${source.subdir ?? "/"} was not found in the archive`);
@@ -112,11 +105,12 @@ export async function stage(source: GitHubSource, options: {
 }
 
 /**
- * codeload は GET に `Content-Length` を返す。判明した時点で上限を超えていれば
- * 本文を読まずに切る。返らない場合の保険として、書き込み量でも中断する。
+ * アーカイブの本文を受け取る。codeload は GET に `Content-Length` を返すので、
+ * 判明した時点で上限を超えていれば本文を読まずに切る。
+ * 返らない場合の保険として、流れた量でも中断する。
  */
-async function download(url: string, destination: string, repo: string,
-                        fetchImpl: typeof fetch): Promise<void> {
+async function download(url: string, repo: string,
+                        fetchImpl: typeof fetch): Promise<ReadableStream<Uint8Array>> {
   const response = await fetchImpl(url, { redirect: "follow", cache: "no-store" });
   if (!response.ok) fail(`download failed: HTTP ${response.status}`);
   const declared = Number(response.headers.get("content-length") ?? "0");
@@ -126,100 +120,44 @@ async function download(url: string, destination: string, repo: string,
   }
   if (!response.body) fail("download failed: empty response");
 
-  let written = 0;
-  const guard = async function* (source: AsyncIterable<Uint8Array>): AsyncGenerator<Uint8Array> {
-    for await (const chunk of source) {
-      written += chunk.byteLength;
-      if (written > SIZE_LIMIT) {
-        fail(`the archive for ${repo} is too large (over 50 MB)`);
-      }
-      yield chunk;
-    }
-  };
-  await pipeline(response.body as unknown as AsyncIterable<Uint8Array>, guard,
-    createWriteStream(destination));
+  let seen = 0;
+  return (response.body as ReadableStream<Uint8Array>).pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength;
+        if (seen > SIZE_LIMIT) fail(`the archive for ${repo} is too large (over 50 MB)`);
+        controller.enqueue(chunk);
+      },
+    }));
 }
 
 /**
- * zip を展開する。**各エントリを書く前に検査する。**
- * ディレクトリ横断（Zip Slip）、symlink、対応しない種別、サイズ上限を
- * ここで落とすので、展開後の木をもう一度歩き直さない。
+ * tar.gz を展開する。**検査は `core/archive.ts` が全部済ませている** —
+ * ディレクトリ横断、symlink、対応しない種別、件数とサイズの上限。
+ * ここは受け取ったものを 1 件ずつ書くだけなので、載るのは 1 ファイルぶんだけ。
  */
-export function extract(archive: string, destination: string): Promise<string[]> {
+export async function extract(body: ReadableStream<Uint8Array>,
+                              destination: string): Promise<string[]> {
   mkdirSync(destination, { recursive: true });
-  return new Promise((done, reject) => {
-    openZip(archive, { lazyEntries: true, autoClose: true }, (error, zip: ZipFile) => {
-      if (error) return reject(new AgentToolError("FETCH_FAILED", `extraction failed: ${error.message}`));
-      let entries = 0;
-      let total = 0;
-      /** 書かずに飛ばした symlink の展開先。取り出す候補の中にあれば `stage` が落とす。 */
-      const links: string[] = [];
-      const abort = (message: string): void => {
-        zip.close();
-        reject(new AgentToolError("FETCH_FAILED", `extraction failed: ${message}`));
-      };
-      zip.on("error", (streamError: Error) => abort(streamError.message));
-      zip.on("end", () => done(links));
-      zip.on("entry", (entry: Entry) => {
-        entries += 1;
-        if (entries > ENTRY_LIMIT) return abort("too many files in the archive");
-
-        const target = safeJoin(destination, entry.fileName);
-        if (target === null) return abort("the archive escapes the extraction directory");
-
-        // 上位 16 bit が Unix のモード。symlink と特殊ファイルは取り出さない。
-        const mode = (entry.externalFileAttributes >>> 16) & 0o170000;
-        // symlink は書かずに飛ばす。リポジトリ直下の `CLAUDE.md` が symlink というだけで
-        // 取得ごと諦めさせない。取り出したいものの中にあるかは `stage` が見る。
-        if (mode === 0o120000) { links.push(target); return zip.readEntry(); }
-        if (mode !== 0 && mode !== 0o100000 && mode !== 0o040000) {
-          return abort("the archive contains an unsupported file type");
-        }
-        if (entry.fileName.endsWith("/")) {
-          mkdirSync(target, { recursive: true });
-          return zip.readEntry();
-        }
-        if (entry.uncompressedSize > SINGLE_FILE_LIMIT) return abort("an extracted file is too large");
-        total += entry.uncompressedSize;
-        if (total > EXTRACTED_SIZE_LIMIT) return abort("the extracted archive is too large");
-
-        zip.openReadStream(entry, (streamError, stream) => {
-          if (streamError || !stream) return abort(streamError?.message ?? "entry could not be read");
-          mkdirSync(dirname(target), { recursive: true });
-          pipeline(stream, createWriteStream(target))
-            .then(() => zip.readEntry())
-            .catch((writeError: Error) => abort(writeError.message));
-        });
-      });
-      zip.readEntry();
-    });
-  });
-}
-
-/** アーカイブ内のパスを展開先へ落とす。外へ出るものは null。検証は core と共有する。 */
-export function safeJoin(root: string, entryName: string): string | null {
-  const parts = safeSegments(entryName);
-  if (parts === null) return null;
-  const target = resolve(root, ...parts);
-  return target === resolve(root) || target.startsWith(resolve(root) + sep) ? target : null;
-}
-
-const isPath = (path: string): boolean => {
+  /** 書かずに飛ばした symlink の展開先。取り出す候補の中にあれば `stage` が落とす。 */
+  const links: string[] = [];
   try {
-    statSync(path);
-    return true;
-  } catch {
-    return false;
+    for await (const entry of readTarGz(body)) {
+      const target = join(destination, ...entry.path);
+      // symlink は書かずに飛ばす。リポジトリ直下の `CLAUDE.md` が symlink というだけで
+      // 取得ごと諦めさせない。取り出したいものの中にあるかは `stage` が見る。
+      if (entry.kind === "link") { links.push(target); continue; }
+      if (entry.kind === "directory") { mkdirSync(target, { recursive: true }); continue; }
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, entry.bytes);
+    }
+  } catch (error) {
+    throw error instanceof ArchiveError
+      ? new AgentToolError("FETCH_FAILED", `extraction failed: ${error.message}`)
+      : error;
   }
-};
-
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
+  return links;
+}
 
 /** zipball は `<repo>-<branch>/` を 1 段かぶせる。 */
 export function singleTopLevel(dir: string): string {
@@ -323,7 +261,7 @@ function pluginSelector(base: string): string | undefined {
  * Subagent の判定は指されたディレクトリ直下だけで行う — 下層の `.md` まで
  * frontmatter を読むと、ただの文書が候補に混ざる。
  */
-export function skillsUnder(base: string, depth: number): Candidate[] {
+function skillsUnder(base: string, depth: number): Candidate[] {
   if (depth <= 0) return [];
   let children: string[];
   try {

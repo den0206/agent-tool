@@ -212,9 +212,10 @@ Bearer <value>        → Bearer [REDACTED]
 - **公開リポジトリのみ・未認証**（初版スコープ）
 - `fetch()` に `cache: 'no-store'` を指定する（HTTP キャッシュファイルを生やさない）
 - ダウンロード先は `path.join(os.tmpdir(), 'agent-tool-fetch-<uuid>')` とし `try/finally` で削除する
-- zip 展開は npm パッケージ（`yauzl` 等）を使い、各エントリに `assertValidName` を適用してから移動する
+- アーカイブは tar.gz で取り、展開は `core/archive.ts` の `readTarGz` だけで行う。
+  エントリ名は `safeSegments` で検証し、取り出したものには `assertValidName` を適用してから移動する
 - GitHub API 応答は 2 MB、アーカイブは 50 MB、展開後は 200 MB、単一ファイルは 20 MB で打ち切る
-- アーカイブはメモリへ全量保持せず、`ReadableStream` で一時ファイルへ流す
+- アーカイブはメモリへ全量保持せず、`ReadableStream` から 1 エントリずつ一時領域へ流す
 
 ---
 

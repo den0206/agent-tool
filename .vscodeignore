@@ -22,8 +22,8 @@ package-lock.json
 .secret
 .env
 .env.*
-# node_modulesは列挙しない。vsceがpackage.jsonのdependenciesだけを同梱し、
-# devDependenciesを外す（zip展開に使うyauzlは実行時依存として残る必要がある）。
+# node_modulesは列挙しない。実行時依存は持たないので、vsceはdevDependenciesを
+# すべて外し、同梱されるのは out/ のJavaScriptだけになる。
 *.md
 !README.md
 !README.ja.md

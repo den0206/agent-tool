@@ -18,10 +18,17 @@ export type GitHubSource = {
  */
 export const DEFAULT_REF = "HEAD";
 
+/**
+ * アーカイブ 1 本の URL。`git clone` は使わない。
+ *
+ * 形式は tar.gz にする。gzip は `DecompressionStream` で解け、tar は `core/archive.ts` が
+ * 読むので、IDE 拡張とブラウザ拡張が同じ取得元・同じ展開経路を通れる。
+ * codeload は github.com の `/archive/` がリダイレクトする先そのものである。
+ */
 export function archiveUrl(source: GitHubSource, revision?: string): string {
   const reference = revision
-    ?? (source.branch === undefined ? DEFAULT_REF : `refs/heads/${source.branch}`);
-  return `https://github.com/${source.repo}/archive/${reference}.zip`;
+    ?? (source.branch === undefined ? DEFAULT_REF : `refs/heads/${encodeURIComponent(source.branch)}`);
+  return `https://codeload.github.com/${source.repo}/tar.gz/${reference}`;
 }
 
 /** ブラウザ拡張へ渡す、取得元の Skill ディレクトリ URL。 */

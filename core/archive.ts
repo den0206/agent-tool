@@ -2,7 +2,7 @@ import { ENTRY_LIMIT, EXTRACTED_SIZE_LIMIT, SINGLE_FILE_LIMIT } from "./limits.j
 
 /**
  * アーカイブの読み取りと検証。Web 標準だけで書き、IDE 拡張とブラウザ拡張で共有する。
- * zip は `ide/fetcher.ts` が yauzl で読み、tar.gz はここで読む。エントリ名の検証は両方で同じ。
+ * 取得元は codeload の tar.gz 1 本にして、展開経路も検証もここに 1 つだけ置く。
  */
 
 /**
