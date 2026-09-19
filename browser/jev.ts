@@ -59,9 +59,6 @@ function noul(value: unknown): NoulAnswer {
   return { type: "noul", noul: answer.noul };
 }
 
-const criterion = (value: string, evidence: string): string =>
-  `${value} — ${evidence || "candidate extracted from the page"}`;
-
 export async function decideWithJev(
   evidence: PageEvidence,
   apiKey: string,
