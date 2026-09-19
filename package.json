@@ -87,7 +87,7 @@
     "compile": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\" && tsc -p ./ && tsc -p browser/tsconfig.json && node -e \"require('node:fs').writeFileSync('out/web/package.json','{\\\"type\\\":\\\"module\\\"}\\n')\"",
     "typecheck": "tsc -p ./ --noEmit && tsc -p browser/tsconfig.json --noEmit",
     "test": "npm run compile && node scripts/run-tests.mjs",
-    "test:browser": "npm run package:browser && npx --no-install playwright install chromium && node scripts/test-browser-catalogs.mjs && node scripts/test-browser-e2e.mjs",
+    "test:browser": "npm run package:browser && npx --no-install playwright install chromium && node scripts/test-browser-catalogs.mjs && node scripts/test-browser-e2e.mjs && node scripts/test-browser-jev.mjs",
     "test:cursor": "./scripts/test-cursor-e2e.sh",
     "package": "node -e \"require('node:fs').mkdirSync('vsix',{recursive:true})\" && vsce package --out vsix/agent-tool.vsix",
     "clean": "rm -rf out vsix",

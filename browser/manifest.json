@@ -26,7 +26,10 @@
     "default_popup": "browser/tab.html"
   },
   "permissions": [
-    "webNavigation"
+    "webNavigation",
+    "activeTab",
+    "scripting",
+    "storage"
   ],
   "host_permissions": [
     "https://github.com/*",
@@ -36,7 +39,8 @@
     "https://www.agentsdirectory.dev/*",
     "https://api.github.com/*",
     "https://raw.githubusercontent.com/*",
-    "https://codeload.github.com/*"
+    "https://codeload.github.com/*",
+    "https://api.typesafe.ai/*"
   ],
   "content_scripts": [
     {

@@ -337,5 +337,97 @@
   "badgeRateLimited": {
     "message": "GitHub API の枠が切れました。この一覧は読めなかったため、しばらく待ってから開き直してください。",
     "description": "ブラウザ拡張が Skill 一覧の取得で GitHub の未認証枠に当たったときに、ツールバーアイコンのツールチップに出す。"
+  },
+  "aiScanTitle": {
+    "message": "AIによる検出（Beta）"
+  },
+  "aiScanText": {
+    "message": "このサイトはAgent Toolの対応カタログではありません。Jevでこのページだけを解析し、GitHub由来のToolを探せます。"
+  },
+  "aiScanButton": {
+    "message": "このページからToolを探す"
+  },
+  "aiSettingsTitle": {
+    "message": "AIによる検出（Beta）"
+  },
+  "aiEnabledLabel": {
+    "message": "未対応サイトで有効にする"
+  },
+  "aiApiKeyLabel": {
+    "message": "Jev APIキー"
+  },
+  "aiSaveKey": {
+    "message": "保存"
+  },
+  "aiDeleteKey": {
+    "message": "削除"
+  },
+  "aiPrivacyNote": {
+    "message": "Beta。解析すると、抽出したリンクと少しのページ文脈をTypeSafeへ送ります。"
+  },
+  "aiKeyStored": {
+    "message": "✅ 保存済み"
+  },
+  "aiKeySaved": {
+    "message": "キーを保存し、AIによる検出を有効にしました。"
+  },
+  "aiKeyRemoved": {
+    "message": "Jev APIキーを削除しました。"
+  },
+  "aiKeyRequired": {
+    "message": "先に設定でJev APIキーを登録してください。"
+  },
+  "aiScanning": {
+    "message": "Toolを探しています…"
+  },
+  "aiNothingFound": {
+    "message": "検証できるSkillまたはSubagentは見つかりませんでした。"
+  },
+  "aiManyTools": {
+    "message": "このページには $COUNT$ 件の Tool があります。個別のページを開いてから実行してください。",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiPageUnreadable": {
+    "message": "このページを読めませんでした。再読み込みしてからもう一度お試しください。"
+  },
+  "aiNoCandidates": {
+    "message": "このページにGitHubの取得元リンクがありません。"
+  },
+  "aiSourceUnreadable": {
+    "message": "$REPO$ は見つかりましたが、中身を読めませんでした。",
+    "placeholders": {
+      "repo": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiSourceRateLimited": {
+    "message": "$REPO$ は見つかりましたが、GitHubの利用制限で一覧を読めませんでした。数分おいてお試しください。",
+    "placeholders": {
+      "repo": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiUnsupportedKind": {
+    "message": "$KIND$を検出しましたが、ブラウザ拡張から導入できるのはSkillとSubagentだけです。",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiAuthError": {
+    "message": "Jev APIキーが拒否されました。設定を確認してください。"
+  },
+  "aiRateLimit": {
+    "message": "Jevの利用上限に達しています。時間をおいて再度お試しください。"
+  },
+  "aiRequestFailed": {
+    "message": "Jevでこのページを解析できませんでした。導入は行っていません。"
   }
 }

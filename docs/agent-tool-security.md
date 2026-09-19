@@ -238,7 +238,9 @@ Bearer <value>        → Bearer [REDACTED]
 - `extensionKind: ["ui"]` — ローカル UI Extension として動作。Remote Host では起動しない
 - `capabilities.untrustedWorkspaces.supported: "limited"` — VS Code 自身にも未信頼時の制約を宣言し、runtime guard と二重化する
 - `capabilities.virtualWorkspaces: false` — ファイルシステム前提の操作を virtual workspace へ広げない
-- ネットワークアクセス: GitHub API（公開エンドポイント）のみ。外部サービスに認証情報を送らない
+- ネットワークアクセス: IDE 拡張は GitHub API（公開エンドポイント）のみ。認証情報を送らない。
+  ブラウザ拡張だけは、利用者が明示的に有効化して実行したときに限り `api.typesafe.ai` へ
+  利用者自身の API key を送る（§10.5）
 - テレメトリ: 一切収集しない
 
 ### 9.1 外部コマンドの起動（`exec.ts`）
@@ -293,13 +295,14 @@ Bearer <value>        → Bearer [REDACTED]
 }
 ```
 
-- `<all_urls>` と `unlimitedStorage` を要求しない。検知は github.com / skills.sh / agentsdirectory.dev だけで動く。永続化するのは小さな IndexedDB メタデータとディレクトリハンドルだけで、通常の拡張ストレージ枠に収める。
+- `<all_urls>` と `unlimitedStorage` を要求しない。自動検知は github.com / skills.sh / agentsdirectory.dev だけで動く。未対応サイトは `activeTab + scripting` で、利用者のクリック時に現在タブだけを読む（§10.5）。永続化するのは小さな IndexedDB メタデータ、ディレクトリハンドル、`chrome.storage.local` の Jev 設定だけで、通常の拡張ストレージ枠に収める。
 - 取得のために `raw.githubusercontent.com`（実在確認）、`api.github.com`（commit SHA）、
   `codeload.github.com`（アーカイブ）へ通信する。IDE 拡張と同じ公開エンドポイントだけを使う。
 - commit SHA を台帳に載せないと、IDE 拡張が取り込んだ直後に全件が「更新あり」に見える
   （`inventory.ts` の `hasUpdate` は `latestSha !== entry.sha` で判定する）。既定ブランチ名は
   推測せず、`HEAD` を使う。
-- 閲覧中の URL を外部サービスへ送らない。実在確認に投げるのは GitHub のパスだけである。
+- 閲覧中の URL を自動で外部サービスへ送らない。実在確認に投げるのは GitHub のパスだけである。
+  §10.5 の手動スキャンだけが例外で、対象は利用者がクリックしたその 1 ページに限る。
 - テレメトリは一切収集しない。
 
 ### 10.3 書き込みと削除
@@ -336,7 +339,71 @@ Bearer <value>        → Bearer [REDACTED]
   触れない判定・実在確認・導入済み判定を**全部先に**通し、出すと決まったものだけを確かめる。
   結果は service worker のメモリに URL 単位で持ち、同じページを見るたびに落とし直さない。
 
-### 10.5 残存リスク
+### 10.5 Jev 補助の手動検知（未対応サイト・**Beta**）
+
+**この機能は Beta である。** 試験的な位置づけで、外部 API（TypeSafe の Jev）と利用者の
+API key に依存する。既定は無効、利用者が鍵を登録して有効化しない限り一切動かない。
+今後の版で変更・撤去することがあり、撤去手順は
+`docs/agent-tool-release-plan.md`「Beta 機能の撤去」に置く。
+Beta である旨は UI（設定と未対応ページのカード）と README・ストア掲載文にも出す。
+
+対応サイトの決定論的検知はこの経路を一切通らない。Jev が落ちても、鍵が無くても、
+既存の検知・導入は同じように動く — これが Beta として同梱できる前提である。
+
+- `<all_urls>` を要求しない。読むのは `activeTab + scripting` で、利用者のクリック直後の
+  現在タブ 1 枚だけ。自動では実行しない。
+- **どれを入れるかは Jev に訊かない。** 訊くのは「このページは Tool を配っているか」と
+  その種別だけで、取得元と名前はコードが決める。候補から選ばせていたときは、外れを補正する
+  規則が別のページを壊す連鎖になった。解決は次の順で、**決まらなければ当てにいかない**。
+
+  1. ページの URL 末尾・`#fragment` と、候補から `lead()` が取り出した名前を照合する
+  2. 直リンクが 1 件に決まればそれ。複数残れば一覧として返し、利用者が選ぶ
+  3. 直リンクが 1 つも無いときだけ Jev に訊き、取得元は**導入コマンドに書かれた repo**を
+     リンクより優先する。それでも割れるなら出さない
+
+- 送るのはローカルで抽出・正規化した有限個の候補（`browser/pageEvidence.ts`）だけにする。
+  URL 候補は github.com に限り、query と credential を落とす。
+  HTML 全文、フォーム入力値、Cookie、storage、閲覧履歴は送らない。
+- コードブロックは**取得元を名乗る行だけ**を採り、`key` / `token` / `secret` / `password` /
+  `auth` への代入、`Bearer` / `Basic`、URL の userinfo を `[redacted]` に潰してから送る
+  （`ide/mcpServer.ts` の `redact` と同じ方針）。導入ブロックには
+  `export ANTHROPIC_API_KEY=…` が同居することがあり、丸ごと送ると鍵が外部へ出る。
+- 実在を**確かめられなかった**（通信不能）ときは「このページに Tool は無い」と言わず、
+  取得元を添えて「読めなかった」と出す。不在と未確認を同じ見た目に潰さない。
+- URL に `#fragment` があり、それがページ内の要素を指すときは、**その要素の中だけ**から
+  候補を採る（まとめページの 1 件を指す形）。送るのは節の見出しだけで、**fragment 自体は
+  送らない** — implicit flow の access token が入ることがある。絞れた分だけ送信量は減る。
+- Jev は**選ぶだけ**で、文字列を生成させない。回答は未信頼入力として扱い、候補 id の
+  ホワイトリスト・確率・confidence を検証してから使う（`browser/jev.ts`）。
+- 候補由来の `owner/repo` は他の経路と同じ検証（`core/github.ts` の `parseUrl`）を通す。
+  ページ本文の正規表現から `GitHubSource` を直接組み立てない。
+- AI の判定だけで導入しない。既存の GitHub 実在確認・展開確認（`isExtractable`）と
+  Preview・利用者確認を必ず通す。同じ lead を二度確認しない。
+- 名前が決まらないときは推測で導入候補にしない。取得元だけを popup へ返し、
+  `skills/` の列挙（GitHub API）から利用者に選ばせる。実在確認が落ちたときも同じ。
+- ページから抽出した導入コマンドを**実行しない**。`npx skills add owner/repo --skill foo` は
+  取得元と名前の手がかりとしてだけ読み、導入は既存の GitHub 取得・安全な展開経路へ変換する。
+- Jev が選んだ URL をそのまま `fetch` しない。取得先は既存の GitHub エンドポイントへ
+  正規化できるものだけで、未知ホストのアーカイブや raw ファイルは取りに行かない。
+- 証拠の強さでゲートを分ける。**閾値そのものは下げない**（下げると弱い証拠の側が一緒に緩む）。
+
+  | 経路 | 証拠 | Jev | 結果 |
+  |---|---|---|---|
+  | 照合で 1 件に決まる直リンク | パスが種別と名前を名指し、raw の HEAD で確認 | 呼ばない | `found` |
+  | 直リンクが複数 | どれも実在しうる | 呼ばない | `many`（一覧） |
+  | 直リンクが無く、取得元が 1 つ | 置き場は推測。`skills/` の列挙で確かめる | `is_tool_page` 0.80 以上 | `repo` |
+  | 直リンクが無く、取得元が割れる | 決め手が無い | — | `none` |
+
+- 確率と confidence は**次段の決定論的確認へ進めてよいかを決める内部値**にとどめる。
+  「この Tool は 92% 安全」のような表示はしない（PRD の「信頼度を数値化しない」は
+  導入物の安全性・品質の話で、こちらは候補選択の一意性の話である）。
+- API key は `chrome.storage.local` に置き、書き込む前に `setAccessLevel`
+  (`TRUSTED_CONTEXTS`) で content script から読めなくする。`minimum_chrome_version: 123`
+  はこの API の下限である。key は Authorization ヘッダだけに載せ、ログへ出さない。
+- 応答は 256 KB で打ち切り、12 秒でタイムアウトする。失敗・低確率・通信不能でも
+  対応サイトの動作を変えない。
+
+### 10.6 残存リスク
 
 | リスク | 扱い |
 |---|---|
