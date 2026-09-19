@@ -1,7 +1,7 @@
 import { ArchiveError, firstUnwritable, readTarGz } from "../core/archive.js";
 import { Collected, isRemovable } from "../core/collection.js";
 import { locateSkill, ToolLead } from "../core/detect.js";
-import { GitHubSource, narrowToSkill } from "../core/github.js";
+import { archiveUrl, GitHubSource, narrowToSkill } from "../core/github.js";
 import { treeHash, TreeFile } from "../core/hash.js";
 import { ledger, ledgerPath } from "../core/ledger.js";
 import { BROWSER_ROLLBACK_LIMIT, CATALOG_EXTRACT_LIMIT, ENTRY_LIMIT, SINGLE_FILE_LIMIT, SIZE_LIMIT } from "../core/limits.js";
@@ -14,20 +14,11 @@ import { collect, forget } from "./store.js";
 import { fetchJson } from "./fetch.js";
 
 /**
- * codeload は tar.gz を返す。gzip は DecompressionStream で解ける。
- * SHA が取れていればそれを指す — 取得と記録がずれないようにする。
- * 取れなければ `HEAD` を使い、既定ブランチ名を推測しない（`master` のリポジトリがある）。
- */
-export const archiveUrl = (source: GitHubSource, sha?: string): string =>
-  `https://codeload.github.com/${source.repo}/tar.gz/`
-  + (sha ?? (source.branch === undefined ? "HEAD" : `refs/heads/${encodeURIComponent(source.branch)}`));
-
-/**
  * 導入時点の commit SHA。台帳に載せておかないと、IDE 拡張が取り込んだ直後に
  * 全件が「更新あり」に見える（`inventory.ts` の `hasUpdate`）。
  * 本文は要らないので bare SHA だけを受ける。
  */
-export async function commitSha(source: GitHubSource): Promise<string | undefined> {
+async function commitSha(source: GitHubSource): Promise<string | undefined> {
   const ref = source.branch ?? "HEAD";
   const response = await fetch(
     `https://api.github.com/repos/${source.repo}/commits/${encodeURIComponent(ref)}`,
@@ -216,10 +207,7 @@ const getBytes = async (url: string, limit: number): Promise<Uint8Array | null |
   } finally {
     reader.releaseLock();
   }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-  return bytes;
+  return new Uint8Array(await new Blob(chunks as unknown as BlobPart[]).arrayBuffer());
 };
 
 const asInstallError = (error: unknown): unknown =>

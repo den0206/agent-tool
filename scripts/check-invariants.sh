@@ -53,7 +53,7 @@ fi
 
 if grep -qE 'from "\./env"' ide/fetcher.ts; then
     fail "fetcher.tsが./envを読み込んでいます（一時領域の外へ書ける経路になります）"
-elif ! grep -q 'mkdtempSync(join(tmpdir()' ide/writeGuard.ts; then
+elif ! grep -q 'mkdtempSync(join(tmpdir()' ide/fetcher.ts; then
     fail "一時領域がOSの一時ディレクトリから作られていません"
 else
     echo "✓ 取得と更新の作業領域はOSの一時領域に限定されています"

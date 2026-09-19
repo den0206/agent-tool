@@ -3,11 +3,11 @@ const { existsSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 const { test } = require("node:test");
-const { discard, extract, fetchPage, identify, isSubagentMatter, safeJoin, singleTopLevel, stage } = require("../out/ide/fetcher.js");
+const { discard, extract, fetchPage, identify, isSubagentMatter, singleTopLevel, stage } = require("../out/ide/fetcher.js");
 const { PAGE_LIMIT } = require("../out/core/limits.js");
 const { archiveUrl, catalog, fromJsonLd, narrowToSkill, needsPage, parseUrl, skillHint, sourceKey, sourcePageUrl } = require("../out/core/github.js");
 const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
-const { writeZip } = require("./zipFixture.js");
+const { streamOf, tarGz } = require("./tarFixture.js");
 
 const code = expected => error => error.code === expected;
 
@@ -97,11 +97,11 @@ test("Content-Length がなくても読み込み中にページ上限を打ち�
 });
 
 /** 既定ブランチ名は推測しない。`main` と決め打つと `master` のリポジトリが取れない。 */
-test("zipball の URL を組み立てる", () => {
-  assert.equal(archiveUrl({ repo: "o/r" }), "https://github.com/o/r/archive/HEAD.zip");
+test("アーカイブの URL を組み立てる", () => {
+  assert.equal(archiveUrl({ repo: "o/r" }), "https://codeload.github.com/o/r/tar.gz/HEAD");
   assert.equal(archiveUrl({ repo: "o/r", branch: "master" }),
-    "https://github.com/o/r/archive/refs/heads/master.zip");
-  assert.equal(archiveUrl({ repo: "o/r" }, "abc"), "https://github.com/o/r/archive/abc.zip");
+    "https://codeload.github.com/o/r/tar.gz/refs/heads/master");
+  assert.equal(archiveUrl({ repo: "o/r" }, "abc"), "https://codeload.github.com/o/r/tar.gz/abc");
 });
 
 test("ブラウザ拡張へ渡す取得元 URL は Skill のディレクトリを指す", () => {
@@ -193,37 +193,21 @@ test("スキル名が無い・パス要素に使えない名前は確かめな�
   }
 });
 
-// --- Zip Slip ---
-
-test("展開先の外へ出るパスを弾く", () => {
-  const root = join(tmpdir(), "unpack");
-  assert.equal(safeJoin(root, "../evil"), null);
-  assert.equal(safeJoin(root, "a/../../evil"), null);
-  assert.equal(safeJoin(root, "/etc/passwd"), join(root, "etc/passwd"));  // 先頭の / は落ちる
-  assert.equal(safeJoin(root, "a\\b"), null);
-  assert.equal(safeJoin(root, "C:/evil"), null);
-  assert.equal(safeJoin(root, "ok/file.md"), join(root, "ok/file.md"));
-});
-
 // --- extract ---
 
-test("zip を展開する", async () => {
+test("tar.gz を展開する", async () => {
   const env = fakeEnv();
-  const archive = writeZip(join(makeDir(env.home), "a.zip"), [
-    { name: "repo-main/SKILL.md", data: "---\nname: pdf\n---\n" },
-  ]);
   const out = join(env.home, "out");
-  await extract(archive, out);
+  await extract(streamOf(tarGz([["repo-main/SKILL.md", "---\nname: pdf\n---\n"]])), out);
   assert.ok(readFileSync(join(out, "repo-main", "SKILL.md"), "utf8").includes("name: pdf"));
 });
 
 /** アーカイブ 1 つで管理ルートの外へ書かれないこと。 */
 test("展開先の外を指すエントリを拒否する", async () => {
   const env = fakeEnv();
-  const archive = writeZip(join(makeDir(env.home), "evil.zip"), [
-    { name: "../escaped.md", data: "x" },
-  ]);
-  await assert.rejects(extract(archive, join(env.home, "out")), code("FETCH_FAILED"));
+  await assert.rejects(
+    extract(streamOf(tarGz([["../escaped.md", "x"]])), join(env.home, "out")),
+    code("FETCH_FAILED"));
   assert.equal(existsSync(join(env.home, "escaped.md")), false);
 });
 
@@ -231,12 +215,11 @@ test("symlink は書かずに飛ばし、アーカイブごと諦めない", asy
   // 実在のスキル集はリポジトリ直下の CLAUDE.md を symlink にしていることがある。
   // それだけで取得を失敗させると、中のスキルが 1 つも入れられなくなる。
   const env = fakeEnv();
-  const archive = writeZip(join(makeDir(env.home), "link.zip"), [
-    { name: "repo-main/evil", data: "/etc/passwd", unixMode: 0o120777 },
-    { name: "repo-main/skills/pdf/SKILL.md", data: "---\nname: pdf\n---\n" },
-  ]);
   const out = join(env.home, "out");
-  await extract(archive, out);
+  await extract(streamOf(tarGz([
+    ["repo-main/evil", "", "2", { link: "/etc/passwd" }],
+    ["repo-main/skills/pdf/SKILL.md", "---\nname: pdf\n---\n"],
+  ])), out);
   assert.equal(existsSync(join(out, "repo-main", "evil")), false);
   assert.equal(existsSync(join(out, "repo-main", "skills", "pdf", "SKILL.md")), true);
 });
@@ -345,24 +328,27 @@ test("Content-Length が上限を超えていれば本文を読まない", async
   assert.equal(cancelled, true);
 });
 
-/** Content-Length が返らない場合の保険。 */
-test("書き込み量でも上限を打ち切る", async () => {
-  const chunk = new Uint8Array(1024 * 1024);
+/** Content-Length が返らない場合の保険。展開を始める前に切る。 */
+test("受け取った量でも上限を打ち切る", async () => {
   const fetchImpl = async () => ({
     ok: true,
     status: 200,
     headers: new Map(),
-    body: (async function* () { for (let i = 0; i < 60; i++) yield chunk; })(),
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(51 * 1024 * 1024));
+        controller.close();
+      },
+    }),
   });
   await assert.rejects(stage({ repo: "o/r" }, { fetchImpl }), /too large/);
 });
 
 // --- 取り出す範囲の symlink ---
 
-/** zip の中身をそのまま返す `fetch`。stage の経路を通したいので本物の zip を流す。 */
-const serveZip = archive => async () => ({
-  ok: true, status: 200, headers: new Map(),
-  body: (async function* () { yield readFileSync(archive); })(),
+/** アーカイブをそのまま返す `fetch`。stage の経路を通したいので本物の tar.gz を流す。 */
+const serveTar = entries => async () => ({
+  ok: true, status: 200, headers: new Map(), body: streamOf(tarGz(entries)),
 });
 
 /**
@@ -370,24 +356,20 @@ const serveZip = archive => async () => ({
  * 欠けたファイルごと導入が成功したように見える。
  */
 test("取り出す候補の中に symlink があれば候補にしない", async () => {
-  const env = fakeEnv();
-  const archive = writeZip(join(makeDir(env.home), "inside.zip"), [
-    { name: "repo-main/skills/pdf/SKILL.md", data: "---\nname: pdf\n---\n" },
-    { name: "repo-main/skills/pdf/ref.md", data: "../../../etc/passwd", unixMode: 0o120777 },
-  ]);
   await assert.rejects(
-    stage({ repo: "o/r", subdir: "skills/pdf" }, { fetchImpl: serveZip(archive) }),
+    stage({ repo: "o/r", subdir: "skills/pdf" }, { fetchImpl: serveTar([
+      ["repo-main/skills/pdf/SKILL.md", "---\nname: pdf\n---\n"],
+      ["repo-main/skills/pdf/ref.md", "", "2", { link: "../../../etc/passwd" }],
+    ]) }),
     /is a link and cannot be installed/);
 });
 
 test("取り出す範囲の外の symlink は取得を妨げない", async () => {
-  const env = fakeEnv();
-  const archive = writeZip(join(makeDir(env.home), "outside.zip"), [
-    { name: "repo-main/CLAUDE.md", data: "skills/pdf/SKILL.md", unixMode: 0o120777 },
-    { name: "repo-main/skills/pdf/SKILL.md", data: "---\nname: pdf\n---\n" },
-  ]);
   const staging = await stage({ repo: "o/r", subdir: "skills/pdf" },
-    { fetchImpl: serveZip(archive) });
+    { fetchImpl: serveTar([
+      ["repo-main/CLAUDE.md", "", "2", { link: "skills/pdf/SKILL.md" }],
+      ["repo-main/skills/pdf/SKILL.md", "---\nname: pdf\n---\n"],
+    ]) });
   try {
     assert.deepEqual(staging.candidates.map(c => [c.kind, c.name]), [["skill", "pdf"]]);
   } finally {

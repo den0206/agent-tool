@@ -33,9 +33,6 @@
     },
     "virtualWorkspaces": false
   },
-  "activationEvents": [
-    "onView:agent-tool.inventory"
-  ],
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -76,8 +73,7 @@
         "title": "%command.checkUpdates%",
         "category": "Agent Tool"
       }
-    ],
-    "menus": {}
+    ]
   },
   "main": "./out/ide/extension.js",
   "icon": "media/icon.png",
@@ -97,12 +93,8 @@
   "devDependencies": {
     "@types/node": "26.5.1",
     "@types/vscode": "1.90.0",
-    "@types/yauzl": "3.4.0",
     "@vscode/vsce": "3.9.2",
     "playwright": "1.63.0",
     "typescript": "7.0.2"
-  },
-  "dependencies": {
-    "yauzl": "3.4.0"
   }
 }
