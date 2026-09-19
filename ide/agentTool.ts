@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { AgentId, KindId, ScopeId } from "../core/agent";
@@ -14,7 +13,7 @@ import * as mcp from "./mcpScanner";
 import { MCPScope, MCPServer } from "./mcpServer";
 import { mcpStatus as pollMcpStatus } from "./processScanner";
 import { knownProjects } from "./projectScan";
-import { cliOverrides, entry, Entry, load, read, Registry, save, update, upsert } from "./registry";
+import { cliOverrides, entry, Entry, load, read, Registry, update, upsert } from "./registry";
 import { layout, link, Place, remove as removeManaged, removeUnmanaged, USER } from "./skillManager";
 import { SOURCES, sourcePath } from "./source";
 import { updateApply as applyUpdate, Http, updatePreview as previewUpdate, resolveSha, UpdateDiff } from "./updater";
@@ -57,42 +56,6 @@ export type PreviewCandidate = {
 /** `storagePath` は `context.globalStorageUri.fsPath`。OS 別パスは VS Code が解決する。 */
 const envOf = (storagePath: string): Env => ({ home: homedir(), appSupport: storagePath });
 
-/**
- * 旧版の退避ディレクトリを初回の書き込み可能な一覧表示で戻す。
- * 復元先が別の実体で埋まっていれば、その 1 件だけを skip して issues に載せ、
- * 他の復元は続ける — ここで throw すると Dashboard 自体が開けなくなる。
- */
-async function restoreRetiredTools(storagePath: string): Promise<string[]> {
-  const env = envOf(storagePath);
-  const retired = read(env).resources.some(item => {
-    if (item.project !== undefined || (item.kind !== "skill" && item.kind !== "subagent")) return false;
-    return existsSync(join(env.appSupport, item.kind === "skill" ? "disabled-skills" : "disabled-agents",
-      item.kind === "skill" ? item.name : `${item.name}.md`));
-  });
-  if (!retired) return [];
-  const issues: string[] = [];
-  await mutate(storagePath, (registry, env) => {
-    for (const item of registry.resources) {
-      if (item.project !== undefined || (item.kind !== "skill" && item.kind !== "subagent")) continue;
-      const old = join(env.appSupport, item.kind === "skill" ? "disabled-skills" : "disabled-agents",
-        item.kind === "skill" ? item.name : `${item.name}.md`);
-      if (!existsSync(old)) continue;
-      const plan = layout(item.name, item.kind, env, USER, item.root);
-      if (existsSync(plan.store)) {
-        issues.push(`${item.name}: an active copy already exists at ${plan.store}; the disabled copy was kept at ${old}`);
-        continue;
-      }
-      guard.assertValidName(item.name);
-      guard.assertSafeCreation(old, join(old, ".."), env.appSupport);
-      guard.prepare(plan.store, join(plan.store, ".."),
-        guard.isInside(plan.store, env.home) ? env.home : env.appSupport);
-      guard.move(old, plan.store);
-      link(item.name, item.kind, env, registry);
-    }
-  });
-  return issues;
-}
-
 /** 走査と操作で同じ実行系を使う。手動指定した CLI パスは registry が持つ。 */
 const runnerFor = (env: Env): Run => {
   const overrides = cliOverrides(load(env));
@@ -120,12 +83,10 @@ export async function inventory(params: {
   writable?: boolean;
 }): Promise<{ items: InventoryItem[]; issues: string[]; diagnostics: Diagnostic[] }> {
   const env = envOf(params.storagePath);
-  const restoreIssues = params.writable === true ? await restoreRetiredTools(params.storagePath) : [];
-  const built = await buildInventory({
+  return buildInventory({
     env, projectPath: params.projectPath, run: runnerFor(env), user: params.user,
     writable: params.writable,
   });
-  return { ...built, issues: [...restoreIssues, ...built.issues] };
 }
 
 /** 他プロジェクトの一覧を出すための候補。`~/.claude.json` の既知パスだけを返す。 */
@@ -510,5 +471,3 @@ export async function pluginAdd(params: {
   const env = envOf(params.storagePath);
   for (const argv of pluginAddCommands(params.agent, params.name, params.url)) await runnerFor(env)(argv);
 }
-
-export { save, load };
