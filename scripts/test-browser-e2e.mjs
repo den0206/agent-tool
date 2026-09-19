@@ -10,11 +10,11 @@
 //   npm run test:browser
 // GUI が無い環境:
 //   xvfb-run -a npm run test:browser
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { withBrowser } from "./e2e/browser.mjs";
 import {
   agentsDirectoryUrl, githubSkillUrl, githubSkillsIndexUrl, skillsShUrl,
   warnIfGitHubRateLimited,
@@ -33,25 +33,8 @@ if (!existsSync(extensionDir)) {
 const BADGE_TIMEOUT_MS = 60_000;
 const GOTO_TIMEOUT_MS = 45_000;
 
-// unpacked 拡張は persistent context にしか読ませられない。userDataDir は毎回捨てる。
-// 空文字を渡す挙動は Playwright の版で変わるため、明示的に一時ディレクトリを掘る。
-const userDataDir = mkdtempSync(join(tmpdir(), "agent-tool-e2e-"));
-
 // --headless=new でも MV3 は動くが、環境依存で service worker が上がらないことがある。
 // GUI 無しの場所は README のとおり xvfb-run で回す。
-let context;
-
-const cleanup = async () => {
-  await context?.close().catch(() => { /* すでに閉じている */ });
-  rmSync(userDataDir, { recursive: true, force: true });
-};
-
-// service worker の起動を待つ。--load-extension は同期に上がらない。
-const waitForWorker = async () => {
-  const existing = context.serviceWorkers();
-  if (existing.length > 0) return existing[0];
-  return context.waitForEvent("serviceworker", { timeout: 15_000 });
-};
 
 // バッジが埋まるまで service worker 側で 250 ms ごとに読み直す。
 // 実装は `chrome.action.setBadgeText({ text, tabId })` を叩くので、tabId を渡す必要がある。
@@ -102,19 +85,9 @@ const cases = [
 ];
 
 let failed = 0;
-try {
-  context = await chromium.launchPersistentContext(userDataDir, {
-    headless: false,
-    args: [
-      `--disable-extensions-except=${extensionDir}`,
-      `--load-extension=${extensionDir}`,
-      "--no-first-run",
-      "--no-default-browser-check",
-    ],
-  });
+await withBrowser(chromium, { prefix: "agent-tool-e2e-", extensionDir }, async (context, worker) => {
   console.log("\n== 拡張を読み込んだ実ブラウザの検知（test-browser-e2e）==");
   await warnIfGitHubRateLimited();
-  const worker = await waitForWorker();
 
   // 起動直後の about:blank タブは邪魔になるので閉じる（残っていれば）。
   for (const page of context.pages()) {
@@ -165,8 +138,6 @@ try {
       await page.close().catch(() => { /* すでに閉じた */ });
     }
   }
-} finally {
-  await cleanup();
-}
+});
 
 process.exitCode = failed === 0 ? 0 : 1;
