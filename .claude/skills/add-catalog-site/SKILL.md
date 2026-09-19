@@ -256,7 +256,7 @@ SPA 遷移は `chrome.webNavigation.onHistoryStateUpdated` が拾い、content s
 
 ```bash
 npm test                          # 固定フィクスチャ。ネットワークに触れない
-npm run test:browser-catalogs     # 手動: 実サイトで追加したサイトを確認する
+node scripts/test-browser-catalogs.mjs     # 手動: 実サイトで追加したサイトを確認する
 ```
 
 `test/browserCore.test.js` の「対応サイトの複数 Tool を検知し、導入先を選べる」にある
@@ -276,12 +276,12 @@ Subagent を出すサイトなら Subagent の行も足す。
 npm run typecheck && npm test
 ./scripts/check-invariants.sh
 npm run package:browser
-npm run test:browser-catalogs     # 手動確認
+node scripts/test-browser-catalogs.mjs     # 手動確認
 ```
 
 固定テストとパッケージ検査が緑になってから報告する。報告には**§1.2 の検知率**を必ず含め、
 落ちたものは「こちらの問題」「サイト側のデータ誤り」に分けて示す。
-`test:browser-catalogs` は実サイトを叩く手動確認なので、失敗・スキップ時は URL と理由を
+`test-browser-catalogs.mjs` は実サイトを叩く手動確認なので、失敗・スキップ時は URL と理由を
 明示し、こちらの問題かサイト側かを切り分けてから伝える。
 
 ---
