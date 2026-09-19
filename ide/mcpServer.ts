@@ -1,3 +1,5 @@
+import { isObject } from "../core/json";
+
 /**
  * MCP サーバー 1 件。実測した 2 形式に対応する。
  *   Claude:  {"type":"stdio","command":"npx","args":[...],"env":{}}
@@ -20,9 +22,6 @@ export type MCPServer = {
   readonly isProtected: boolean;
   readonly enabled: boolean;
 };
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 const stringMap = (value: unknown): Record<string, string> | null => {
   if (value === undefined || value === null) return {};

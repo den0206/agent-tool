@@ -1,47 +1,38 @@
 import { basename } from "node:path";
 import { AgentId, AGENT_IDS } from "../core/agent";
-import { cliName, processMarkers } from "./agent";
 import { Run } from "./env";
 import { MCPServer } from "./mcpServer";
 
-/** プロセス一覧の 1 行。`elapsed` は表示にしか使わないので秒へ直さない。 */
+/** プロセス一覧の 1 行。UI が要るのは「動いているか」だけなので 3 列に絞る。 */
 export type ProcessRow = {
   readonly pid: number;
   readonly ppid: number;
-  readonly elapsed: string;
   readonly command: string;
-};
-
-export type RunningMCP = {
-  /** 親を辿って特定できたエージェント。辿り着けなければ null。 */
-  readonly owner: AgentId | null;
-  readonly elapsed: string;
-  readonly pid: number;
 };
 
 /**
  * 全プロセスを 1 回だけ取る。OS ごとにコマンドは違うが、
- * 「pid / ppid / 経過 / コマンド行」の 4 列に揃えてから先は同じ処理にする。
+ * 「pid / ppid / コマンド行」の 3 列に揃えてから先は同じ処理にする。
  */
 export async function snapshot(run: Run): Promise<ProcessRow[]> {
   if (process.platform === "win32") {
     // tasklist はコマンド行を持たないので、MCP の判別に使えない。
     const script = "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,"
-      + "CreationDate,CommandLine | ConvertTo-Json -Compress";
+      + "CommandLine | ConvertTo-Json -Compress";
     const output = await run(["powershell", "-NoProfile", "-Command", script]).catch(() => "");
     return parseWindows(output);
   }
-  const output = await run(["ps", "-eo", "pid,ppid,etime,command"]).catch(() => "");
+  const output = await run(["ps", "-eo", "pid,ppid,command"]).catch(() => "");
   return parsePs(output);
 }
 
-/** `  87139 87070       18:58 Cursor Helper: mcp-process` */
+/** `  87139 87070 Cursor Helper: mcp-process` */
 export function parsePs(output: string): ProcessRow[] {
   return output.split("\n").flatMap(line => {
-    // コマンドは空白を含むので、先頭 3 列だけ切り出して残りを丸ごと使う。
-    const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+    // コマンドは空白を含むので、先頭 2 列だけ切り出して残りを丸ごと使う。
+    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
     if (match === null) return [];      // ヘッダ行はここで落ちる
-    return [{ pid: Number(match[1]), ppid: Number(match[2]), elapsed: match[3], command: match[4] }];
+    return [{ pid: Number(match[1]), ppid: Number(match[2]), command: match[3] }];
   });
 }
 
@@ -60,7 +51,6 @@ export function parseWindows(output: string): ProcessRow[] {
     return [{
       pid: item.ProcessId,
       ppid: typeof item.ParentProcessId === "number" ? item.ParentProcessId : 0,
-      elapsed: typeof item.CreationDate === "string" ? item.CreationDate : "",
       command: item.CommandLine,
     }];
   });
@@ -99,53 +89,18 @@ export function signatures(server: MCPServer): string[] {
 }
 
 /**
- * 登録済みの設定から探す。UI が答えたい問いは「この登録済みサーバーは動いているか」で、
- * 「動いている MCP を全部挙げよ」ではない。
+ * 登録済みの設定のうち、動いているものの名前。UI が答えたい問いは
+ * 「この登録済みサーバーは動いているか」で、「動いている MCP を全部挙げよ」ではない。
  */
-export function running(servers: MCPServer[], rows: ProcessRow[]): Map<string, RunningMCP> {
-  const result = new Map<string, RunningMCP>();
+export function running(servers: MCPServer[], rows: ProcessRow[]): Set<string> {
+  const live = new Set<string>();
   for (const server of servers) {
     if (!server.enabled) continue;
     const tokens = signatures(server);
     if (tokens.length === 0) continue;
-    const matched = rows.filter(row => tokens.some(token => row.command.includes(token)));
-    if (matched.length === 0) continue;
-
-    // 同じサーバーが npm exec → 本体 → watchdog と数珠つなぎになる（実測）。
-    // 一致した集合の中で親を持たないものが起点で、稼働時間もそれが正しい。
-    const pids = new Set(matched.map(row => row.pid));
-    const root = matched.find(row => !pids.has(row.ppid)) ?? matched[0];
-    result.set(server.name, { owner: owner(root, rows), elapsed: root.elapsed, pid: root.pid });
+    if (rows.some(row => tokens.some(token => row.command.includes(token)))) live.add(server.name);
   }
-  return result;
-}
-
-/**
- * 親を辿ってエージェントに行き着くか見る。実測:
- * `chrome-devtools-mcp` → `npm exec` → `Cursor Helper: mcp-process` → `Cursor.app`
- */
-export function owner(row: ProcessRow, rows: ProcessRow[]): AgentId | null {
-  const byPid = new Map(rows.map(item => [item.pid, item]));
-  let current: ProcessRow | undefined = row;
-  for (let depth = 0; current !== undefined && depth < 24; depth++) {  // 循環しても抜ける
-    const agent = agentOfCommand(current.command);
-    if (agent !== null) return agent;
-    if (current.ppid <= 1) return null;
-    current = byPid.get(current.ppid);
-  }
-  return null;
-}
-
-/**
- * 実行ファイル名を先に見る。Codex は Cursor の拡張の中に入っていることがあり、
- * パスに `cursor` が含まれるからと先に Cursor と判定すると取り違える。
- */
-export function agentOfCommand(command: string): AgentId | null {
-  const executable = command.split(" ")[0] ?? command;
-  const name = basename(executable).replace(/\.(exe|cmd|bat)$/i, "");
-  const byCli = AGENT_IDS.find(agent => cliName(agent) === name);
-  if (byCli !== undefined) return byCli;
-  return AGENT_IDS.find(agent => processMarkers(agent).some(marker => command.includes(marker))) ?? null;
+  return live;
 }
 
 /** View 表示中の 3 秒ポーリングから呼ぶ。key は "agent:serverName"。 */

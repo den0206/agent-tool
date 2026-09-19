@@ -84,7 +84,7 @@ export function lead(raw: string): ToolLead | null {
 }
 
 /** 既定の置き場。ここに並ぶものを一覧にする。 */
-export const SKILL_INDEX_DIR = "skills";
+const SKILL_INDEX_DIR = "skills";
 
 /**
  * **1 件ではなく一覧**を出すページか。Skill が並ぶディレクトリを指す URL を受ける。

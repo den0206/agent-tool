@@ -51,7 +51,6 @@
   "Analyze it": "Analyze it",
   "Agent Tool: {0} updates available": "Agent Tool: {0} updates available",
   "Environment": "Environment",
-  "Not found": "Not found",
   "No AI agent CLI was found on PATH. Existing tools are still listed.": "No AI agent CLI was found on PATH. Existing tools are still listed.",
   "Untrusted workspace — the list is read-only. Trust the workspace to make changes.": "Untrusted workspace — the list is read-only. Trust the workspace to make changes.",
   "Remote window — tool changes are available only in a local window.": "Remote window — tool changes are available only in a local window.",

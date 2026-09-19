@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Env } from "./env";
 import * as frontmatter from "./frontmatter";
 import { relativePath, RULE_SOURCES, SKILL_SOURCES, SUBAGENT_SOURCES, sourcePath } from "./source";
-import { isLink } from "./writeGuard";
+import { isDirectory, isLink } from "./writeGuard";
 
 /**
  * エージェントが実際に読み込めるか。リンク切れと SKILL.md 欠落は読み込まれないので、
@@ -37,14 +37,6 @@ const statusOf = (result: frontmatter.FrontmatterResult): Status =>
   result.status === "parsed" ? "ok"
     : result.status === "truncated" ? "truncatedFrontmatter" : "missingFrontmatter";
 
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
 /** リンク切れ。`existsSync` はリンク先を見るので false になる。 */
 const isBrokenLink = (path: string): boolean => isLink(path) && !existsSync(path);
 
@@ -61,7 +53,7 @@ const entries = (root: string): string[] => {
  * 無い entry を落とす `prune` は区別しないといけない。読めないだけのルートを
  * 「消えた」と扱うと、実体が残っているのに pinned / 取得元を失う。
  */
-export const isUnreadable = (root: string): boolean => {
+const isUnreadable = (root: string): boolean => {
   if (!existsSync(root)) return false;
   try {
     accessSync(root, constants.R_OK | constants.X_OK);

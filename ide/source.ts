@@ -32,10 +32,10 @@ export const RULE_SOURCES: Source[] = dirs(flat(ruleRoots));
 
 export const MCP_SOURCES: Source[] = AGENT_IDS.map(mcpSource).filter((s): s is Source => s !== null);
 
-export const PLUGIN_SOURCES: Source[] = flat(pluginSources);
+const PLUGIN_SOURCES: Source[] = flat(pluginSources);
 
 /** 拡張自身の保存領域。 */
-export const APP_SOURCES: Source[] = [
+const APP_SOURCES: Source[] = [
   { kind: "file", root: "appSupport", path: "registry.json" },
   { kind: "file", root: "home", path: ".agents/.skill-lock.json" }, // 読み取り専用
 ];

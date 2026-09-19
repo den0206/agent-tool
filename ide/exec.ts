@@ -4,7 +4,7 @@ import { AgentToolError } from "../core/errors";
 import { redact } from "./mcpServer";
 
 /** 出力とタイムアウトの上限。拡張のメモリにも CLI の待ち時間にも効く。 */
-export const OUTPUT_LIMIT = 2 * 1024 * 1024;
+const OUTPUT_LIMIT = 2 * 1024 * 1024;
 export const TIMEOUT_MS = 180_000;
 
 /**

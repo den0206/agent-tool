@@ -132,7 +132,7 @@ export class TreeReadLimitError extends Error {
 }
 
 export type TreeReadLimits = { readonly entries: number; readonly single: number; readonly total: number };
-export const DEFAULT_TREE_READ_LIMITS: TreeReadLimits = {
+const DEFAULT_TREE_READ_LIMITS: TreeReadLimits = {
   entries: ENTRY_LIMIT, single: SINGLE_FILE_LIMIT, total: EXTRACTED_SIZE_LIMIT,
 };
 

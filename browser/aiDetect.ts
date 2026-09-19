@@ -1,7 +1,7 @@
 import { lead, proofUrls, ToolLead } from "../core/detect.js";
 import { GitHubSource, parseUrl } from "../core/github.js";
 import { isExtractable } from "./install.js";
-import { decideWithJev, JevDecision } from "./jev.js";
+import { decideWithJev } from "./jev.js";
 import { EvidenceCandidate, extractPageEvidence, PageEvidence } from "./pageEvidence.js";
 
 const PAGE_THRESHOLD = 0.80;

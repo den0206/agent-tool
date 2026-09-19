@@ -4,9 +4,10 @@ import { AgentId, AGENT_IDS, supports } from "../core/agent";
 import { mcpSource } from "./agent";
 import { Env, Run } from "./env";
 import { AgentToolError } from "../core/errors";
+import { isObject } from "../core/json";
 import { MCPScope, MCPServer, parse, parseAll } from "./mcpServer";
 import { sourcePath } from "./source";
-import { assertSafeCreation } from "./writeGuard";
+import { assertSafeCreation, exists } from "./writeGuard";
 
 /** 設定ファイルの読み込み上限。`~/.claude.json` は履歴で数 MB まで育つので、
  *  単一ファイルの上限（20 MB）に合わせる。ここを絞ると読めた設定が黙って消える。 */
@@ -18,9 +19,6 @@ const readConfigText = (path: string): string => {
   }
   return readFileSync(path, "utf8");
 };
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * JSON からコメントを取り除く。純粋関数。
@@ -246,7 +244,7 @@ export function editCursor(env: Env, mutate: (servers: Record<string, unknown>) 
   let original: string | undefined;
   let mode: number | undefined;
 
-  if (existsSyncSafe(path)) {
+  if (exists(path)) {
     const text = readConfigText(path);
     original = text;
     mode = statSync(path).mode & 0o777;
@@ -293,15 +291,6 @@ export function editCursor(env: Env, mutate: (servers: Record<string, unknown>) 
   renameSync(temporary, path);
   chmodSync(path, mode ?? 0o600);
 }
-
-const existsSyncSafe = (path: string): boolean => {
-  try {
-    statSync(path);
-    return true;
-  } catch {
-    return false;
-  }
-};
 
 export async function add(server: MCPServer, agent: AgentId, env: Env, run?: Run): Promise<void> {
   if (!supports(agent, "mcp")) {

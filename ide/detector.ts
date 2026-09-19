@@ -8,7 +8,7 @@ import { Env, Run } from "./env";
  * GUI から起動されたプロセスの PATH はターミナルと違う。macOS の launchd 起動では
  * `/usr/bin:/bin:/usr/sbin:/sbin` だけになり、Homebrew 配下の CLI が 1 つも見つからない。
  */
-export function knownDirs(env: Env): string[] {
+function knownDirs(env: Env): string[] {
   if (process.platform === "win32") {
     return [join(env.home, "AppData", "Roaming", "npm"),
             join(env.home, ".local", "bin"),
