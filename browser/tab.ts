@@ -1,17 +1,17 @@
 import { AgentId } from "../core/agent.js";
 import { Collected } from "../core/collection.js";
-import { skillIndex, ToolLead, verifiedPage } from "../core/detect.js";
+import { DetectKind, skillIndex, ToolLead, verifiedPage } from "../core/detect.js";
 import { GitHubSource, needsPage, parseUrl, SUPPORTED_SITES } from "../core/github.js";
 import { PAGE_LIMIT } from "../core/limits.js";
 import {
-  CONFIG_DIRS, placement, Placement, rootOf, RootState, splitRoot, targets,
+  CONFIG_DIRS, placement, Placement, rootOf, RootState, splitRoot,
 } from "../core/placement.js";
 import {
   clearRoot, configHandle, exists, PickerError, pickerHint, pickerUnavailable, placeHandle,
 } from "./fs.js";
-import { fetchJson, rateLimitWatch } from "./fetch.js";
+import { rateLimitWatch } from "./fetch.js";
 import {
-  filesFor, install, InstallError, isExtractable, remove, willOverwrite,
+  filesFor, install, InstallError, InstallRequest, isExtractable, remove, willOverwrite,
 } from "./install.js";
 import { listSkills, SkillEntry } from "../core/tree.js";
 import {
@@ -108,62 +108,89 @@ sitesDialog.addEventListener("close", () => document.body.classList.remove("dial
 }
 
 let current: ToolLead | null = null;
-let chosen: AgentId | null = null;
 
 // --- 導入先の選択 -------------------------------------------------------
-
-/** 導入先の候補。選ばれているものを `chosen` に持つ。 */
-let options: TargetOption[] = [];
 
 const stateLabel = (state: RootState): string =>
   state.kind === "ok" ? ""
     : state.kind === "unset" ? `（${t("tabNeedsPermission")}）`
     : `（${t("rootMismatchShort", state.chosen)}）`;
 
-/** 選択に合わせて、入る場所と足りない設定を出し分ける。 */
-function showTarget(): void {
-  const picked = options.find(option => option.agent === chosen);
-  const path = byId("target-path");
-  const hint = byId("picker-hint");
-  const permission = byId("permission-note");
-  path.textContent = picked === undefined ? "" : `~/${rootOf(picked.where)}`;
-  path.className = "repo";
-  hint.className = "hint";
-  hint.textContent = "";
-  // 既に許可があるフォルダに「選んでください」と言わない。書き込み先だけを示す。
-  permission.textContent =
-    picked === undefined ? ""
-    : picked.state.kind === "ok" ? t("tabPermissionNoteReady", `~/${rootOf(picked.where)}`)
-    : t("tabPermissionNote", `~/${picked.where.configDir}`, `~/${rootOf(picked.where)}`);
-  if (picked === undefined || picked.state.kind === "ok") return;
+/**
+ * 導入先の選択。カード（1 件）と一覧（複数）で同じ選び方・同じ出し分けをするので、
+ * 触る要素の id だけを変えて 2 つ作る。`permission` を持たない面もある。
+ */
+function targetPicker(ids: {
+  select: string; path: string; hint: string; permission?: string;
+}) {
+  let options: TargetOption[] = [];
+  let chosen: AgentId | null = null;
+  let shared = false;
+  const picked = (): TargetOption | undefined => options.find(option => option.agent === chosen);
 
-  if (picked.state.kind === "unset") {
-    hint.textContent = pickerHint(`~/${picked.where.configDir}`);
-    return;
-  }
-  // 別のフォルダが設定されている。入る先が違うので、赤字で示して導入も止める。
-  path.className = "repo error";
-  path.textContent = `~/${picked.where.configDir} → ${picked.state.chosen}`;
-  hint.className = "hint error";
-  hint.textContent = t("rootMismatch", `~/${picked.where.configDir}`, picked.state.chosen);
+  /** 選択に合わせて、入る場所と足りない設定を出し分ける。 */
+  const show = (): void => {
+    const option = picked();
+    const path = byId(ids.path);
+    const hint = byId(ids.hint);
+    path.textContent = option === undefined ? "" : `~/${rootOf(option.where)}`;
+    path.className = "repo";
+    hint.className = "hint";
+    hint.textContent = "";
+    // 既に許可があるフォルダに「選んでください」と言わない。書き込み先だけを示す。
+    if (ids.permission !== undefined) {
+      byId(ids.permission).textContent =
+        option === undefined ? ""
+        : option.state.kind === "ok" ? t("tabPermissionNoteReady", `~/${rootOf(option.where)}`)
+        : t("tabPermissionNote", `~/${option.where.configDir}`, `~/${rootOf(option.where)}`);
+    }
+    if (option === undefined || option.state.kind === "ok") return;
+
+    if (option.state.kind === "unset") {
+      hint.textContent = pickerHint(`~/${option.where.configDir}`);
+      return;
+    }
+    // 別のフォルダが設定されている。入る先が違うので、赤字で示して導入も止める。
+    path.className = "repo error";
+    path.textContent = `~/${option.where.configDir} → ${option.state.chosen}`;
+    hint.className = "hint error";
+    hint.textContent = t("rootMismatch", `~/${option.where.configDir}`, option.state.chosen);
+  };
+
+  byId<HTMLSelectElement>(ids.select).addEventListener("change", event => {
+    chosen = (event.target as HTMLSelectElement).value as AgentId;
+    show();
+  });
+
+  return {
+    picked,
+    shared: () => shared,
+    reset: () => { chosen = null; },
+    render: async (kind: DetectKind, name: string): Promise<void> => {
+      const select = byId<HTMLSelectElement>(ids.select);
+      select.replaceChildren();
+      ({ options, shared } = await targetSet(kind, name));
+
+      for (const option of options) {
+        const node = document.createElement("option");
+        node.value = option.agent;
+        node.textContent = `${agentLabel(option.where.configDir)}${stateLabel(option.state)}`;
+        select.append(node);
+      }
+      // 正しく設定されているものがあればそれを初期値にする。無ければ先頭。
+      chosen = (options.find(option => option.state.kind === "ok") ?? options[0])?.agent ?? null;
+      if (chosen !== null) select.value = chosen;
+      show();
+    },
+  };
 }
 
-async function renderTargets(found: ToolLead): Promise<void> {
-  const select = byId<HTMLSelectElement>("target");
-  select.replaceChildren();
-  ({ options } = await targetSet(found.kind, found.name));
-
-  for (const picked of options) {
-    const option = document.createElement("option");
-    option.value = picked.agent;
-    option.textContent = `${agentLabel(picked.where.configDir)}${stateLabel(picked.state)}`;
-    select.append(option);
-  }
-  // 正しく設定されているものがあればそれを初期値にする。無ければ先頭。
-  chosen = (options.find(option => option.state.kind === "ok") ?? options[0])?.agent ?? null;
-  if (chosen !== null) select.value = chosen;
-  showTarget();
-}
+const cardTarget = targetPicker({
+  select: "target", path: "target-path", hint: "picker-hint", permission: "permission-note",
+});
+const indexTarget = targetPicker({
+  select: "index-target", path: "index-path", hint: "index-hint",
+});
 
 /**
  * URL だけで取得元が決まらないカタログは、ページを 1 回読んで JSON-LD から採る。
@@ -242,7 +269,7 @@ async function showLead(raw: string, vetted = false, alreadyIn = false): Promise
 /** 検知の表示をやめて通常の画面に戻す。導入後とタブを移ったときに呼ぶ。 */
 function backToNormal(): void {
   current = null;
-  chosen = null;
+  cardTarget.reset();
   index = null;
   byId("destination").hidden = true;
   byId("index").hidden = true;
@@ -260,17 +287,48 @@ byId<HTMLInputElement>("url").addEventListener("change", event => {
   void showLead(value);
 });
 
-byId<HTMLSelectElement>("target").addEventListener("change", event => {
-  chosen = (event.target as HTMLSelectElement).value as AgentId;
-  showTarget();
-});
-
 byId<HTMLButtonElement>("dismiss").addEventListener("click", () => {
   void send({ type: "dismiss" });
   backToNormal();
 });
 
 // --- 導入 ---------------------------------------------------------------
+
+/** 選ばれた導入先が使えるか。使えなければ理由を出して null を返す。 */
+function usableTarget(picked: TargetOption | undefined, status: HTMLElement): TargetOption | null {
+  if (picked === undefined) {
+    showStatus(status, t("tabPickTarget"), true);
+    return null;
+  }
+  // 別のフォルダが設定されたままなら入れない。意図しない場所へ書かない。
+  if (picked.state.kind === "mismatch") {
+    showStatus(status, t("rootMismatch", `~/${picked.where.configDir}`, picked.state.chosen), true);
+    return null;
+  }
+  return picked;
+}
+
+/**
+ * 許可 → 上書き確認 → 書き込み。後始末はカードと行で違うので、書けたかだけを返す。
+ * 取得の仕方（アーカイブかファイル単位か）は `build` が決める。
+ */
+async function writeTool(
+  picked: TargetOption, where: Placement, name: string, status: HTMLElement,
+  build: (root: FileSystemDirectoryHandle) => Omit<InstallRequest, "overwrite">,
+): Promise<boolean> {
+  showStatus(status, picked.state.kind === "unset" ? t("tabRequestingPermission") : t("tabInstalling"));
+  const root = await placeHandle(where, true, { create: true });
+  if (root === null) { showStatus(status, t("permissionLost")); return false; }
+  showStatus(status, t("tabInstalling"));
+
+  const request = build(root);
+  if (await willOverwrite(request) && !confirm(t("overwriteConfirm", name))) {
+    clearStatus(status);
+    return false;
+  }
+  await install({ ...request, overwrite: true });
+  return true;
+}
 
 byId<HTMLButtonElement>("install").addEventListener("click", async () => {
   const found = current;
@@ -280,37 +338,21 @@ byId<HTMLButtonElement>("install").addEventListener("click", async () => {
   // 検知の時点では種類と名前だけを出している。どこへ入れるかはここで見せる。
   if (byId("destination").hidden) {
     byId("destination").hidden = false;
-    await renderTargets(found);
+    await cardTarget.render(found.kind, found.name);
     return;
   }
 
-  const picked = options.find(option => option.agent === chosen);
-  if (picked === undefined) {
-    showStatus(status, t("tabPickTarget"), true);
-    return;
-  }
+  const picked = usableTarget(cardTarget.picked(), status);
+  if (picked === null) return;
   const { agent, where } = picked;
-  // 別のフォルダが設定されたままなら入れない。意図しない場所へ書かない。
-  if (picked.state.kind === "mismatch") {
-    showStatus(status, t("rootMismatch", `~/${where.configDir}`, picked.state.chosen), true);
-    return;
-  }
 
   const button = byId<HTMLButtonElement>("install");
   const card = byId("found-card");
   setBusy(card, button, true);
-  showStatus(status, picked.state.kind === "unset" ? t("tabRequestingPermission") : t("tabInstalling"));
   try {
-    const root = await placeHandle(where, true, { create: true });
-    if (root === null) { showStatus(status, t("permissionLost")); return; }
-    showStatus(status, t("tabInstalling"));
-
-    const request = { lead: found, agent, placement: where, root };
-    if (await willOverwrite(request) && !confirm(t("overwriteConfirm", found.name))) {
-      clearStatus(status);
-      return;
-    }
-    await install({ ...request, overwrite: true });
+    const written = await writeTool(picked, where, found.name, status,
+      root => ({ lead: found, agent, placement: where, root }));
+    if (!written) return;
     await send({ type: "dismiss" });               // バッジを下ろす。導入済みは収集一覧が持つ
     // 現在のタブへ「もう一度検知して」と伝える。content script が visited を送り直し、
     // SW の visit() が走り直し、次に popup を開いたとき「導入済み」が返る。
@@ -369,47 +411,6 @@ type SkillIndex = {
   readonly subdir: string; readonly entries: SkillEntry[];
 };
 let index: SkillIndex | null = null;
-let indexOptions: TargetOption[] = [];
-let indexAgent: AgentId | null = null;
-/** 共有ストアが許可済みか。行ごとに置き場を組み直すのに要る。 */
-let indexShared = false;
-
-function showIndexTarget(): void {
-  const picked = indexOptions.find(option => option.agent === indexAgent);
-  const path = byId("index-path");
-  const hint = byId("index-hint");
-  path.className = "repo";
-  hint.className = "hint";
-  hint.textContent = "";
-  path.textContent = picked === undefined ? "" : `~/${rootOf(picked.where)}`;
-  if (picked === undefined || picked.state.kind === "ok") return;
-  if (picked.state.kind === "unset") {
-    hint.textContent = pickerHint(`~/${picked.where.configDir}`);
-    return;
-  }
-  path.className = "repo error";
-  path.textContent = `~/${picked.where.configDir} → ${picked.state.chosen}`;
-  hint.className = "hint error";
-  hint.textContent = t("rootMismatch", `~/${picked.where.configDir}`, picked.state.chosen);
-}
-
-async function renderIndexTargets(sample: string): Promise<void> {
-  const select = byId<HTMLSelectElement>("index-target");
-  select.replaceChildren();
-  const resolved = await targetSet("skill", sample);
-  indexOptions = resolved.options;
-  indexShared = resolved.shared;
-
-  for (const picked of indexOptions) {
-    const option = document.createElement("option");
-    option.value = picked.agent;
-    option.textContent = `${agentLabel(picked.where.configDir)}${stateLabel(picked.state)}`;
-    select.append(option);
-  }
-  indexAgent = (indexOptions.find(option => option.state.kind === "ok") ?? indexOptions[0])?.agent ?? null;
-  if (indexAgent !== null) select.value = indexAgent;
-  showIndexTarget();
-}
 
 async function showIndex(at: SkillIndex): Promise<void> {
   index = at;
@@ -423,7 +424,7 @@ async function showIndex(at: SkillIndex): Promise<void> {
   byId("index-security-source").textContent = t("tabSecuritySource", at.source.repo);
   byId("index-status").textContent = "";
   byId("index-status").className = "status";
-  await renderIndexTargets(at.entries[0].name);
+  await indexTarget.render("skill", at.entries[0].name);
 
   const box = byId("index-list");
   box.replaceChildren();
@@ -447,44 +448,27 @@ async function showIndex(at: SkillIndex): Promise<void> {
 /** 一覧の 1 件を入れる。押した行だけを触り、他の行は残す。 */
 async function installOne(entry: SkillEntry, button: HTMLButtonElement): Promise<void> {
   const status = byId("index-status");
-  const picked = indexOptions.find(option => option.agent === indexAgent);
   const row = button.parentElement ?? byId("index");
   clearStatus(status);
-  if (index === null || picked === undefined) {
-    showStatus(status, t("tabPickTarget"), true);
-    return;
-  }
-  // 別のフォルダが設定されたままなら入れない。意図しない場所へ書かない。
-  if (picked.state.kind === "mismatch") {
-    showStatus(status, t("rootMismatch", `~/${picked.where.configDir}`, picked.state.chosen), true);
-    return;
-  }
-  const where = placement(picked.agent, "skill", entry.name, indexShared);
+  const at = index;
+  const picked = usableTarget(indexTarget.picked(), status);
+  if (at === null || picked === null) return;
+  const where = placement(picked.agent, "skill", entry.name, indexTarget.shared());
   if (where === null) return;
 
   const label = button.textContent ?? "";
   setBusy(row, button, true);
-  showStatus(status, picked.state.kind === "unset" ? t("tabRequestingPermission") : t("tabInstalling"));
   let installed = false;
   try {
-    const root = await placeHandle(where, true, { create: true });
-    if (root === null) { showStatus(status, t("permissionLost")); return; }
-
-    showStatus(status, t("tabInstalling"));
     const lead: ToolLead = {
-      url: index.url, source: index.source, kind: "skill", name: entry.name, proofs: [],
+      url: at.url, source: at.source, kind: "skill", name: entry.name, proofs: [],
     };
-    const request = {
+    installed = await writeTool(picked, where, entry.name, status, root => ({
       lead, agent: picked.agent, placement: where, root,
       // アーカイブではなくファイル単位で取る。大きいリポジトリでも 1 件ぶんで済む。
-      fetchFiles: filesFor(index.source, index.subdir, entry),
-    };
-    if (await willOverwrite(request) && !confirm(t("overwriteConfirm", entry.name))) {
-      clearStatus(status);
-      return;
-    }
-    await install({ ...request, overwrite: true });
-    installed = true;
+      fetchFiles: filesFor(at.source, at.subdir, entry),
+    }));
+    if (!installed) return;
     showStatus(status, t("tabInstalled", entry.name, `~/${rootOf(where)}`));
     button.textContent = t("tabInstalledShort");   // 入ったものは押せないままにする
   } catch (error) {
@@ -496,11 +480,6 @@ async function installOne(entry: SkillEntry, button: HTMLButtonElement): Promise
     if (!installed) { button.textContent = label; button.disabled = false; }
   }
 }
-
-byId<HTMLSelectElement>("index-target").addEventListener("change", event => {
-  indexAgent = (event.target as HTMLSelectElement).value as AgentId;
-  showIndexTarget();
-});
 
 byId<HTMLButtonElement>("index-dismiss").addEventListener("click", () => {
   void send({ type: "dismiss" });

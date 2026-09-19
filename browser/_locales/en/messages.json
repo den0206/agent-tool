@@ -277,9 +277,6 @@
       }
     }
   },
-  "tabIndexLead": {
-    "message": "Install them one at a time."
-  },
   "tabInstalledShort": {
     "message": "Installed"
   },

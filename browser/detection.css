@@ -1,6 +1,7 @@
 /* --- 検知の小さな演出 -------------------------------------------------
  * 自動検知はブラウザ拡張の主役なので、カードが「見つけた」ことだけ一度伝える。
  * transform/opacity のみで描画し、reduced-motion では完全に止める。
+ * 装飾はこの 1 本だけにする。
  */
 @keyframes detected-bloom {
   0% { opacity: 0; transform: translateY(12px) scale(0.96); }
@@ -9,55 +10,9 @@
   100% { opacity: 1; transform: none; }
 }
 
-@keyframes sparkle-left {
-  0% { opacity: 0; transform: translate(-4px, 6px) scale(0.4) rotate(-24deg); }
-  30% { opacity: 1; transform: translate(0, 0) scale(1.25) rotate(0deg); }
-  62% { opacity: 1; transform: translate(1px, -2px) scale(1.05) rotate(10deg); }
-  100% { opacity: 0; transform: translate(6px, -10px) scale(0.7) rotate(26deg); }
-}
-
-@keyframes sparkle-right {
-  0% { opacity: 0; transform: translate(4px, 7px) scale(0.35) rotate(22deg); }
-  34% { opacity: 0.95; transform: translate(0, 0) scale(1.15) rotate(0deg); }
-  66% { opacity: 0.9; transform: translate(-1px, -3px) scale(1) rotate(-10deg); }
-  100% { opacity: 0; transform: translate(-5px, -11px) scale(0.65) rotate(-24deg); }
-}
-
 #found.detected-pop .card,
 #index.detected-pop .card {
-  position: relative;
   animation: detected-bloom 0.8s var(--ease) both;
-}
-
-#found.detected-pop .card::before,
-#found.detected-pop .card::after,
-#index.detected-pop .card::before,
-#index.detected-pop .card::after {
-  position: absolute;
-  z-index: 1;
-  pointer-events: none;
-  color: var(--brand);
-  font-size: 14px;
-  line-height: 1;
-  text-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 34%, transparent);
-}
-
-#found.detected-pop .card::before,
-#index.detected-pop .card::before {
-  content: "✦";
-  top: 8px;
-  right: 14px;
-  animation: sparkle-left 1.25s 0.2s var(--ease) both;
-}
-
-#found.detected-pop .card::after,
-#index.detected-pop .card::after {
-  content: "·";
-  top: 23px;
-  right: 31px;
-  font-size: 20px;
-  color: var(--brand-2);
-  animation: sparkle-right 1.2s 0.38s var(--ease) both;
 }
 
 /* インストール前の透明性。情報を増やしてもフォームに見えすぎないよう薄い面で束ねる。 */
@@ -109,11 +64,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   #found.detected-pop .card,
-  #found.detected-pop .card::before,
-  #found.detected-pop .card::after,
-  #index.detected-pop .card,
-  #index.detected-pop .card::before,
-  #index.detected-pop .card::after {
+  #index.detected-pop .card {
     animation: none !important;
   }
 }

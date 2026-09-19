@@ -277,9 +277,6 @@
       }
     }
   },
-  "tabIndexLead": {
-    "message": "1 件ずつ入れられます。"
-  },
   "tabInstalledShort": {
     "message": "導入済み"
   },
