@@ -12,18 +12,11 @@ const encoder = new TextEncoder();
  */
 export async function treeHash(files: readonly TreeFile[]): Promise<string> {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  const parts: Uint8Array[] = [];
-  for (const file of sorted) {
-    parts.push(encoder.encode(`${file.path}\n${file.bytes.length}\n`));
-    parts.push(file.bytes);
-  }
-  const total = parts.reduce((sum, part) => sum + part.length, 0);
-  const joined = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    joined.set(part, offset);
-    offset += part.length;
-  }
-  const digest = await crypto.subtle.digest("SHA-256", joined);
+  const parts = sorted.flatMap(file =>
+    [encoder.encode(`${file.path}\n${file.bytes.length}\n`), file.bytes]);
+  // Node と DOM で Blob の引数型が違い、どちらも SharedArrayBuffer 由来を受けない。
+  // 実際に渡すのは通常の Uint8Array なので、型だけ外して両方の lib で通す。
+  const digest = await crypto.subtle.digest("SHA-256",
+    await new Blob(parts as unknown as never[]).arrayBuffer());
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, "0")).join("");
 }

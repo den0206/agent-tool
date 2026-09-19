@@ -2,6 +2,7 @@ import { AgentId, AGENT_IDS } from "../core/agent";
 import { cliName } from "./agent";
 import { Env, Run } from "./env";
 import { AgentToolError } from "../core/errors";
+import { isObject, str } from "../core/json";
 import { readJsonc } from "./mcpScanner";
 import { join } from "node:path";
 
@@ -21,11 +22,6 @@ export type InstalledPlugin = {
   /** エージェント同梱。ユーザーが入れたものと混ぜない。 */
   readonly isBundled: boolean;
 };
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const str = (value: unknown): string | undefined => typeof value === "string" ? value : undefined;
 
 /** 読み取り経路があるのは Claude と Codex だけ。Cursor は未実測なので推測で埋めない。 */
 const READABLE: readonly AgentId[] = ["claude", "codex"];

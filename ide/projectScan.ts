@@ -1,20 +1,13 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Env } from "./env";
 import { readJsonc } from "./mcpScanner";
+import { isDirectory } from "./writeGuard";
 
 /** プロジェクト配下を歩く深さ。これ以上は掘らない。 */
-export const SKILL_DEPTH = 3;
-export const NOT_WALKED: ReadonlySet<string> =
+const SKILL_DEPTH = 3;
+const NOT_WALKED: ReadonlySet<string> =
   new Set(["node_modules", "Pods", "vendor", "target", "dist", "build", "out"]);
-
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
 
 /**
  * プロジェクト内の `.claude/skills` を探す。サブディレクトリは `SKILL_DEPTH` まで。

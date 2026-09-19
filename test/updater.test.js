@@ -3,7 +3,7 @@ const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { test } = require("node:test");
-const { API_RESPONSE_LIMIT, DIFF_TOTAL_LIMIT, diffFiles, diffSummary, readLimitedText } = require("../out/ide/updater.js");
+const { API_RESPONSE_LIMIT, DIFF_TOTAL_LIMIT, diff, readLimitedText } = require("../out/ide/updater.js");
 
 test("大きすぎる GitHub 応答は読み切らずに落とす", async () => {
   const body = {
@@ -22,10 +22,10 @@ test("差分に載せる本文は合計で打ち切る", t => {
   const candidate = join(root, "candidate");
   mkdirSync(current); mkdirSync(candidate);
   for (let i = 0; i < 9; i += 1) writeFileSync(join(candidate, `${i}.md`), "x".repeat(250 * 1024));
-  const diff = diffFiles(current, candidate, "tool");
-  const retained = diff.reduce((size, file) => size + Buffer.byteLength(file.before) + Buffer.byteLength(file.after), 0);
+  const files = diff(current, candidate, "tool").files;
+  const retained = files.reduce((size, file) => size + Buffer.byteLength(file.before) + Buffer.byteLength(file.after), 0);
   assert.ok(retained <= DIFF_TOTAL_LIMIT);
-  assert.equal(diff.at(-1).path, "[additional changes omitted]");
+  assert.equal(files.at(-1).path, "[additional changes omitted]");
 });
 
 test("更新差分は追加・削除・変更と manifest を要約する", t => {
@@ -40,7 +40,7 @@ test("更新差分は追加・削除・変更と manifest を要約する", t =>
   writeFileSync(join(candidate, "added.md"), "new");
   writeFileSync(join(candidate, "changed.md"), "new");
   writeFileSync(join(candidate, "package.json"), "{\"version\":\"2\"}");
-  assert.deepEqual(diffSummary(current, candidate, "tool"), {
+  assert.deepEqual(diff(current, candidate, "tool").summary, {
     added: 1, removed: 1, changed: 2, manifestChanged: true, omitted: false,
   });
 });

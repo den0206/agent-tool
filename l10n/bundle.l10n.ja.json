@@ -51,7 +51,6 @@
   "Analyze it": "解析する",
   "Agent Tool: {0} updates available": "Agent Tool: 更新が{0}件あります",
   "Environment": "環境",
-  "Not found": "未検出",
   "No AI agent CLI was found on PATH. Existing tools are still listed.": "PATH上にAIエージェントのCLIが見つかりません。導入済みのツールは引き続き表示します。",
   "Untrusted workspace — the list is read-only. Trust the workspace to make changes.": "未信頼のワークスペースです。一覧のみ表示します。操作するにはワークスペースを信頼してください。",
   "Remote window — tool changes are available only in a local window.": "Remoteウィンドウです。ツールの変更はローカルウィンドウでのみ行えます。",

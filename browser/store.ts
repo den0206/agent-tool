@@ -46,13 +46,10 @@ export const loadHandle = (root: string): Promise<FileSystemDirectoryHandle | un
 export const dropHandle = (root: string): Promise<undefined> =>
   run(HANDLES, "readwrite", store => store.delete(root));
 
-export const knownRoots = (): Promise<string[]> =>
-  run(HANDLES, "readonly", store => store.getAllKeys() as IDBRequest<string[]>);
-
 export const loadCollection = async (): Promise<Collected[]> =>
   (await run<Collected[] | undefined>(COLLECTION, "readonly", store => store.get("list"))) ?? [];
 
-export const saveCollection = (list: readonly Collected[]): Promise<IDBValidKey> =>
+const saveCollection = (list: readonly Collected[]): Promise<IDBValidKey> =>
   run(COLLECTION, "readwrite", store => store.put(list, "list"));
 
 /** 1 件足して保存する。上限の判断は core の純粋関数に任せる。 */

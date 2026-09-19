@@ -1,4 +1,4 @@
-import { AgentId, configDir, skillRoots, subagentRoots, supports } from "./agent.js";
+import { AgentId, AGENT_IDS, configDir, skillRoots, subagentRoots, supports } from "./agent.js";
 import { DetectKind } from "./detect.js";
 
 /**
@@ -20,7 +20,7 @@ export type Placement = {
 
 /** Cursor と Codex はどちらもここを読む。1 つ置けば両方から使える。 */
 export const SHARED_CONFIG_DIR = ".agents";
-export const SHARED_SKILL_ROOT = `${SHARED_CONFIG_DIR}/skills`;
+const SHARED_SKILL_ROOT = `${SHARED_CONFIG_DIR}/skills`;
 
 /** 一覧や台帳で使うホーム相対のルート。 */
 export const rootOf = (where: Placement): string => `${where.configDir}/${where.sub}`;
@@ -31,8 +31,7 @@ export const CONFIG_DIRS: readonly string[] =
 
 /** その種別を導入できるエージェント。Gemini は MCP だけなので現れない。 */
 export const targets = (kind: DetectKind): AgentId[] =>
-  (["claude", "cursor", "codex", "gemini"] as const)
-    .filter(agent => supports(agent, kind) && roots(agent, kind).length > 0);
+  AGENT_IDS.filter(agent => supports(agent, kind) && roots(agent, kind).length > 0);
 
 const roots = (agent: AgentId, kind: DetectKind): string[] =>
   kind === "skill" ? skillRoots(agent) : subagentRoots(agent);

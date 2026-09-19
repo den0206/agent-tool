@@ -1,8 +1,7 @@
 import {
-  cpSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readlinkSync, realpathSync,
+  cpSync, existsSync, linkSync, lstatSync, mkdirSync, readlinkSync, realpathSync,
   renameSync, rmSync, statSync, symlinkSync, unlinkSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, resolve, sep } from "node:path";
 import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ruleRoots } from "../core/agent";
 import { LEDGER_DIR } from "../core/ledger";
@@ -20,11 +19,11 @@ import { assertReadable, entry, Registry } from "./registry";
  * ホワイトリストを通っても無条件で拒否する。ホワイトリストの実装ミス 1 つで
  * 到達しうる場所なので二重にする。`~/.codex/auth.json` は誤爆すると全ログインが飛ぶ。
  */
-export const DENIED_NAMES: ReadonlySet<string> = new Set([
+const DENIED_NAMES: ReadonlySet<string> = new Set([
   "auth.json", "oauth_creds.json", "settings.json",
   "settings.local.json", ".claude.json", "config.toml", "mcp.json",
 ]);
-export const DENIED_EXTENSIONS: ReadonlySet<string> = new Set(["sqlite", "sqlite-wal", "sqlite-shm"]);
+const DENIED_EXTENSIONS: ReadonlySet<string> = new Set(["sqlite", "sqlite-wal", "sqlite-shm"]);
 
 /** Windows のパスは大文字小文字を区別しないので、比較の前に畳む。 */
 const fold = (value: string): string => process.platform === "win32" ? value.toLowerCase() : value;
@@ -39,7 +38,7 @@ const isSame = (a: string, b: string): boolean => key(a) === key(b);
 /** 同じ場所を指すか。Windows の大文字小文字も畳んで比べる。 */
 export const isSamePath = isSame;
 
-export const isDenied = (path: string): boolean =>
+const isDenied = (path: string): boolean =>
   DENIED_NAMES.has(basename(path)) || DENIED_EXTENSIONS.has(extname(path).slice(1));
 
 /** symlink と Windows の junction はどちらもここで真になる。hardlink は「リンク」ではない。 */
@@ -308,7 +307,7 @@ function assertArtifact(path: string, kind: KindId, roots: string[], anchor: str
 }
 
 /** 同梱スキルとプラグインは、誰が入れたものでも触らない。 */
-export function assertNotBundled(path: string, env: Env): void {
+function assertNotBundled(path: string, env: Env): void {
   const protectedRoots = [
     ...[...BUNDLED_SKILL_ROOTS].map(root => join(env.home, root)),
     join(env.home, ".codex", "plugins"),
@@ -431,5 +430,11 @@ export function copy(from: string, to: string): void {
 
 export const exists = (path: string): boolean => existsSync(path);
 
-/** OS の一時領域に作業用ディレクトリを作る。呼び出し側が全経路で `remove` する。 */
-export const stagingDir = (prefix: string): string => mkdtempSync(join(tmpdir(), prefix));
+/** ディレクトリか。読めなければ false。走査系が同じ 6 行を持たないためここに置く。 */
+export function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}

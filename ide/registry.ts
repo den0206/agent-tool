@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { AgentId, AGENT_IDS, KindId } from "../core/agent";
 import { Env, registryFile } from "./env";
 import { AgentToolError } from "../core/errors";
+import { str } from "../core/json";
 
 export const SCHEMA_VERSION = "1";
 export const REGISTRY_SIZE_LIMIT = 2 * 1024 * 1024;
@@ -48,7 +49,6 @@ export const empty = (): Registry => ({
 const obj = (v: unknown): Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v) ? v as Record<string, unknown> : {};
 const arr = (v: unknown): unknown[] => Array.isArray(v) ? v : [];
-const str = (v: unknown): string | undefined => typeof v === "string" ? v : undefined;
 
 /**
  * 欠けているキーは既定値で埋める。1 つ足りないだけで失敗させると、

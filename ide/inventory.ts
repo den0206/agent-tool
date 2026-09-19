@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import { AgentId, AGENT_IDS, BUNDLED_SKILL_ROOTS, KindId, ruleRoots, ScopeId, skillRoots, subagentRoots } from "../core/agent";
 import { sourceKey, sourcePageUrl } from "../core/github";
-import { agentStore, Env, Run, skillStore } from "./env";
+import { Env, Run } from "./env";
 import * as mcp from "./mcpScanner";
 import { floatingPackage, MCPScope, MCPServer, summary as mcpSummary } from "./mcpServer";
 import * as plugins from "./pluginScanner";

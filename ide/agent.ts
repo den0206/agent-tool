@@ -31,11 +31,3 @@ export function pluginSources(agent: AgentId): Source[] {
       return []; // Cursor の ~/.cursor/plugins は読み取り経路が未実測。推測で埋めない
   }
 }
-
-/**
- * プロセス一覧からエージェントを見分ける手掛かり。実行ファイル名で当てられないものだけ。
- * 部分一致なので、そのエージェントのプロセスにしか現れない語だけを載せる。
- */
-export function processMarkers(agent: AgentId): string[] {
-  return agent === "cursor" ? ["Cursor.app/", "Cursor Helper"] : [];
-}

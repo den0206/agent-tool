@@ -24,10 +24,10 @@ export type UpdateDiff = {
 };
 
 /** 差分に載せる 1 ファイルの上限。これを超えるものは要約だけ出す。 */
-export const DIFF_TEXT_LIMIT = 256 * 1024;
+const DIFF_TEXT_LIMIT = 256 * 1024;
 /** 差分画面へ一度に渡す本文の総量。1 ファイルの上限だけでは常駐メモリを守れない。 */
 export const DIFF_TOTAL_LIMIT = 2 * 1024 * 1024;
-export const DIFF_FILE_LIMIT = 10_000;
+const DIFF_FILE_LIMIT = 10_000;
 export const API_RESPONSE_LIMIT = 2 * 1024 * 1024;
 
 export type Http = (url: string, headers: Record<string, string>) =>
@@ -158,7 +158,7 @@ const readText = (path: string): string => {
   }
 };
 
-function diff(current: string, candidate: string, name: string): Pick<UpdateDiff, "files" | "summary"> {
+export function diff(current: string, candidate: string, name: string): Pick<UpdateDiff, "files" | "summary"> {
   const beforeFiles = files(current);
   const afterFiles = files(candidate);
   const beforePaths = new Set(beforeFiles.paths);
@@ -196,14 +196,6 @@ function diff(current: string, candidate: string, name: string): Pick<UpdateDiff
   });
   summary.omitted = omitted > 0 || beforeFiles.truncated || afterFiles.truncated;
   return { files: result, summary };
-}
-
-export function diffFiles(current: string, candidate: string, name: string): UpdateDiff["files"] {
-  return diff(current, candidate, name).files;
-}
-
-export function diffSummary(current: string, candidate: string, name: string): UpdateDiff["summary"] {
-  return diff(current, candidate, name).summary;
 }
 
 /**

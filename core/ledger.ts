@@ -1,5 +1,6 @@
 import { DetectKind } from "./detect.js";
 import { GitHubSource } from "./github.js";
+import { str } from "./json.js";
 
 /**
  * 取得元の台帳（設計決定 D-14）。ブラウザ拡張が書き、IDE 拡張が registry へ取り込んで消す。
@@ -32,9 +33,6 @@ export const ledger = (
   ...(source.subdir === undefined ? {} : { subdir: source.subdir }),
   ...(sha === undefined ? {} : { sha }),
 });
-
-const str = (value: unknown): string | undefined =>
-  typeof value === "string" && value !== "" ? value : undefined;
 
 /**
  * 台帳を読む。壊れていれば `null` を返して黙って無視する — 取り込めないだけで、

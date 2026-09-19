@@ -59,7 +59,7 @@ export function scan(env: Env): Found[] {
  * 実体があるルートをホーム相対（`/` 区切り）で返す。ホームの外なら `undefined` —
  * 管理ストア（`appSupport` 配下）に在るものは `layout` の既定がそのまま正しい。
  */
-export const homeRelativeRoot = (env: Env, root: string): string | undefined => {
+const homeRelativeRoot = (env: Env, root: string): string | undefined => {
   const rel = relative(env.home, root);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return undefined;
   return rel.split(sep).join("/");
