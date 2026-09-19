@@ -48,8 +48,11 @@ or Codex — no copy-pasting URLs into a terminal.
 - Keeps a local list of what it installed so you can remove it again later.
 - Works standalone — the Agent Tool Cursor/VS Code extension is not
   required, though installs are picked up by it if you also use it.
-- No accounts, no telemetry, no analytics. See the privacy policy for
-  exactly what is stored and where.
+- Optional Jev-assisted detection (Beta) can scan the current unsupported page only
+  after you explicitly enable it, add your own API key, and click the scan
+  button. The normal supported-site detection does not use Jev.
+- No Agent Tool account, telemetry, or analytics. See the privacy policy for
+  exactly what is stored, what can be sent to TypeSafe, and when.
 
 Supported sources: github.com, skills.sh, agentsdirectory.dev.
 ```
@@ -86,6 +89,9 @@ make them part of the initial release.
 | `host_permissions`: `github.com`, `skills.sh`, `agentsdirectory.dev` (+ `www.` variants) | Content script detection runs only on these sites. |
 | `host_permissions`: `api.github.com`, `raw.githubusercontent.com`, `codeload.github.com` | Public GitHub endpoints used to resolve a repository, check a file exists, read a commit SHA, and download the archive to install. No authentication is used or requested. |
 | `webNavigation` | Detects single-page-app URL changes (`onHistoryStateUpdated`) so a supported page found without a full reload is still detected. Does not read or store browsing history. |
+| `activeTab` + `scripting` | After the user explicitly clicks the AI scan button, reads only the current unsupported page long enough to extract candidate GitHub links, install snippets, title/headings, and nearby text. No `<all_urls>` access. |
+| `storage` | Stores the optional user-supplied Jev API key and AI-detection toggle locally. Access is restricted to trusted extension contexts. |
+| `host_permissions`: `api.typesafe.ai` | Sends the minimized candidate set to Jev only for an explicit unsupported-page scan. The API key is supplied by the user and sent only in the Authorization header. |
 | File System Access API (no manifest permission — requested per-use via `showDirectoryPicker()`) | Writes only inside the folder the user picks. |
 
 ### Data usage disclosure
@@ -93,10 +99,11 @@ make them part of the initial release.
 Declare that the extension handles supported-page URLs and JSON-LD metadata
 locally to detect installable resources, and the local data listed in
 [`PRIVACY.md`](../PRIVACY.md) to manage user-selected folders and installed
-items. It does **not** collect or transmit personally identifiable,
-financial, health, authentication, location, or communication data; it has no
-analytics or backend. Match the Dashboard's current field labels exactly and
-do not mark locally processed page URLs or metadata as unhandled.
+items. Also disclose the optional user-initiated Jev flow: on an unsupported
+page, extracted candidate links/commands plus limited page context are sent to
+TypeSafe only after the user enables the feature and clicks the scan button.
+The full HTML, form values, cookies, browsing history, and unrelated body text
+are not sent. There is no Agent Tool analytics or backend.
 
 ### Privacy policy URL
 

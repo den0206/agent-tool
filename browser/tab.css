@@ -132,9 +132,11 @@ section + section { margin-top: 14px; padding-top: 14px; border-top: 1px solid v
 
 /* 画面は 3 つ。検知・通常・設定のどれか 1 つだけを出す。 */
 body.detected #url-section,
+body.detected #ai-scan,
 body.settings #found,
 body.settings #index,
 body.settings #url-section,
+body.settings #ai-scan,
 body.settings #done { display: none; }
 
 /* 画面が入れ替わったことを一度だけ示す。切り替えの向きは付けない。 */
@@ -835,4 +837,51 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
   * { transition: none !important; animation: none !important; }
   /* 止まった輪は「終わっている」と読まれる。文言の「Installing…」だけで足りる。 */
   #install[disabled]::after { display: none; }
+}
+
+
+/* --- AI-assisted detection --------------------------------------------- */
+
+#ai-scan { margin-top: 14px; }
+#ai-scan .actions { margin-top: 10px; }
+#ai-scan-button { width: 100%; justify-content: center; }
+
+#ai-settings {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  box-shadow: var(--lift);
+}
+#ai-settings > .switch { margin-bottom: 12px; }
+#ai-settings > label:not(.switch) { margin-top: 8px; }
+
+.inline-input { display: flex; gap: 7px; align-items: center; }
+.inline-input input, .inline-input .saved { flex: 1; min-width: 0; }
+.inline-input button { flex: none; }
+
+/* 鍵は読み戻さない。保存済みであることだけを示す。 */
+.saved { color: var(--muted); font-size: 12px; }
+
+/* 鍵が無いと有効にできない。押せない理由は、すぐ下の入力欄が示している。 */
+#ai-settings > .switch:has(input:disabled) { opacity: .55; }
+#ai-settings > .switch input:disabled { cursor: not-allowed; }
+
+#ai-settings a { color: var(--accent); }
+
+input[type=password] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+input[type=password]:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }

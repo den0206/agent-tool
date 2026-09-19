@@ -55,6 +55,11 @@ macOS/Linux では symlink、Windows では junction または hardlink を使�
 | 保存先 | 内容 |
 |---|---|
 | IndexedDB | 許可済みディレクトリハンドル（エージェント別）、導入した Skill / Subagent の収集一覧、`autoOpenOnDetection` と `theme` の設定 |
+| `chrome.storage.local` | Jev 補助検知の有効フラグと、利用者自身の Jev API key |
+
+Jev の 2 項目だけ IndexedDB に置かないのは、書き込み前に `setAccessLevel`
+(`TRUSTED_CONTEXTS`) を掛けて content script から読めなくするためである
+（`docs/agent-tool-security.md` §10.5）。他の設定を移す理由にはしない。
 
 収集一覧の上限は `core/` の `MAX_BROWSER_COLLECTION_ENTRIES = 100` とし、超えた分は古い順に捨てる。各項目は取得元、commit SHA、導入先、日時、
 導入直後に計算した実体ツリーの SHA-256 だけを持つ。ログ、診断履歴、閲覧した URL は保持しない。

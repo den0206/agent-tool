@@ -45,6 +45,7 @@ Agent Tool keeps the resources used by your coding agents discoverable from one 
 - Preview descriptions, locations, scopes, enabled state, and available updates.
 - Work across user and project resources without copying managed files.
 - Install Skills and Subagents straight from the browser with the companion Chrome/Edge/Brave extension — no IDE extension required.
+- **Beta:** optionally use your own Jev API key to manually inspect an unsupported site for a GitHub-backed Skill or Subagent. It is off until you enable it, and existing supported sites stay deterministic and never call Jev. This experiment may change or be withdrawn in a later release.
 - Run on macOS, Linux, and Windows.
 
 ## Supported sources
@@ -130,12 +131,14 @@ This produces `vsix/browser/`. Open `chrome://extensions` (or the Brave/Edge equ
    </p>
 
 3. Choose the target agent from the dropdown and select **Install**. The first time, your browser's folder picker asks you to choose the agent's config directory (`~/.claude`, `~/.cursor`, `~/.codex`, or the shared `~/.agents`); it is remembered after that.
-4. Open **Settings** to see everything the extension has installed, remove an item, re-grant a folder, or switch the popup's theme (System / Light / Dark).
+4. On an unsupported site, you can optionally open **Settings**, add your Jev API key, and enable **AI-assisted detection (Beta)**. The toggle stays disabled until a key is saved, and **Delete** removes the key again. The popup then offers **Find tools on this page**. It reads only the current tab after you click, sends minimized candidate evidence to TypeSafe, and still verifies the selected GitHub source before showing the normal install flow.
+5. Open **Settings** to see everything the extension has installed, remove an item, re-grant a folder, or switch the popup's theme (System / Light / Dark).
 
 ### Privacy
 
 - It writes only into folders you pick yourself, through the File System Access API. It never requests `<all_urls>`.
-- Pages you visit are never stored. Only the directory handles, the list of what it installed, and the auto-open and theme settings are kept — all locally, in the browser's own IndexedDB.
+- Pages you visit are never stored. Directory handles, the installed-items list, and UI settings stay local; an optional Jev API key and its enable toggle are stored locally in extension storage restricted to trusted extension contexts.
+- Jev is contacted only for an explicit unsupported-page scan. The extension sends extracted candidate links/commands and limited page context, not the full HTML, form values, cookies, or browsing history.
 - It records where each tool came from next to the files it wrote. If you also use the IDE extension, it picks those up on its next scan, so the tool can be removed and updated from the dashboard like anything else.
 - See [`PRIVACY.md`](PRIVACY.md) for the full policy.
 

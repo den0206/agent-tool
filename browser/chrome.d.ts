@@ -32,6 +32,22 @@ declare namespace chrome {
     function sendMessage<T = unknown>(tabId: number, message: T): Promise<unknown>;
     const onRemoved: { addListener(handler: (tabId: number) => void): void };
   }
+  namespace storage {
+    interface StorageArea {
+      get(keys?: string | string[]): Promise<Record<string, unknown>>;
+      set(items: Record<string, unknown>): Promise<void>;
+      remove(keys: string | string[]): Promise<void>;
+      setAccessLevel(options: { accessLevel: "TRUSTED_CONTEXTS" | "TRUSTED_AND_UNTRUSTED_CONTEXTS" }): Promise<void>;
+    }
+    const local: StorageArea;
+  }
+  namespace scripting {
+    type InjectionResult<T> = { frameId: number; result?: T };
+    function executeScript<T>(injection: {
+      target: { tabId: number };
+      func: () => T;
+    }): Promise<InjectionResult<T>[]>;
+  }
   namespace webNavigation {
     const onHistoryStateUpdated: {
       addListener(handler: (details: { tabId: number; url: string }) => void): void;

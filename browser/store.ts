@@ -77,7 +77,10 @@ export async function forgetAll(items: readonly Collected[]): Promise<Collected[
 
 export const forget = (item: Collected): Promise<Collected[]> => forgetAll([item]);
 
-/** 設定は 2 つだけなので chrome.storage を使わず、収集一覧と同じ store に置く。 */
+/**
+ * UI 設定は収集一覧と同じ store に置く。`chrome.storage` を使うのは、書き込み前に
+ * `TRUSTED_CONTEXTS` を掛ける必要がある Jev の 2 項目だけ（`aiSettings.ts`）。
+ */
 export const autoOpenEnabled = async (): Promise<boolean> =>
   (await run<boolean | undefined>(COLLECTION, "readonly", store => store.get("autoOpen"))) ?? true;
 

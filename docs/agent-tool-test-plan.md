@@ -60,6 +60,44 @@ skills.sh・Agents Directory の公開一覧からランダムに選んだ URL �
 | DOM から読む JSON-LD（`content.ts`） | スクリプトが見るのは `fetch` したサーバ HTML で、読み出し元が違う |
 | SPA 遷移（`onHistoryStateUpdated` → `rescan`） | ブラウザのイベント |
 
+Jev 補助の手動検知（Beta）は、外部 API を叩かない範囲を `node:test` で固定する。
+
+| 対象 | 確認内容 |
+|---|---|
+| 送信内容（`pageEvidence`） | github.com 以外・query・credential・fragment を送らない。`#fragment` が指す節だけに絞る |
+| 候補の絞り込み（`narrowed`） | 取得元に解決できない候補と雛形コマンドを落とす |
+| 照合（`resolveLocally`） | URL 末尾と名前が一致する直リンクを採る。同じ Skill の重複を畳む。複数なら一覧 |
+| 回答の検証（`jev`） | 問いは 2 つだけ、確率の範囲、API key が送信本文に入らない |
+| ゲート（`aiDetect`） | 直リンクがあれば Jev を呼ばない。無いときだけ訊き、取得元が割れたら出さない |
+| 種別 | MCP / Plugin をブラウザの導入経路に入れない |
+
+実 API と実サイトを使う確認は `node scripts/test-browser-jev.mjs`（`npm run test:browser` の
+最後）に分け、CI では動かさない。`JEV_TOKEN` が無ければ skip する。
+
+本体は **未対応サイトの Tool ページを popup へ渡して検知できるか**を見る
+（`scripts/e2e/popup-jev.mjs`）。モジュールを直接叩くだけでは popup が開かない・ボタンが
+効かない形の不具合を取りこぼすので（実測で取りこぼした）、実ブラウザに拡張を読み込み、
+実ページと実 `chrome.*` API で導線をそのまま通す。ページごとに期待する結果を持つ。
+
+| 形 | 期待 |
+|---|---|
+| Skill の直リンクがある | カードに取得元と名前が出る（Jev を呼ばない） |
+| commit 固定とブランチが並ぶ | 同じ Skill として 1 件に畳む |
+| 導入コマンドの例が並ぶ | 雛形を拾わず、コマンドの repo を採る |
+| `/blob/` でディレクトリを案内 | ディレクトリとして読む |
+| URL の末尾が Tool 名を名乗るまとめ | 照合で 1 件に決まる |
+| `#fragment` が節を指す | その節だけから決まる |
+| 直リンクが無い | Jev に訊いてから `skills/` を列挙し、一覧に出す |
+| まとめページ | 1 件に決め打たず、件数を伝える |
+
+加えて、鍵の保存で有効になり削除で非活性へ戻ることを同じ導線で確かめる。
+`activeTab` の付与と、`setAccessLevel` が使えない環境で popup が通常どおり開くことは
+自動化できないので**手動確認に残す**。付与はツールバーアイコンのクリックに紐づき
+Playwright から押せないため、テスト用にコピーした拡張へ対象サイトの host 権限を足して
+代替する（配布物は変えない）。
+
+URL を 1 つ渡すと、そのページだけをモジュール単位で段ごとに診断する（`diagnose-jev-page` が使う）。
+
 一方、manifest の到達範囲は Node の `fetch` が素通りしてしまうので、`CATALOG_SITES` の host が
 `host_permissions` と `content_scripts.matches` に入っているかを `check-browser-package.mjs` が
 突き合わせる（CI で毎回動く）。

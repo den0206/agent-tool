@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - A GitHub `/blob/` URL that points at a directory (GitHub itself redirects these to the `/tree/` view) is now read as a directory, so Skills published that way resolve to the right name and path instead of failing verification.
 
+### Added
+
+- **Beta:** the browser extension can optionally use a user-supplied Jev API key to manually inspect an unsupported page for a GitHub-backed Skill or Subagent. It uses temporary `activeTab` access, sends only minimized candidate evidence to TypeSafe with key-like values redacted, and still requires the existing GitHub verification before showing an install candidate. Which tool to install is decided locally by matching the page's own URL against the links it carries — Jev is only asked whether the page ships a tool at all, and only when no direct link is found. A page that lists several tools tells you to open the one you want instead of guessing, and a `#fragment` in the URL scopes the scan to the entry you are reading.
+
 ## [0.5.0] — 2026-09-18
 
 ### Changed

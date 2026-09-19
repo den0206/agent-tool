@@ -1,7 +1,7 @@
 import { AgentId } from "../core/agent.js";
 import { Collected } from "../core/collection.js";
 import { skillIndex, ToolLead, verifiedPage } from "../core/detect.js";
-import { GitHubSource, needsPage, SUPPORTED_SITES } from "../core/github.js";
+import { GitHubSource, needsPage, parseUrl, SUPPORTED_SITES } from "../core/github.js";
 import { PAGE_LIMIT } from "../core/limits.js";
 import {
   CONFIG_DIRS, placement, Placement, rootOf, RootState, splitRoot, targets,
@@ -9,7 +9,7 @@ import {
 import {
   clearRoot, configHandle, exists, PickerError, pickerHint, pickerUnavailable, placeHandle,
 } from "./fs.js";
-import { fetchJson } from "./fetch.js";
+import { fetchJson, rateLimitWatch } from "./fetch.js";
 import {
   filesFor, install, InstallError, isExtractable, remove, willOverwrite,
 } from "./install.js";
@@ -21,6 +21,12 @@ import {
   animateDetection, applyI18n, applyLang, applyTheme, byId, clearStatus, setBusy, showStatus,
 } from "./popupUi.js";
 import { rootStates, targetSet, TargetOption } from "./targets.js";
+import { detectWithJev, evidenceFromActiveTab } from "./aiDetect.js";
+import { PageEvidence } from "./pageEvidence.js";
+import {
+  jevApiKey, jevEnabled, protectAiStorage, setJevApiKey, setJevEnabled,
+} from "./aiSettings.js";
+import { decideWithJev, JevDecision, JevError } from "./jev.js";
 
 const t = (key: string, ...args: string[]): string => chrome.i18n.getMessage(key, args);
 /** `.claude` → `agentClaude`。設定画面と同じ言葉を使う。 */
@@ -184,11 +190,20 @@ function setMode(detected: boolean): void {
   byId("found").hidden = !detected;
 }
 
+/**
+ * 直前の一覧が GitHub の枠切れで読めなかったか。`listSkills` は理由を問わず空配列を
+ * 返すので、「無い」と「読めなかった」を呼び出し側で分けるために覚える。
+ */
+let listRateLimited = false;
+
 async function showLead(raw: string, vetted = false, alreadyIn = false): Promise<void> {
   // Skill が並ぶディレクトリなら一覧を出す。列挙は GitHub API を 1 回だけ使う。
   const at = skillIndex(raw);
+  listRateLimited = false;
   if (at !== null) {
-    const entries = await listSkills(at.source, at.subdir, fetchJson);
+    const watch = rateLimitWatch();
+    const entries = await listSkills(at.source, at.subdir, watch.get);
+    listRateLimited = entries.length === 0 && watch.hit();
     if (entries.length > 0) {
       byId("url-error").hidden = true;
       await showIndex({ ...at, entries });
@@ -198,7 +213,10 @@ async function showLead(raw: string, vetted = false, alreadyIn = false): Promise
   const found = await resolve(raw, vetted);
   current = found;
   // 対応外の URL でこそ出す。検知できたときは `#url-section` ごと隠れる。
-  byId("url-error").hidden = found !== null || raw === "";
+  // 枠切れで一覧が読めなかっただけのものを「指していません」と言わない。
+  const error = byId("url-error");
+  error.hidden = found !== null || raw === "";
+  error.textContent = t(listRateLimited ? "badgeRateLimited" : "tabUrlUnsupported");
   clearStatus(byId("status"));
   byId("picker-hint").textContent = "";
   index = null;
@@ -601,12 +619,125 @@ async function removeItem(item: Collected): Promise<void> {
   await renderCollection();
 }
 
+// --- 未対応サイトの AI-assisted detection -------------------------------
+
+async function showAiScanIfAvailable(): Promise<void> {
+  const section = byId("ai-scan");
+  section.hidden = true;
+  if (!await jevEnabled().catch(() => false)) return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const url = tab?.url ?? "";
+  if (!/^https?:\/\//.test(url)) return;
+  // 既知サイトは deterministic path が正本。AI の fallback にしない。
+  if (parseUrl(url) !== null || needsPage(url) !== null) return;
+  section.hidden = false;
+}
+
+byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => {
+  const status = byId("ai-scan-status");
+  const button = byId<HTMLButtonElement>("ai-scan-button");
+  clearStatus(status);
+  const key = await jevApiKey();
+  if (key === "") {
+    showStatus(status, t("aiKeyRequired"), true);
+    return;
+  }
+
+  setBusy(byId("ai-scan"), button, true);
+  showStatus(status, t("aiScanning"));
+  try {
+    const evidence = await evidenceFromActiveTab();
+    // 読めなかった（権限・内部ページ）と、読めたが手がかりが無いを分ける。
+    if (evidence === null) {
+      showStatus(status, t("aiPageUnreadable"), true);
+      return;
+    }
+    if (evidence.candidates.length === 0) {
+      showStatus(status, t("aiNoCandidates"), true);
+      return;
+    }
+    // 落ちたときに「何を渡して何と答えられたか」が残らないと、利用者の報告から段を
+    // 特定できない（Beta の間は特に）。保持はせず、開いている devtools にだけ出す。
+    let decision: JevDecision | undefined;
+    let sent: PageEvidence | undefined;
+    const result = await detectWithJev(evidence, key, async (...args) => {
+      [sent] = args;                               // 絞り込み後。実際に送ったもの
+      decision = await decideWithJev(...args);
+      return decision;
+    });
+    if (result.kind === "unsupported-kind") {
+      showStatus(status, t("aiUnsupportedKind", result.resource.toUpperCase()), true);
+      return;
+    }
+    // 実在を確かめられなかった（通信不能）。「無い」と言うと直しようのない案内になる。
+    if (result.kind === "unverified") {
+      showStatus(status, t("aiSourceUnreadable", result.source.repo), true);
+      return;
+    }
+    if (result.kind === "none") {
+      // `debug` は devtools の既定（Verbose 非表示）で見えず、`warn` / `error` は
+      // `chrome://extensions` のエラー一覧に拾われて**不具合が起きているように見える**。
+      // 見つからなかったのは正常な結果なので、既定で出て拾われない `info` にする。
+      console.info("Agent Tool: Jev", {
+        候補: sent?.candidates.map(item => `${item.kind}: ${item.value}`),
+        ページが名乗る名前: sent?.page.url,
+        isToolPage: decision?.isToolPage,
+        kind: decision && `${decision.kind.choice} p=${decision.kind.probabilities[decision.kind.choice]}`,
+      });
+      showStatus(status, t("aiNothingFound"), true);
+      return;
+    }
+
+    // ページが複数の Tool を載せている。1 つに決めず、個別ページを開いてもらう。
+    // ここで当てにいくと、まとめページで無関係な 1 件を出すことになる。
+    if (result.kind === "many") {
+      showStatus(status, t("aiManyTools", String(result.leads.length)), true);
+      return;
+    }
+
+    // 決まった取得元を、既存の解決経路へそのまま渡す。リポジトリ直下は
+    // skills.sh の形の URL を内部のアダプタとして使う（記録・取得は解決後の
+    // `GitHubSource` で、skills.sh には触れない）。
+    // `detectWithJev` が同じ lead で実在確認を済ませているので `vetted` を渡す。
+    const show = async (url: string): Promise<boolean> => {
+      byId<HTMLInputElement>("url").value = url;
+      await showLead(url, true);
+      return index !== null || current !== null;
+    };
+    const shown = result.kind === "found"
+      ? await show(result.lead.url)
+      : await show(`https://skills.sh/${result.source.repo}`);
+    if (!shown) {
+      // 取得元までは決まっている。ここで「見つかりません」と言うと、利用者は
+      // 直しようのない案内を受け取る。読めなかった理由と repo をそのまま出す。
+      const source = result.kind === "found" ? result.lead.source : result.source;
+      showStatus(status, t(listRateLimited ? "aiSourceRateLimited" : "aiSourceUnreadable",
+                           source.repo), true);
+      return;
+    }
+    byId("ai-scan").hidden = true;
+  } catch (error) {
+    if (error instanceof JevError) {
+      const key = error.kind === "auth" ? "aiAuthError"
+        : error.kind === "rateLimit" ? "aiRateLimit"
+        : "aiRequestFailed";
+      showStatus(status, t(key), true);
+    } else {
+      console.error("Agent Tool: AI detection", error);
+      showStatus(status, t("aiRequestFailed"), true);
+    }
+  } finally {
+    setBusy(byId("ai-scan"), button, false);
+  }
+});
+
 // --- 設定。別タブへ飛ばさず popup の中で切り替える ----------------------
 
 function setSettings(open: boolean): void {
   document.body.classList.toggle("settings", open);
   byId("settings-view").hidden = !open;
   if (open) { void renderRoots(); refreshCollection(); }
+  else void showAiScanIfAvailable();
 }
 
 async function renderRoots(): Promise<void> {
@@ -706,7 +837,59 @@ byId<HTMLButtonElement>("close-settings").addEventListener("click", () => setSet
 const autoOpen = byId<HTMLInputElement>("auto-open");
 autoOpen.addEventListener("change", () => void setAutoOpenEnabled(autoOpen.checked));
 
+const jevToggle = byId<HTMLInputElement>("jev-enabled");
+
+/**
+ * 鍵の有無で入力欄と「保存済み」を入れ替える。保存した値は読み戻さない（消す導線だけ）。
+ * 鍵が無いときは有効にできない — 押しても毎回「鍵を登録してください」になるだけなので、
+ * 入口で止める。
+ */
+async function renderJevKey(): Promise<void> {
+  const stored = (await jevApiKey()) !== "";
+  byId("jev-key-entry").hidden = stored;
+  byId("jev-key-saved").hidden = !stored;
+  jevToggle.disabled = !stored;
+  if (!stored && jevToggle.checked) {
+    jevToggle.checked = false;
+    await setJevEnabled(false);
+  }
+}
+
+jevToggle.addEventListener("change", async () => {
+  await setJevEnabled(jevToggle.checked);
+  void showAiScanIfAvailable();
+});
+
+byId<HTMLButtonElement>("jev-save").addEventListener("click", async () => {
+  const input = byId<HTMLInputElement>("jev-api-key");
+  if (input.value.trim() === "") return;         // 削除は専用ボタン。空保存では消さない
+  await setJevApiKey(input.value);
+  input.value = "";
+  // 鍵を入れたのは使うためなので、ここで有効にする。トグルの押し忘れで
+  // 「鍵は入れたのに何も出ない」を作らない。解析は毎回ボタンを押すまで走らない。
+  await setJevEnabled(true);
+  jevToggle.checked = true;
+  await renderJevKey();
+  showStatus(byId("jev-status"), t("aiKeySaved"));
+});
+
+byId<HTMLButtonElement>("jev-delete").addEventListener("click", async () => {
+  await setJevApiKey("");
+  await setJevEnabled(false);                    // 鍵の無い「有効」を残さない
+  await renderJevKey();
+  showStatus(byId("jev-status"), t("aiKeyRemoved"));
+});
+
 void (async () => {
+  // Beta の初期化で既存の検知・導入を止めない。`setAccessLevel` が使えない環境では
+  // 鍵を預からず、トグルを disabled のままにして popup は通常どおり開く。
+  try {
+    await protectAiStorage();
+    jevToggle.checked = await jevEnabled();
+    await renderJevKey();
+  } catch (error) {
+    console.info("Agent Tool: AI-assisted detection unavailable", error);
+  }
   autoOpen.checked = await autoOpenEnabled();
 
   // 検知の候補は「今見ているタブのもの」だけを受け取る（別のタブのものを出さない）。
@@ -733,4 +916,5 @@ void (async () => {
   // バッジはタブに残るが、候補は service worker のメモリにしかない（MV3 は数十秒で
   // 停止する）。押しても何も出ないバッジを残さないよう、ここで下ろす。
   await send({ type: "dismiss" });
+  await showAiScanIfAvailable();
 })();

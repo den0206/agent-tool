@@ -117,6 +117,15 @@
         <p id="url-error" class="error" aria-live="polite" hidden data-i18n="tabUrlUnsupported"></p>
       </section>
 
+      <section id="ai-scan" class="card" hidden>
+        <strong data-i18n="aiScanTitle"></strong>
+        <p class="hint" data-i18n="aiScanText"></p>
+        <p id="ai-scan-status" class="status" role="status"></p>
+        <div class="actions">
+          <button id="ai-scan-button" class="primary" type="button" data-i18n="aiScanButton"></button>
+        </div>
+      </section>
+
       <!-- 設定。別タブへ飛ばさず、ここで完結させる。 -->
       <section id="settings-view" hidden>
         <h2 data-i18n="settingsTitle"></h2>
@@ -132,6 +141,30 @@
             <input id="auto-open" type="checkbox">
             <span data-i18n="tabAutoOpenToggle"></span>
           </label>
+        </div>
+
+        <div class="section-label" data-i18n="aiSettingsTitle"></div>
+        <div id="ai-settings">
+          <label class="switch">
+            <!-- 鍵が保存されるまで押せない。既定を非活性にして、初期化の順序に依存させない。 -->
+            <input id="jev-enabled" type="checkbox" disabled>
+            <span data-i18n="aiEnabledLabel"></span>
+          </label>
+          <label for="jev-api-key">
+            <a href="https://typesafe.ai/" target="_blank" rel="noreferrer noopener"
+               data-i18n="aiApiKeyLabel"></a>
+          </label>
+          <!-- 鍵の有無で入れ替える。保存済みの値は読み戻さず、消す導線だけを出す。 -->
+          <div class="inline-input" id="jev-key-entry">
+            <input id="jev-api-key" type="password" autocomplete="off" spellcheck="false">
+            <button id="jev-save" type="button" data-i18n="aiSaveKey"></button>
+          </div>
+          <div class="inline-input" id="jev-key-saved" hidden>
+            <span class="saved" data-i18n="aiKeyStored"></span>
+            <button id="jev-delete" type="button" data-i18n="aiDeleteKey"></button>
+          </div>
+          <p class="hint" data-i18n="aiPrivacyNote"></p>
+          <p id="jev-status" class="status" role="status"></p>
         </div>
 
         <!--

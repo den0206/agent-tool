@@ -337,5 +337,97 @@
   "badgeRateLimited": {
     "message": "GitHub API rate limit reached. The skill list here could not be read — try again in a while.",
     "description": "Tooltip shown on the toolbar icon when the browser extension hit GitHub's unauthenticated rate limit while listing skills."
+  },
+  "aiScanTitle": {
+    "message": "AI-assisted detection (Beta)"
+  },
+  "aiScanText": {
+    "message": "This site is not built into Agent Tool. Scan only this page with Jev to look for a GitHub-backed tool."
+  },
+  "aiScanButton": {
+    "message": "Find tools on this page"
+  },
+  "aiSettingsTitle": {
+    "message": "AI-assisted detection (Beta)"
+  },
+  "aiEnabledLabel": {
+    "message": "Enable on unsupported sites"
+  },
+  "aiApiKeyLabel": {
+    "message": "Jev API key"
+  },
+  "aiSaveKey": {
+    "message": "Save"
+  },
+  "aiDeleteKey": {
+    "message": "Delete"
+  },
+  "aiPrivacyNote": {
+    "message": "Beta. Scanning sends the extracted links and a little page context to TypeSafe."
+  },
+  "aiKeyStored": {
+    "message": "✅ Saved"
+  },
+  "aiKeySaved": {
+    "message": "Key saved. AI-assisted detection is on."
+  },
+  "aiKeyRemoved": {
+    "message": "Jev API key deleted."
+  },
+  "aiKeyRequired": {
+    "message": "Add your Jev API key in Settings first."
+  },
+  "aiScanning": {
+    "message": "Looking for a tool…"
+  },
+  "aiNothingFound": {
+    "message": "No verifiable Skill or Subagent was found on this page."
+  },
+  "aiManyTools": {
+    "message": "This page lists $COUNT$ tools. Open the one you want and scan there.",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiPageUnreadable": {
+    "message": "Agent Tool could not read this page. Reload it and try again."
+  },
+  "aiNoCandidates": {
+    "message": "No GitHub source is linked on this page."
+  },
+  "aiSourceUnreadable": {
+    "message": "Found $REPO$, but could not read what it contains.",
+    "placeholders": {
+      "repo": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiSourceRateLimited": {
+    "message": "Found $REPO$, but GitHub's rate limit blocked the listing. Try again in a few minutes.",
+    "placeholders": {
+      "repo": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiUnsupportedKind": {
+    "message": "A $KIND$ was detected, but the browser extension installs only Skills and Subagents.",
+    "placeholders": {
+      "kind": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiAuthError": {
+    "message": "The Jev API key was rejected. Check it in Settings."
+  },
+  "aiRateLimit": {
+    "message": "Jev is rate-limited right now. Try again later."
+  },
+  "aiRequestFailed": {
+    "message": "Jev could not analyze this page. Nothing was installed."
   }
 }
