@@ -5,8 +5,6 @@ import { decideWithJev, JevDecision } from "./jev.js";
 import { EvidenceCandidate, extractPageEvidence, PageEvidence } from "./pageEvidence.js";
 
 const PAGE_THRESHOLD = 0.80;
-const CHOICE_THRESHOLD = 0.75;
-const CONFIDENCE_THRESHOLD = 0.45;
 
 export type AiDetectResult =
   | { readonly kind: "found"; readonly lead: ToolLead }
