@@ -14,14 +14,14 @@
 // はモジュール単位で見て、どの段で落ちたかを出力に出す。抽出はどちらも拡張と同じ
 // `extractPageEvidence` を、拡張と同じやり方（ページの中で関数を実行する）で動かす。
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { confirms, detectWithJev, narrowed } from "../out/web/browser/aiDetect.js";
 import { decideWithJev } from "../out/web/browser/jev.js";
 import { extractPageEvidence } from "../out/web/browser/pageEvidence.js";
 import { catalog, needsPage, parseUrl } from "../out/web/core/github.js";
+import { withBrowser } from "./e2e/browser.mjs";
 import { warnIfGitHubRateLimited } from "./e2e/fixtures.mjs";
 import { checkPopup } from "./e2e/popup-jev.mjs";
 
@@ -92,7 +92,6 @@ const target = process.argv[2];
 const probes = target === undefined ? [] : [{ name: "指定 URL", url: target, expect: null }];
 
 const GOTO_TIMEOUT_MS = 45_000;
-const userDataDir = mkdtempSync(join(tmpdir(), "agent-tool-jev-"));
 
 const apiKey = jevToken();
 if (apiKey === "") {
@@ -109,81 +108,75 @@ if (chromium === null) {
 }
 
 let failed = 0;
-let browser;
-try {
-  await warnIfGitHubRateLimited();
-  // 診断モードのときだけブラウザを起こす。固定ケースは popup 側が自分で起動する。
-  if (probes.length > 0) {
-    console.log("\n== 指定 URL の診断（段ごと）==");
-    browser = await chromium.launchPersistentContext(userDataDir, { headless: true });
-  }
-
-  for (const { name, url, expect } of probes) {
-    // 対応サイトになったものを Jev で測り続けない（決定論的経路が正本）。
-    if (parseUrl(url) !== null || needsPage(url) !== null || catalog(url) !== null) {
-      console.log(`skip ${name}: 対応サイトです。決定論的経路（diagnose-tool-page）で見てください`);
-      continue;
-    }
-
-    const page = await browser.newPage();
-    try {
-      await page.goto(url, { waitUntil: "load", timeout: GOTO_TIMEOUT_MS });
-      await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
-      // 拡張の `chrome.scripting.executeScript({ func })` と同じ、関数をページで実行する形。
-      const extracted = await page.evaluate(extractPageEvidence);
-      const evidence = narrowed(extracted);
-      if (expect === null) {
-        console.log(`\n--- 1 抽出（絞り込み前 ${extracted.candidates.length} 件 → 後 ${evidence.candidates.length} 件）`);
-        for (const item of evidence.candidates) console.log(`  ${item.id} ${item.kind}: ${item.value.slice(0, 120)}`);
-        console.log(`  送信サイズ: ${JSON.stringify(evidence).length} bytes`);
+await warnIfGitHubRateLimited();
+// 診断モードのときだけブラウザを起こす。固定ケースは popup 側が自分で起動する。
+if (probes.length > 0) {
+  console.log("\n== 指定 URL の診断（段ごと）==");
+  await withBrowser(chromium, { prefix: "agent-tool-jev-" }, async browser => {
+    for (const { name, url, expect } of probes) {
+      // 対応サイトになったものを Jev で測り続けない（決定論的経路が正本）。
+      if (parseUrl(url) !== null || needsPage(url) !== null || catalog(url) !== null) {
+        console.log(`skip ${name}: 対応サイトです。決定論的経路（diagnose-tool-page）で見てください`);
+        continue;
       }
-      assert.ok(evidence.candidates.length > 0, `${name}: 候補が 1 つも取れていません`);
 
-      // 診断モードでは Jev の回答を素で見せる。どの段で落ちたかを出力で示すため。
-      let decision;
-      const result = await detectWithJev(evidence, apiKey, async (...args) => {
-        decision = await decideWithJev(...args);
-        return decision;
-      }, confirms);
-      if (expect === null) {
-        console.log("--- 2 Jev の回答");
-        console.log(decision === undefined
-          ? "  呼んでいない（直リンクから決定論で決まった）"
-          : `  is_tool_page=${decision.isToolPage.toFixed(2)} (>=0.80 が必要)`
-            + ` / tool_kind=${decision.kind.choice}`);
-        console.log(`--- 3 解決と実在確認 → ${result.kind}`);
-      }
-      // `repo` は「取得元まで決まった。名前は popup の一覧が決める」。名前まで期待して
-      // いないケースではこれで合格とする。
-      const found = result.kind === "found" ? result.lead
-        : result.kind === "repo" ? { source: result.source, name: "(一覧から選ぶ)" }
-        : result.kind === "many" ? { source: { repo: `${result.leads.length} 件` }, name: "(個別ページへ)" }
-        : null;
-      if (found === null) {
-        console.error(`✗ ${name}: ${url} → ${result.kind}`
-          + `（候補: ${evidence.candidates.map(item => item.value).join(" | ")}）`);
+      const page = await browser.newPage();
+      try {
+        await page.goto(url, { waitUntil: "load", timeout: GOTO_TIMEOUT_MS });
+        await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => {});
+        // 拡張の `chrome.scripting.executeScript({ func })` と同じ、関数をページで実行する形。
+        const extracted = await page.evaluate(extractPageEvidence);
+        const evidence = narrowed(extracted);
+        if (expect === null) {
+          console.log(`\n--- 1 抽出（絞り込み前 ${extracted.candidates.length} 件 → 後 ${evidence.candidates.length} 件）`);
+          for (const item of evidence.candidates) console.log(`  ${item.id} ${item.kind}: ${item.value.slice(0, 120)}`);
+          console.log(`  送信サイズ: ${JSON.stringify(evidence).length} bytes`);
+        }
+        assert.ok(evidence.candidates.length > 0, `${name}: 候補が 1 つも取れていません`);
+
+        // 診断モードでは Jev の回答を素で見せる。どの段で落ちたかを出力で示すため。
+        let decision;
+        const result = await detectWithJev(evidence, apiKey, async (...args) => {
+          decision = await decideWithJev(...args);
+          return decision;
+        }, confirms);
+        if (expect === null) {
+          console.log("--- 2 Jev の回答");
+          console.log(decision === undefined
+            ? "  呼んでいない（直リンクから決定論で決まった）"
+            : `  is_tool_page=${decision.isToolPage.toFixed(2)} (>=0.80 が必要)`
+              + ` / tool_kind=${decision.kind.choice}`);
+          console.log(`--- 3 解決と実在確認 → ${result.kind}`);
+        }
+        // `repo` は「取得元まで決まった。名前は popup の一覧が決める」。名前まで期待して
+        // いないケースではこれで合格とする。
+        const found = result.kind === "found" ? result.lead
+          : result.kind === "repo" ? { source: result.source, name: "(一覧から選ぶ)" }
+          : result.kind === "many" ? { source: { repo: `${result.leads.length} 件` }, name: "(個別ページへ)" }
+          : null;
+        if (found === null) {
+          console.error(`✗ ${name}: ${url} → ${result.kind}`
+            + `（候補: ${evidence.candidates.map(item => item.value).join(" | ")}）`);
+          failed++;
+          continue;
+        }
+        console.log(`ok ${name}: ${url} → ${found.source.repo} ${found.name}`);
+        if (expect === null) continue;
+        assert.equal(found.source.repo, expect.repo, `${name}: 取得元が違います`);
+        if (expect.name !== undefined) assert.equal(found.name, expect.name, `${name}: 名前が違います`);
+      } catch (error) {
+        // 実サイト・実 API 側の障害でオプトインテストを落とさない。枠切れも同じ扱い。
+        if (error instanceof TypeError || error?.kind === "network" || error?.kind === "rateLimit") {
+          console.log(`skip ${name}: ${error.message}`);
+          continue;
+        }
+        console.error(`✗ ${name}: ${url} → ${error.message}`);
         failed++;
-        continue;
+      } finally {
+        await page.close().catch(() => { /* すでに閉じた */ });
       }
-      console.log(`ok ${name}: ${url} → ${found.source.repo} ${found.name}`);
-      if (expect === null) continue;
-      assert.equal(found.source.repo, expect.repo, `${name}: 取得元が違います`);
-      if (expect.name !== undefined) assert.equal(found.name, expect.name, `${name}: 名前が違います`);
-    } catch (error) {
-      // 実サイト・実 API 側の障害でオプトインテストを落とさない。枠切れも同じ扱い。
-      if (error instanceof TypeError || error?.kind === "network" || error?.kind === "rateLimit") {
-        console.log(`skip ${name}: ${error.message}`);
-        continue;
-      }
-      console.error(`✗ ${name}: ${url} → ${error.message}`);
-      failed++;
-    } finally {
-      await page.close().catch(() => { /* すでに閉じた */ });
     }
-  }
-} finally {
-  await browser?.close().catch(() => { /* すでに閉じている */ });
-  rmSync(userDataDir, { recursive: true, force: true });
+  });
 }
 
 // 未対応サイトの Tool ページを popup へ渡して、検知できるかを見る。
