@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-20
+
 ### Changed
 
 - Repository archives are fetched as `tar.gz` and unpacked through the same reader the browser extension already used, so the extension now ships with no runtime dependencies and one archive format instead of two.
