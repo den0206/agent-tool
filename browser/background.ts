@@ -6,6 +6,9 @@ import { rootStateOf, splitRoot } from "../core/placement.js";
 import { autoOpenEnabled, loadCollection, loadHandle } from "./store.js";
 import { isExtractable } from "./install.js";
 import { rateLimitWatch } from "./fetch.js";
+import { automaticVisit, evidenceFromTab, forgetTab } from "./autoDetect.js";
+import { confirms } from "./aiDetect.js";
+import { grantedSites, patternHost } from "./sitePermissions.js";
 
 /**
  * 検知の判定はここで行う。content script は URL を送るだけにする
@@ -181,6 +184,25 @@ async function announceRateLimited(tabId: number): Promise<void> {
     .catch(() => { /* 同上 */ });
 }
 
+/**
+ * Skill が並ぶ置き場なら一覧を出す。カタログの遷移と、自動検知が Jev から得た
+ * 取得元（`repo`）の両方がここを通る。置き場でなければ何もせず `false`。
+ */
+async function showIndex(tabId: number, url: string, autoOpen: boolean): Promise<boolean> {
+  const at = skillIndex(url);
+  if (at === null) return false;
+  const result = await enumerate(at);
+  if (result.kind === "rateLimited") {
+    // popup は開かない（autoOpen 設定に関わらず）。バッジと tooltip だけで告げる。
+    await announceRateLimited(tabId);
+    return true;
+  }
+  if (result.entries.length === 0) return true;
+  shown.set(tabId, { ...at, entries: result.entries });
+  await announce(tabId, String(result.entries.length), autoOpen);
+  return true;
+}
+
 async function visit(url: string, tabId: number | undefined, jsonLd?: string): Promise<void> {
   if (tabId === undefined) return;
   // 遷移したら前のページの検知は無かったことにする。
@@ -191,19 +213,7 @@ async function visit(url: string, tabId: number | undefined, jsonLd?: string): P
   // 判定を全部先に通し、**出すと決まったものだけ**確かめる。導入済みのものを
   // 見るたびに落とし直さない。
   // Skill が並ぶディレクトリなら、1 件ではなく一覧を出す。アーカイブは落とさない。
-  const at = skillIndex(url);
-  if (at !== null) {
-    const result = await enumerate(at);
-    if (result.kind === "rateLimited") {
-      // popup は開かない（autoOpen 設定に関わらず）。バッジと tooltip だけで告げる。
-      await announceRateLimited(tabId);
-      return;
-    }
-    if (result.entries.length === 0) return;
-    shown.set(tabId, { ...at, entries: result.entries });
-    await announce(tabId, String(result.entries.length), autoOpen);
-    return;
-  }
+  if (await showIndex(tabId, url, autoOpen)) return;
 
   const found = detectPage(url, jsonLd ?? "");
   if (found === null) return;
@@ -239,6 +249,14 @@ async function activeCandidate(): Promise<{
   };
 }
 
+/** 許可した直後に、今開いているタブをもう一度読む。 */
+async function rescanActive(): Promise<void> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id === undefined || tab.url === undefined) return;
+  forgetTab(tab.id);                               // 直前の遷移で見た記録を無効にする
+  await autoDetect(tab.id, tab.url);
+}
+
 /** 今の表示をやめる。「今はしない」と導入後の両方が呼ぶ。次に開けばまた出る。 */
 async function clearActive(): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -254,6 +272,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
   }
   // 導入後も「今はしない」と同じ。導入済みの表示は popup が送る `rescan` で張り直す。
   if (payload.type === "dismiss") { void clearActive(); return false; }
+  // 許可した直後。`executeScript` は grant 後にしか効かないので、開いたままのタブを
+  // ここで一度だけ読み直す。次の遷移を待たせない。
+  if (payload.type === "rescanActive") { void rescanActive(); return false; }
   if (payload.type === "candidate") {
     void activeCandidate().then(respond);
     return true;                                 // 非同期に返す
@@ -274,4 +295,63 @@ chrome.tabs.onRemoved.addListener(tabId => {
   shown.delete(tabId);
   rateLimited.delete(tabId);
   installed.delete(tabId);
+  forgetTab(tabId);
 });
+
+// --- 許可済みサイトの自動検知 ------------------------------------------
+
+/**
+ * 利用者が「このサイトで自動検知」を許可した origin だけを見る。
+ *
+ * **listener は許可済みホストで絞って張る。** 絞らずに張ると、権限を持たないホストの
+ * 遷移イベントまで届く（DOM は読めないが URL は見える）。「許可していないサイトでは
+ * 何もしない」をコードで担保するには、届く前に落とすしかない。
+ */
+async function autoDetect(tabId: number, url: string): Promise<void> {
+  const result = await automaticVisit(tabId, url, {
+    allowed: pattern => chrome.permissions.contains({ origins: [pattern] }),
+    // content script が無い許可サイトでも、遷移後に前ページの候補を残さない。
+    clear,
+    evidence: evidenceFromTab,
+    verify: confirms,
+  });
+  if (result.kind === "none") return;
+  const autoOpen = await autoOpenEnabled();
+  // 取得元だけ決まったときは、手動スキャンと同じ skills.sh 形の URL に直して
+  // 既存の一覧経路へ渡す（記録・取得は解決後の `GitHubSource` で行う）。
+  if (result.kind === "repo") {
+    await showIndex(tabId, `https://skills.sh/${result.repo}`, autoOpen);
+    return;
+  }
+  // `many` は候補を覚えない。件数だけ出し、選ぶのは popup の手動スキャンに任せる。
+  // ここで 1 件に決めると、まとめページで無関係なものを見せることになる。
+  if (result.kind === "many") { await announce(tabId, String(result.count), autoOpen); return; }
+  if (await installedFromSameSource(result.lead)) { installed.set(tabId, result.lead.url); return; }
+  candidates.set(tabId, result.lead.url);
+  await announce(tabId, "1", autoOpen);
+}
+
+const onNavigated = (details: chrome.webNavigation.Details): void => {
+  if (details.frameId !== 0) return;
+  void autoDetect(details.tabId, details.url);
+};
+
+/**
+ * 許可の増減に追随して listener を張り直す。フィルタは登録時に固定されるので、
+ * 許可を消しただけでは届き続ける。service worker の起動時にも 1 回張る。
+ */
+async function rewire(): Promise<void> {
+  const { origins = [] } = await chrome.permissions.getAll();
+  const hosts = grantedSites(origins)
+    .map(patternHost)
+    .filter((host): host is string => host !== null);
+  for (const event of [chrome.webNavigation.onCompleted, chrome.webNavigation.onHistoryStateUpdated]) {
+    event.removeListener(onNavigated);
+    // 1 件も許可が無いなら張らない。空の filter は「全部通す」になる。
+    if (hosts.length > 0) event.addListener(onNavigated, { url: hosts.map(hostEquals => ({ hostEquals })) });
+  }
+}
+
+chrome.permissions.onAdded.addListener(() => void rewire());
+chrome.permissions.onRemoved.addListener(() => void rewire());
+void rewire();
