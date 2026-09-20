@@ -126,6 +126,21 @@
         </div>
       </section>
 
+      <!--
+        自動検知の提案。Tool を確認できたときだけ出す。Chrome の permission dialog を
+        出す前に、何を許可するのかを Agent Tool 自身の言葉で見せる。
+      -->
+      <section id="auto-site" class="card" hidden>
+        <strong data-i18n="autoSiteTitle"></strong>
+        <p class="hint" data-i18n="autoSiteText"></p>
+        <p id="auto-site-origin" class="saved"></p>
+        <p id="auto-site-status" class="status" role="status"></p>
+        <div class="actions">
+          <button id="auto-site-allow" class="primary" type="button" data-i18n="autoSiteAllow"></button>
+          <button id="auto-site-dismiss" type="button" data-i18n="autoSiteDismiss"></button>
+        </div>
+      </section>
+
       <!-- 設定。別タブへ飛ばさず、ここで完結させる。 -->
       <section id="settings-view" hidden>
         <h2 data-i18n="settingsTitle"></h2>
@@ -166,6 +181,11 @@
           <p class="hint" data-i18n="aiPrivacyNote"></p>
           <p id="jev-status" class="status" role="status"></p>
         </div>
+
+        <!-- 自動検知を許可したサイト。正本は chrome.permissions なので毎回そこから出す。 -->
+        <div class="section-label" data-i18n="autoSitesTitle"></div>
+        <div id="auto-sites"></div>
+        <p id="auto-sites-status" class="status" role="status"></p>
 
         <!--
           配色。3 つから 1 つなので radio にする（checkbox は 3 つとも入る状態を作れる）。

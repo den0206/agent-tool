@@ -426,5 +426,32 @@
   },
   "aiRequestFailed": {
     "message": "Jev could not analyze this page. Nothing was installed."
+  },
+  "autoSiteTitle": {
+    "message": "Detect on this site automatically?"
+  },
+  "autoSiteText": {
+    "message": "Agent Tool will look for Skills and Subagents while you browse this site. It reads the page locally and checks GitHub. Jev contacts TypeSafe only when local detection cannot decide. You can remove the site at any time in Settings."
+  },
+  "autoSiteAllow": {
+    "message": "Enable for this site"
+  },
+  "autoSiteDismiss": {
+    "message": "Not now"
+  },
+  "autoSiteDenied": {
+    "message": "Permission was not granted, so automatic detection stays off for this site."
+  },
+  "autoSiteFailed": {
+    "message": "Could not ask for permission for this site."
+  },
+  "autoSitesTitle": {
+    "message": "Automatic detection"
+  },
+  "autoSitesEmpty": {
+    "message": "No sites yet. Scan an unsupported page and enable it from there."
+  },
+  "autoSitesRemove": {
+    "message": "Stop automatic detection on this site"
   }
 }
