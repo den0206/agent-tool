@@ -132,7 +132,8 @@ This produces `vsix/browser/`. Open `chrome://extensions` (or the Brave/Edge equ
 
 3. Choose the target agent from the dropdown and select **Install**. The first time, your browser's folder picker asks you to choose the agent's config directory (`~/.claude`, `~/.cursor`, `~/.codex`, or the shared `~/.agents`); it is remembered after that.
 4. On an unsupported site, you can optionally open **Settings**, add your Jev API key, and enable **AI-assisted detection (Beta)**. The toggle stays disabled until a key is saved, and **Delete** removes the key again. The popup then offers **Find tools on this page**. It reads only the current tab after you click, sends minimized candidate evidence to TypeSafe, and still verifies the selected GitHub source before showing the normal install flow.
-5. Open **Settings** to see everything the extension has installed, remove an item, re-grant a folder, or switch the popup's theme (System / Light / Dark).
+5. Once a tool has actually been confirmed on an unsupported site, the popup offers **Enable for this site**. Allowing it grants access to that one origin (`https://example.com/*`, never subdomains and never all sites), after which Agent Tool checks pages on that site as you browse — reading the page locally and verifying against GitHub. A page it cannot resolve on its own goes through the same single Jev question the manual scan asks, capped per hour, and only if you enabled AI-assisted detection. Remove the site under **Settings → Automatic detection** to stop it immediately.
+6. Open **Settings** to see everything the extension has installed, remove an item, re-grant a folder, or switch the popup's theme (System / Light / Dark).
 
 ### Privacy
 

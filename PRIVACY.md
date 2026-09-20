@@ -58,10 +58,21 @@ also deletes the key and the toggle from your browser.
   section, only that section is read, and the fragment itself is never sent.
   The API key is sent only in the Authorization header.
 
+- **Sites you allowed for automatic detection**: only sites you explicitly
+  enabled one at a time. On those sites the extension reads the page locally
+  and checks GitHub as you browse. When local resolution cannot tell whether
+  the page ships a tool, it asks Jev the same single question the manual scan
+  asks, sending the same minimized evidence described above — so this happens
+  only if you enabled AI-assisted detection and saved a key. Pages that
+  resolve on their own never reach Jev. Automatic requests are capped per
+  hour; only a counter (a window start and a number) is stored for that, never
+  the sites you visited. Removing the site in **Settings → Automatic
+  detection** stops everything immediately.
+
 GitHub requests use public, unauthenticated endpoints. TypeSafe requests use
 only the API key you explicitly provide. The browser extension still does not
 request `<all_urls>`; unsupported pages are read temporarily through
-`activeTab` only after your explicit click.
+`activeTab` only after your explicit click, or on a site you allowed yourself.
 
 ## Permissions
 
@@ -70,13 +81,24 @@ request `<all_urls>`; unsupported pages are read temporarily through
   cannot read or write anywhere else.
 - **`webNavigation`** (browser extension): used only to notice when a
   single-page app changes its URL, so detection reruns on the new page. No
-  browsing history is read or stored.
+  browsing history is read or stored. The listener for automatic detection is
+  scoped to the exact origins you allowed, so navigations on every other site
+  never reach the extension at all.
+- **Optional site access** (browser extension): the extension declares
+  `https://*/*` as an *optional* host permission, which is not granted at
+  install time and is not part of the install prompt. It is requested one
+  origin at a time (`https://example.com/*`), only after the extension has
+  actually confirmed a tool on that site and only when you press **Enable for
+  this site**. It is never widened to subdomains or to all sites, and the list
+  of allowed sites is read back from the browser's own permission API rather
+  than from any separate record.
 - **`activeTab` + `scripting`** (browser extension): used only after you click
   the manual AI scan button on the current unsupported page. This grants
   temporary access to that tab; it is not persistent access to all sites.
-- **`storage`** (browser extension): stores the optional Jev API key and
-  AI-assisted-detection toggle locally. The storage area is restricted to
-  trusted extension contexts before the key is written.
+- **`storage`** (browser extension): stores the optional Jev API key, the
+  AI-assisted-detection toggle, and the hourly counter that caps automatic
+  Jev requests. The storage area is restricted to trusted extension contexts
+  before the key is written. The counter holds only a timestamp and a number.
 
 ## Contact
 
