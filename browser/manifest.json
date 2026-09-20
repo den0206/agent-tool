@@ -31,6 +31,9 @@
     "scripting",
     "storage"
   ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ],
   "host_permissions": [
     "https://github.com/*",
     "https://skills.sh/*",

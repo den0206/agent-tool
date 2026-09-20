@@ -49,8 +49,24 @@ declare namespace chrome {
     }): Promise<InjectionResult<T>[]>;
   }
   namespace webNavigation {
-    const onHistoryStateUpdated: {
-      addListener(handler: (details: { tabId: number; url: string }) => void): void;
+    type Details = { tabId: number; url: string; frameId: number };
+    /** `hostEquals` はホスト名だけを見る（ポートは含まない）。 */
+    type Filter = { url: { hostEquals: string }[] };
+    type Event = {
+      addListener(handler: (details: Details) => void, filter?: Filter): void;
+      removeListener(handler: (details: Details) => void): void;
     };
+    const onCompleted: Event;
+    const onHistoryStateUpdated: Event;
+  }
+  namespace permissions {
+    type Set = { origins?: string[]; permissions?: string[] };
+    function contains(wanted: Set): Promise<boolean>;
+    /** ユーザー操作の中からのみ呼べる。外から呼ぶと例外になる。 */
+    function request(wanted: Set): Promise<boolean>;
+    function remove(wanted: Set): Promise<boolean>;
+    function getAll(): Promise<Set>;
+    const onAdded: { addListener(handler: () => void): void };
+    const onRemoved: { addListener(handler: () => void): void };
   }
 }
