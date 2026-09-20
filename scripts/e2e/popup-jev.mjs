@@ -7,6 +7,12 @@
 // `activeTab` はツールバーアイコンのクリックで付与されるもので、Playwright は
 // ブラウザ UI のボタンを押せない。**そこだけ**テスト用にコピーした拡張へ対象サイトの
 // host 権限を足して代替し、付与そのものは手動確認に残す。配布物は変えない。
+//
+// その host 権限は、自動検知にとっては「利用者がこのサイトを許可した」ことそのものである
+// （許可の正本は `chrome.permissions` で、manifest 由来と実行時付与を区別できない）。
+// つまりこのテストの拡張では自動検知も動く。直リンクのページは popup を開いた時点で
+// 既に候補が出ているので、**押す前に出ているならそれを結果として読む**。
+// 押さないと出ないページ（取得元だけ・まとめ）は今まで通り手動導線を通る。
 import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { withBrowser } from "./browser.mjs";
@@ -40,6 +46,10 @@ function testBuild(source, origins) {
  * popup が出した結果を読む。カード・一覧・状態表示のどれに出たかで返す。
  * どれも出ないまま待ち切ったら、その時点の状態を返して呼び出し側に判定させる。
  */
+/** 開いた時点でもう出ているか。自動検知が先に解いたページはここで決まる。 */
+const settled = async (popup) =>
+  !await hidden(popup, "#found") || !await hidden(popup, "#index");
+
 async function outcome(popup) {
   // `aria-busy` が下りるまで待つ。`#ai-scan-status` は走っている間「探しています…」を
   // 出すので、文字が入ったことを完了と読むと途中経過を結果として拾う。
@@ -98,28 +108,33 @@ export async function checkPopup(chromium, extensionDir, cases, apiKey) {
           await popup.goto(popupUrl, { waitUntil: "load" });
           await popup.waitForTimeout(700);
 
-          if (await hidden(popup, "#ai-scan")) {
-            console.error(`✗ popup ${name}: スキャンのカードが出ていない`);
-            failed++;
-            continue;
+          // 自動検知が先に解いていなければ、手動導線を通す。
+          const auto = await settled(popup);
+          if (!auto) {
+            if (await hidden(popup, "#ai-scan")) {
+              console.error(`✗ popup ${name}: スキャンのカードが出ていない`);
+              failed++;
+              continue;
+            }
+            await click(popup, "ai-scan-button");
           }
-          await click(popup, "ai-scan-button");
           const result = await outcome(popup);
+          const via = auto ? "自動" : "手動";
 
           if (expect.name !== undefined) {
             assert.equal(result.kind, "found", `${name}: ${JSON.stringify(result)}`);
             assert.equal(result.name, expect.name, `${name}: 名前が違う`);
             assert.equal(result.repo, expect.repo, `${name}: 取得元が違う`);
-            console.log(`ok popup ${name}: ${result.repo} ${result.name}`);
+            console.log(`ok popup ${name}（${via}）: ${result.repo} ${result.name}`);
           } else if (expect.entries === true) {
             assert.equal(result.kind, "index", `${name}: ${JSON.stringify(result)}`);
             assert.ok(result.repo.startsWith(expect.repo), `${name}: 取得元が違う（${result.repo}）`);
             assert.ok(result.entries.length > 0, `${name}: 一覧が空`);
-            console.log(`ok popup ${name}: ${result.repo} → ${result.entries.join(", ")}`);
+            console.log(`ok popup ${name}（${via}）: ${result.repo} → ${result.entries.join(", ")}`);
           } else {
             assert.equal(result.kind, "status", `${name}: ${JSON.stringify(result)}`);
             assert.match(result.text, expect.status, `${name}: 文言が違う（${result.text}）`);
-            console.log(`ok popup ${name}: ${result.text}`);
+            console.log(`ok popup ${name}（${via}）: ${result.text}`);
           }
         } catch (error) {
           // 実サイト・実 API 側の障害でオプトインテストを落とさない。
