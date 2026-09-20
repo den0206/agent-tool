@@ -27,6 +27,7 @@ import {
   jevApiKey, jevEnabled, protectAiStorage, setJevApiKey, setJevEnabled,
 } from "./aiSettings.js";
 import { decideWithJev, JevDecision, JevError } from "./jev.js";
+import { grantedSites, originPattern, patternHost } from "./sitePermissions.js";
 
 const t = (key: string, ...args: string[]): string => chrome.i18n.getMessage(key, args);
 /** `.claude` → `agentClaude`。設定画面と同じ言葉を使う。 */
@@ -695,6 +696,8 @@ byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => 
       return;
     }
     byId("ai-scan").hidden = true;
+    // Tool を確かめられたので、ここで初めて「次からは自動で」を提案できる。
+    await offerAutomation();
   } catch (error) {
     if (error instanceof JevError) {
       const key = error.kind === "auth" ? "aiAuthError"
@@ -710,12 +713,97 @@ byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => 
   }
 });
 
+// --- 許可済みサイトの自動検知 -------------------------------------------
+
+/** 今開いているタブの URL。`chrome.tabs` を何度も叩かないよう 1 箇所にまとめる。 */
+const activeUrl = async (): Promise<string> =>
+  (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.url ?? "";
+
+/**
+ * Tool を確認できたサイトにだけ「今後は自動で」を出す。
+ *
+ * **見つかっただけでは permission を求めない。** 出すのは CTA までで、
+ * `chrome.permissions.request()` は利用者がボタンを押したときにしか呼ばない
+ * （押さずに呼ぶと Chrome 側が例外にする）。
+ */
+async function offerAutomation(): Promise<void> {
+  const card = byId("auto-site");
+  card.hidden = true;
+  const pattern = originPattern(await activeUrl());
+  if (pattern === null) return;
+  // 既に許可済みなら勧めない。外すのは設定画面でできる。
+  if (await chrome.permissions.contains({ origins: [pattern] })) return;
+  byId("auto-site-origin").textContent = patternHost(pattern) ?? pattern;
+  clearStatus(byId("auto-site-status"));
+  card.hidden = false;
+}
+
+byId("auto-site-dismiss").addEventListener("click", () => { byId("auto-site").hidden = true; });
+
+byId("auto-site-allow").addEventListener("click", async () => {
+  const status = byId("auto-site-status");
+  const pattern = originPattern(await activeUrl());
+  if (pattern === null) return;
+  try {
+    // Chrome の permission dialog は popup を閉じることがある。**戻り値で UI を組み立てない** —
+    // 許可は成立するので、開き直したときに `contains` から出し直す（`offerAutomation`）。
+    if (!await chrome.permissions.request({ origins: [pattern] })) {
+      showStatus(status, t("autoSiteDenied"), true);
+      return;
+    }
+  } catch {
+    showStatus(status, t("autoSiteFailed"), true);
+    return;
+  }
+  byId("auto-site").hidden = true;
+  // 許可は grant 後のページにしか効かない。開いたままのタブは、ここで一度走らせないと
+  // 次に遷移するまで何も起きない。
+  await send({ type: "rescanActive" });
+});
+
+/**
+ * 許可したサイトの一覧。正本は `chrome.permissions` なので、開くたびにそこから作る
+ * （独自の保存を持つと、Chrome 側で外されたときに二重正本になる）。
+ */
+async function renderAutoSites(): Promise<void> {
+  const box = byId("auto-sites");
+  box.replaceChildren();
+  const { origins = [] } = await chrome.permissions.getAll();
+  const sites = grantedSites(origins);
+  if (sites.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = t("autoSitesEmpty");
+    box.append(empty);
+    return;
+  }
+  for (const pattern of sites) {
+    const row = document.createElement("div");
+    row.className = "root";
+    const host = document.createElement("code");
+    host.translate = false;
+    host.textContent = patternHost(pattern) ?? pattern;
+    const drop = document.createElement("button");
+    drop.className = "clear";
+    drop.type = "button";
+    drop.title = t("autoSitesRemove");
+    drop.setAttribute("aria-label", t("autoSitesRemove"));
+    drop.textContent = "×";
+    drop.addEventListener("click", async () => {
+      await chrome.permissions.remove({ origins: [pattern] });
+      await renderAutoSites();
+    });
+    row.append(host, drop);
+    box.append(row);
+  }
+}
+
 // --- 設定。別タブへ飛ばさず popup の中で切り替える ----------------------
 
 function setSettings(open: boolean): void {
   document.body.classList.toggle("settings", open);
   byId("settings-view").hidden = !open;
-  if (open) { void renderRoots(); refreshCollection(); }
+  if (open) { void renderRoots(); void renderAutoSites(); refreshCollection(); }
   else void showAiScanIfAvailable();
 }
 

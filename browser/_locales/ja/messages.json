@@ -426,5 +426,32 @@
   },
   "aiRequestFailed": {
     "message": "Jevでこのページを解析できませんでした。導入は行っていません。"
+  },
+  "autoSiteTitle": {
+    "message": "このサイトで自動検知しますか？"
+  },
+  "autoSiteText": {
+    "message": "このサイトを見ている間、Agent ToolがSkill / Subagentを探します。ページはローカルで読み、GitHubで実在を確かめます。ローカル判定だけで決められない場合に限り、JevがTypeSafeへ問い合わせます。設定からいつでも解除できます。"
+  },
+  "autoSiteAllow": {
+    "message": "このサイトで有効にする"
+  },
+  "autoSiteDismiss": {
+    "message": "今はしない"
+  },
+  "autoSiteDenied": {
+    "message": "許可されなかったので、このサイトの自動検知は無効のままです。"
+  },
+  "autoSiteFailed": {
+    "message": "このサイトの許可を求められませんでした。"
+  },
+  "autoSitesTitle": {
+    "message": "自動検知"
+  },
+  "autoSitesEmpty": {
+    "message": "まだありません。未対応ページを解析したときに有効にできます。"
+  },
+  "autoSitesRemove": {
+    "message": "このサイトの自動検知をやめる"
   }
 }
