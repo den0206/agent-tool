@@ -22,3 +22,12 @@ export const CATALOG_EXTRACT_LIMIT = 64 * 1024 * 1024;
  * 新旧ツリーを同時に保持したときの popup のメモリ急増を防ぐ。
  */
 export const BROWSER_ROLLBACK_LIMIT = 64 * 1024 * 1024;
+
+/**
+ * 許可済みサイトの自動検知が Jev を呼べる回数と、その窓（1 時間）。
+ *
+ * 自動経路は利用者が押さないので、許可したサイトを回遊するだけで呼び出しが積む。
+ * 押して待つ手動スキャンには掛けない — 上限はあくまで「勝手に使われる分」に置く。
+ */
+export const AUTO_JEV_WINDOW_MS = 60 * 60 * 1000;
+export const AUTO_JEV_LIMIT = 30;

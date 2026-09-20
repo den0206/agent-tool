@@ -51,6 +51,23 @@ const stubIndexedDB = () => ({
   },
 });
 
+/**
+ * 自動検知の配線は `background.js` の読み込み時に必ず走る。許可サイトを見ないテストでは
+ * 「1 件も許可していない」状態を返す。`grantedSites` が空なら listener は張られない。
+ */
+const navigationStubs = (origins = []) => ({
+  webNavigation: {
+    onCompleted: {addListener: () => {}, removeListener: () => {}},
+    onHistoryStateUpdated: {addListener: () => {}, removeListener: () => {}},
+  },
+  permissions: {
+    getAll: async () => ({origins}),
+    contains: async () => false,
+    onAdded: {addListener: () => {}},
+    onRemoved: {addListener: () => {}},
+  },
+});
+
 test('自動表示を切っても検知のバッジと候補は残す', async () => {
   const saved = {
     chrome: globalThis.chrome,
@@ -71,7 +88,7 @@ test('自動表示を切っても検知のバッジと候補は残す', async ()
         },
       },
     },
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {onRemoved: {addListener: () => {}}},
     action: {
       setBadgeText: async (value) => {
@@ -126,7 +143,7 @@ test('API 枠切れで一覧が読めなかったら "!" バッジで告げる',
   globalThis.fetch = async () => rateLimitedResponse();
   globalThis.chrome = {
     runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {onRemoved: {addListener: () => {}}},
     i18n: {getMessage: (key) => (key === 'badgeRateLimited' ? 'rate limited' : '')},
     action: {
@@ -216,7 +233,7 @@ test('導入済みの検知はバッジを出さず、popup を開いたとき�
   };
   globalThis.chrome = {
     runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {
       onRemoved: {addListener: () => {}},
       query: async () => [{id: 3}],
@@ -299,7 +316,7 @@ test('別リポジトリの同名 Skill だけでは「導入済み」と扱わ�
   globalThis.fetch = async () => { throw new Error('no network'); };
   globalThis.chrome = {
     runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {
       onRemoved: {addListener: () => {}},
       query: async () => [{id: 11}],
@@ -379,7 +396,7 @@ test('設定ディレクトリのハンドルが無ければ「導入済み」�
   globalThis.fetch = async () => { throw new Error('no network'); };
   globalThis.chrome = {
     runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {
       onRemoved: {addListener: () => {}},
       query: async () => [{id: 21}],
@@ -460,7 +477,7 @@ test('許可が prompt でもハンドルと記録があれば「導入済み」
   globalThis.fetch = async () => { throw new Error('no network'); };
   globalThis.chrome = {
     runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {
       onRemoved: {addListener: () => {}},
       query: async () => [{id: 31}],
@@ -537,7 +554,7 @@ test('許可が denied なら記録があっても「導入済み」を出さな
   globalThis.fetch = async () => { throw new Error('no network'); };
   globalThis.chrome = {
     runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {onRemoved: {addListener: () => {}}, query: async () => [{id: 51}]},
     action: {
       setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {},
@@ -610,7 +627,7 @@ test('別 Agent への追加で複数記録が並んでも、どれか 1 件で�
   globalThis.fetch = async () => { throw new Error('fetch は呼ばれないはず'); };
   globalThis.chrome = {
     runtime: {onMessage: {addListener: (listener) => { visit = listener; }}},
-    webNavigation: {onHistoryStateUpdated: {addListener: () => {}}},
+    ...navigationStubs(),
     tabs: {onRemoved: {addListener: () => {}}, query: async () => [{id: 41}]},
     action: {
       setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {},
@@ -626,6 +643,166 @@ test('別 Agent への追加で複数記録が並んでも、どれか 1 件で�
   } finally {
     globalThis.chrome = saved.chrome;
     globalThis.fetch = saved.fetch;
+    globalThis.indexedDB = saved.indexedDB;
+  }
+});
+
+/**
+ * 自動検知の listener は許可済みホストで絞って張る。絞らずに張ると、権限を持たない
+ * ホストの遷移まで届く（DOM は読めないが URL は見える）。挙動では気づけないので
+ * 「addListener に何を渡したか」を直接見る。
+ */
+test('自動検知の listener は許可済みホストで絞る', async () => {
+  const saved = {chrome: globalThis.chrome, indexedDB: globalThis.indexedDB};
+  const filters = [];
+  let onRemoved;
+  globalThis.indexedDB = stubIndexedDB();
+  globalThis.chrome = {
+    runtime: {onMessage: {addListener: () => {}}},
+    tabs: {onRemoved: {addListener: () => {}}},
+    action: {},
+    webNavigation: {
+      onCompleted: {
+        addListener: (_handler, filter) => filters.push(filter),
+        removeListener: () => {},
+      },
+      onHistoryStateUpdated: {addListener: () => {}, removeListener: () => {}},
+    },
+    permissions: {
+      // 同梱の host_permissions は自動検知の対象にしない。残るのは site.test だけ。
+      getAll: async () => ({
+        origins: ['https://github.com/*', 'https://skills.sh/*', 'https://site.test/*'],
+      }),
+      contains: async () => false,
+      onAdded: {addListener: () => {}},
+      onRemoved: {addListener: (handler) => { onRemoved = handler; }},
+    },
+  };
+  try {
+    await import(`../out/web/browser/background.js?filter=${Date.now()}`);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(filters, [{url: [{hostEquals: 'site.test'}]}]);
+
+    // 許可を消したら張り直す。フィルタは登録時に固定されるので、消しただけでは届き続ける。
+    globalThis.chrome.permissions.getAll = async () => ({origins: ['https://github.com/*']});
+    onRemoved();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(filters.length, 1, '許可ゼロで listener を張り直している');
+  } finally {
+    globalThis.chrome = saved.chrome;
+    globalThis.indexedDB = saved.indexedDB;
+  }
+});
+
+/** 収集一覧も設定も空。`stubIndexedDB` は `false` を返すので自動検知の経路では使えない。 */
+const emptyIndexedDB = () => {
+  const reply = (value) => {
+    const result = {};
+    queueMicrotask(() => { result.result = value; result.onsuccess?.(); });
+    return result;
+  };
+  return {
+    open: () => reply({
+      transaction: () => ({objectStore: () => ({get: () => reply(undefined)})}),
+      close: () => {},
+    }),
+  };
+};
+
+/**
+ * SPA は読み込み直後に `replaceState` を呼ぶことがあり、同じ URL で `onCompleted` と
+ * `onHistoryStateUpdated` が続けて来る。2 回目で前ページの検知を下ろすと、
+ * **直前に自分が出したバッジ**を消してしまう。下ろすのは読み直すときだけにする。
+ */
+test('同じ URL の重複イベントで自動検知のバッジを消さない', async () => {
+  const saved = {chrome: globalThis.chrome, fetch: globalThis.fetch, indexedDB: globalThis.indexedDB};
+  const badges = [];
+  let nav;
+  globalThis.indexedDB = emptyIndexedDB();
+  globalThis.fetch = async () => ({status: 200, ok: true, headers: {get: () => null}});
+  globalThis.chrome = {
+    runtime: {onMessage: {addListener: () => {}}},
+    tabs: {onRemoved: {addListener: () => {}}, query: async () => []},
+    action: {
+      setBadgeText: async (value) => { badges.push(value.text); },
+      setBadgeBackgroundColor: async () => {},
+      setBadgeTextColor: async () => {},
+      setTitle: async () => {},
+      openPopup: async () => {},
+    },
+    scripting: {
+      executeScript: async () => [{result: {
+        page: {url: 'https://site.test/skills/frontend-design', title: 't', headings: []},
+        candidates: [{id: '0', kind: 'url',
+          value: 'https://github.com/acme/skills/tree/main/skills/frontend-design'}],
+      }}],
+    },
+    webNavigation: {
+      onCompleted: {addListener: (handler) => { nav = handler; }, removeListener: () => {}},
+      onHistoryStateUpdated: {addListener: (handler) => { nav = handler; }, removeListener: () => {}},
+    },
+    permissions: {
+      getAll: async () => ({origins: ['https://site.test/*']}),
+      contains: async () => true,
+      onAdded: {addListener: () => {}},
+      onRemoved: {addListener: () => {}},
+    },
+    storage: {local: {get: async () => ({}), set: async () => {}, setAccessLevel: async () => {}}},
+  };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
+  try {
+    await import(`../out/web/browser/background.js?dup=${Date.now()}`);
+    await settle();
+    const url = 'https://site.test/skills/frontend-design';
+    nav({tabId: 1, url, frameId: 0});
+    await settle();
+    assert.deepEqual(badges, ['1']);
+    nav({tabId: 1, url, frameId: 0});
+    await settle();
+    assert.deepEqual(badges, ['1'], 'バッジを消しています');
+  } finally {
+    globalThis.chrome = saved.chrome;
+    globalThis.fetch = saved.fetch;
+    globalThis.indexedDB = saved.indexedDB;
+  }
+});
+
+// iframe の遷移でも `onCompleted` は来る。拾うと 1 ページで何度も読み、Jev も積む。
+test('サブフレームの遷移では自動検知しない', async () => {
+  const saved = {chrome: globalThis.chrome, indexedDB: globalThis.indexedDB};
+  let scanned = 0;
+  let nav;
+  globalThis.indexedDB = emptyIndexedDB();
+  globalThis.chrome = {
+    runtime: {onMessage: {addListener: () => {}}},
+    tabs: {onRemoved: {addListener: () => {}}, query: async () => []},
+    action: {setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {},
+             setBadgeTextColor: async () => {}, setTitle: async () => {}},
+    scripting: {executeScript: async () => { scanned += 1; return [{result: null}]; }},
+    webNavigation: {
+      onCompleted: {addListener: (handler) => { nav = handler; }, removeListener: () => {}},
+      onHistoryStateUpdated: {addListener: () => {}, removeListener: () => {}},
+    },
+    permissions: {
+      getAll: async () => ({origins: ['https://site.test/*']}),
+      contains: async () => true,
+      onAdded: {addListener: () => {}},
+      onRemoved: {addListener: () => {}},
+    },
+    storage: {local: {get: async () => ({}), set: async () => {}, setAccessLevel: async () => {}}},
+  };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 200));
+  try {
+    await import(`../out/web/browser/background.js?frame=${Date.now()}`);
+    await settle();
+    nav({tabId: 2, url: 'https://site.test/ad-frame', frameId: 3});
+    await settle();
+    assert.equal(scanned, 0, 'サブフレームでページを読んでいます');
+    nav({tabId: 2, url: 'https://site.test/page', frameId: 0});
+    await settle();
+    assert.equal(scanned, 1);
+  } finally {
+    globalThis.chrome = saved.chrome;
     globalThis.indexedDB = saved.indexedDB;
   }
 });
