@@ -30,6 +30,26 @@ for (const permission of manifest.permissions ?? []) {
   }
 }
 
+// --- 自動検知のサイト権限 ---
+// 全 Web を読む権限は **optional でしか持たない**。必須側に落ちると、インストールした
+// 全員が全サイトの閲覧を許したことになる。content script も同じ。
+const everywhere = pattern => /^(\*|https?):\/\/(\*\/|\*\.)?\*?\/?\*$/.test(pattern)
+  || pattern === "<all_urls>";
+for (const [field, patterns] of [
+  ["host_permissions", manifest.host_permissions ?? []],
+  ["content_scripts.matches", manifest.content_scripts.flatMap(entry => entry.matches)],
+]) {
+  for (const pattern of patterns) {
+    if (everywhere(pattern)) problems.push(`${field}: 全 Web の ${pattern} は必須にできません`);
+  }
+}
+// optional 側は `https://*/*` の 1 つだけ。実際に許可されるのは
+// `sitePermissions.ts` の `originPattern` が作る exact origin に限る。
+const optional = manifest.optional_host_permissions ?? [];
+if (optional.length > 1 || (optional.length === 1 && optional[0] !== "https://*/*")) {
+  problems.push(`optional_host_permissions: ${optional.join(" ")} は想定外です`);
+}
+
 // --- manifest が指すもの ---
 check(manifest.background.service_worker, "background");
 for (const script of manifest.content_scripts.flatMap(entry => entry.js)) {
