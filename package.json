@@ -91,9 +91,9 @@
     "package:browser": "./scripts/package-browser.sh"
   },
   "devDependencies": {
-    "@types/node": "26.5.1",
+    "@types/node": "26.6.1",
     "@types/vscode": "1.90.0",
-    "@vscode/vsce": "3.9.2",
+    "@vscode/vsce": "4.0.0",
     "playwright": "1.63.0",
     "typescript": "7.0.2"
   }
