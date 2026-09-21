@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Each site listed under Auto-detect in the browser extension's settings is now a link that opens that site in a new tab.
+
 ### Fixed
 
 - A page that does not offer any installable tool is no longer reported as an unsupported MCP server or plugin. The assisted scan now checks whether the page offers a tool before it looks at the kind.

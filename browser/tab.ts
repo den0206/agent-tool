@@ -780,9 +780,15 @@ async function renderAutoSites(): Promise<void> {
   for (const pattern of sites) {
     const row = document.createElement("div");
     row.className = "root";
+    const name = patternHost(pattern) ?? pattern;
     const host = document.createElement("code");
     host.translate = false;
-    host.textContent = patternHost(pattern) ?? pattern;
+    const link = document.createElement("a");
+    link.href = `https://${name}/`;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = name;
+    host.append(link);
     const drop = document.createElement("button");
     drop.className = "clear";
     drop.type = "button";
