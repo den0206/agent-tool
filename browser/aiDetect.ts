@@ -162,10 +162,12 @@ export async function detectWithJev(
 
   // ここから先は推測になる。ページが Tool を配っていることを Jev に確かめてから進む。
   const decision = await decide(evidence, apiKey);
+  // 種別より先に「配っているか」を見る。Choice は必ず 1 つ選ぶので、Tool を配っていない
+  // ページでも `mcp` / `plugin` が返り、「MCP は非対応」と誤って告げてしまう。
+  if (decision.isToolPage < PAGE_THRESHOLD) return { kind: "none" };
   if (decision.kind.choice === "mcp" || decision.kind.choice === "plugin") {
     return { kind: "unsupported-kind", resource: decision.kind.choice };
   }
-  if (decision.isToolPage < PAGE_THRESHOLD) return { kind: "none" };
 
   // 取得元は、リンクより**導入コマンド**に書かれたものを優先する。コマンドは
   // 「入れ方」そのものなので、ページに並ぶ参考リンクより強い証拠である。

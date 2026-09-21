@@ -102,6 +102,12 @@ test("MCP と Plugin はブラウザの導入経路に入れない", async () =>
   }
 });
 
+test("Tool を配っていないページは種別より先に落とす", async () => {
+  const evidence = { page, candidates: [command("npx skills add acme/tools")] };
+  assert.deepEqual(await detectWithJev(evidence, "key", answers(0.2, "mcp"), async () => true),
+                   { kind: "none" });
+});
+
 test("取得元に解決できない候補は送らない", () => {
   const kept = narrowed({ page, candidates: [
     url("https://github.com/acme"),                        // owner ページ
