@@ -11,18 +11,14 @@
   color-scheme: light dark;
 
   /*
-   * アイコンから採った色。地は藍紫のグラデーション、節が cyan / mint / yellow / pink。
-   * `--brand` の 2 色はアイコンそのままで、飾りにだけ使う（文字は載せない）。
-   * `--accent` はその紫を文字が読める濃さまで落としたもの（白地で 6.1:1、暗地で 7.5:1）。
-   * 灰も同じ紫へわずかに寄せて、全体が 1 つの色として見えるようにする。
+   * 地はニュートラルに寄せ、操作の色は 1 色だけにする。アイコンの多色を
+   * 画面にも繰り返すと、開くたびに目線が分散する。
+   * `--accent` は白地で 6.1:1、暗地で 7.5:1 を保つ。
    *
    * 明暗は `light-dark()` が上の `color-scheme` を見て選ぶ。`prefers-color-scheme` の
    * 別ブロックを持たないので、固定したいときは `color-scheme` を 1 つ書き換えるだけでよい
    * （`tab.ts` の配色設定）。`<select>` の中身やスクロールバーも同じ指定で追随する。
    */
-  --brand: #8590f6;
-  --brand-2: #9b7df1;
-
   --paper: light-dark(#f8f7fc, #16151f);
   --card: light-dark(#ffffff, #1e1d2a);
   --ink: light-dark(#1b1a2b, #e9e7f5);
@@ -95,13 +91,13 @@ header {
   background: var(--card);
 }
 
-/* 上端の帯。アイコンと同じ向き・同じ 2 色で、ここが何の拡張かを一目で示す。 */
+/* 上端の細い帯だけで、現在地を示す。 */
 header::before {
   content: "";
   position: absolute;
   inset: 0 0 auto;
   height: 2px;
-  background: linear-gradient(105deg, var(--brand), var(--brand-2));
+  background: var(--accent);
 }
 
 h1 {
@@ -156,17 +152,12 @@ body.detected #open-settings { display: none; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--card);
-  box-shadow: var(--lift);
 }
 
-/* 検知したカードだけは、上端にアイコンの 2 色をごく薄く敷いて他の面と区別する。 */
+/* 検知したカードは、色面ではなく上端の印だけで区別する。 */
 #found .card {
-  background:
-    linear-gradient(160deg,
-      color-mix(in srgb, var(--brand) 20%, transparent),
-      color-mix(in srgb, var(--brand-2) 13%, transparent) 42%,
-      transparent 72%),
-    var(--card);
+  border-top-color: var(--accent);
+  box-shadow: inset 0 2px color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 /* 検知の一段目。種類を先に置き、名前を主役にする。 */
@@ -240,7 +231,7 @@ body.detected #open-settings { display: none; }
 #destination .repo:first-child { margin-top: 0; }
 
 /*
- * 導入先セレクタのラベルだけ、小さな大文字ラベルに寄せる。
+ * 導入先セレクタのラベルだけ、小さく静かにする。
  * permission-note / security-summary の見出しと本文は detection.css が扱う
  * (背景色・チェック印を含めて 1 か所に集約しておく)。
  */
@@ -249,8 +240,7 @@ body.detected #open-settings { display: none; }
   color: var(--muted);
   font-size: 10.5px;
   font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 #destination #picker-hint { margin-top: 12px; padding-bottom: 12px; }
 
@@ -328,15 +318,14 @@ button.primary {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-ink);
-  box-shadow: var(--lift);
 }
 
 button.primary:hover {
   background: color-mix(in srgb, var(--accent) 88%, var(--ink));
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 34%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
-button.primary[disabled]:hover { background: var(--accent); box-shadow: var(--lift); }
+button.primary[disabled]:hover { background: var(--accent); }
 
 /* 導入中。`disabled` になるのはこの間だけなので、印もそれに乗せる。 */
 #install { display: inline-flex; gap: 7px; align-items: center; }
@@ -497,7 +486,6 @@ input[type=url]:focus-visible {
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--card);
-  box-shadow: var(--lift);
   overflow: hidden;
 }
 
@@ -609,7 +597,7 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
 #settings-view .hint { margin: 0 0 14px; }
 
 /*
- * セクションラベル。全 UPPERCASE の小見出しで、続く箱の意味を先に告げる。
+ * セクションラベル。続く箱の意味を先に告げる。
  * 隣接セレクタで余白を吸って、上のセクションと詰めすぎない距離を取る。
  */
 .section-label {
@@ -617,8 +605,7 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
   color: var(--muted);
   font-size: 10.5px;
   font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 #settings-view .hint + .section-label { margin-top: 6px; }
 
@@ -644,7 +631,6 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--card);
-  box-shadow: var(--lift);
   transition: border-color 0.15s var(--ease);
 }
 
@@ -725,7 +711,6 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--card);
-  box-shadow: var(--lift);
 }
 
 .switch {
@@ -854,7 +839,6 @@ li .why { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--card);
-  box-shadow: var(--lift);
 }
 #ai-settings > .switch { margin-bottom: 12px; }
 #ai-settings > label:not(.switch) { margin-top: 8px; }
