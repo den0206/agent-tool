@@ -8,7 +8,6 @@ type ChoiceAnswer = {
   readonly type: "choice";
   readonly choice: string;
   readonly probabilities: Readonly<Record<string, number>>;
-  readonly confidence: number;
 };
 
 type NoulAnswer = { readonly type: "noul"; readonly noul: number };
@@ -36,7 +35,7 @@ function choice(value: unknown, allowed: ReadonlySet<string>): ChoiceAnswer {
   if (typeof value !== "object" || value === null) throw new JevError("invalid", "invalid Choice answer");
   const answer = value as Record<string, unknown>;
   if (answer.type !== "choice" || typeof answer.choice !== "string" || !allowed.has(answer.choice)
-      || !finite01(answer.confidence) || typeof answer.probabilities !== "object"
+      || typeof answer.probabilities !== "object"
       || answer.probabilities === null) {
     throw new JevError("invalid", "invalid Choice answer");
   }
@@ -47,7 +46,6 @@ function choice(value: unknown, allowed: ReadonlySet<string>): ChoiceAnswer {
   return {
     type: "choice",
     choice: answer.choice,
-    confidence: answer.confidence,
     probabilities: Object.fromEntries([...allowed].map(key => [key, probabilities[key] as number])),
   };
 }
