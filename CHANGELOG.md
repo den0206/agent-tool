@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - A page that does not offer any installable tool is no longer reported as an unsupported MCP server or plugin. The assisted scan now checks whether the page offers a tool before it looks at the kind.
+- When Jev is temporarily overloaded, the assisted scan now says so and asks you to try again later, instead of reporting that the page could not be analyzed.
 
 ## [0.6.0] — 2026-09-20
 

@@ -422,7 +422,7 @@
     "message": "The Jev API key was rejected. Check it in Settings."
   },
   "aiRateLimit": {
-    "message": "Jev is rate-limited right now. Try again later."
+    "message": "Jev is busy or over its limit right now. Try again later."
   },
   "aiRequestFailed": {
     "message": "Jev could not analyze this page. Nothing was installed."

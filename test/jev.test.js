@@ -155,6 +155,16 @@ test("壊れた回答は受け取らない", async () => {
   );
 });
 
+test("時間をおけば直る応答は再試行として伝える", async () => {
+  for (const status of [429, 529]) {
+    await assert.rejects(
+      decideWithJev({ page, candidates: [url("https://github.com/acme/tools")] }, "key",
+        async () => new Response("", { status })),
+      error => error instanceof JevError && error.kind === "rateLimit",
+    );
+  }
+});
+
 // --- 外部へ何を出すか（ここだけが送信内容を決める） --------------------
 
 /** `extractPageEvidence` はページの中で動く。必要な DOM の口だけを立てる。 */

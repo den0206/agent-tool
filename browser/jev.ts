@@ -118,7 +118,11 @@ export async function decideWithJev(
   }
 
   if (response.status === 401 || response.status === 403) throw new JevError("auth", "Jev API key was rejected");
-  if (response.status === 429) throw new JevError("rateLimit", "Jev rate limit reached");
+  // 429（利用上限）と 529（過負荷）はどちらも時間をおけば直る。利用者の取る行動も
+  // 同じなので 1 つにまとめる。押し直せる経路なので自前の再試行は持たない。
+  if (response.status === 429 || response.status === 529) {
+    throw new JevError("rateLimit", `Jev is unavailable (${response.status})`);
+  }
   if (!response.ok) throw new JevError("network", `Jev request failed (${response.status})`);
 
   const declared = Number(response.headers.get("content-length") ?? 0);
