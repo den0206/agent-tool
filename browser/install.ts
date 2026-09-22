@@ -11,7 +11,7 @@ import {
   exists, readTree, removeEntry, removeLedgerFile, reserve, TreeReadLimitError, writeTree,
 } from "./fs.js";
 import { collect, forget } from "./store.js";
-import { fetchJson } from "./fetch.js";
+import { fetchJson, readText } from "./fetch.js";
 
 /**
  * 導入時点の commit SHA。台帳に載せておかないと、IDE 拡張が取り込んだ直後に
@@ -25,7 +25,9 @@ async function commitSha(source: GitHubSource): Promise<string | undefined> {
     { cache: "no-store", headers: { Accept: "application/vnd.github.sha" } },
   ).catch(() => null);
   if (response === null || !response.ok) return undefined;   // 上限に当たっても導入は止めない
-  const sha = (await response.text()).trim();
+  const text = await readText(response, 256);
+  if (text === null) return undefined;
+  const sha = text.trim();
   return /^[0-9a-f]{40}$/.test(sha) ? sha : undefined;
 }
 
@@ -283,9 +285,13 @@ export async function install(request: InstallRequest): Promise<Collected> {
   }
 
   const base = placement.isDirectory ? [placement.entry] : [];
-  const laid = placement.isDirectory
+  const intended = placement.isDirectory
     ? files
     : [{ path: placement.entry, bytes: files[0].bytes }];
+  // 同じ置き場へ 2 度書くとディスクは後勝ちになる。畳まずに hash を取ると実体と合わず、
+  // 削除の可否判定が二度と一致しない。生パスで畳んで足りる — `safeSegments` が落とす
+  // セグメント（`.` と空）は、上の `firstUnwritable` が既に弾いている。
+  const laid = [...new Map(intended.map(file => [file.path, file])).values()];
   // 上書きは「重ねる」ではなく「置き換える」。重ねると旧版にしか無いファイルが残り、
   // 新旧の混ざったものができる。File System Access API には rename がないため、旧版を
   // 退避してから置換し、失敗時は戻す。
@@ -316,15 +322,18 @@ export async function install(request: InstallRequest): Promise<Collected> {
     await writeTree(root, base, laid);
   } catch (error) {
     if (taken && removed && previous !== null) {
+      const backup = previous;
       await removeEntry(root, placement.entry, placement.isDirectory).catch(() => undefined);
       await reserve(root, placement.entry, placement.isDirectory)
-        .then(() => writeTree(root, base, previous))
+        .then(() => writeTree(root, base, backup))
         .catch(rollback => console.error("Agent Tool: restore", rollback));
     } else if (!taken) {
       await removeEntry(root, placement.entry, placement.isDirectory).catch(() => undefined);
     }
     throw error;
   }
+  // 旧版は書き込み中の復元にだけ要る。台帳と hash の処理まで最大 64 MB を抱えない。
+  previous = null;
 
   // 台帳は IDE 拡張へ取得元を渡すためだけのもの。削除の可否には使わない。
   // 書けなくても導入は済んでいる。収集一覧に載せないと利用者が消せなくなるので止めない。
@@ -334,14 +343,14 @@ export async function install(request: InstallRequest): Promise<Collected> {
       JSON.stringify(ledger(lead.name, lead.kind, source, sha), null, 2) + "\n"),
   }]).catch(error => { console.error("Agent Tool: ledger", error); });
 
-  const written = await readTree(root, placement.entry, placement.isDirectory);
   const item: Collected = {
     name: lead.name, kind: lead.kind, agent: request.agent, root: rootOf(placement),
     repo: source.repo,
     ...(source.branch === undefined ? {} : { branch: source.branch }),
     ...(source.subdir === undefined ? {} : { subdir: source.subdir }),
     ...(sha === undefined ? {} : { sha }),
-    treeHash: await treeHash(written ?? []),
+    // `writeTree` が受け取った byte 列そのもの。書いた直後に同じツリーを再読込しない。
+    treeHash: await treeHash(laid),
     installedAt: Date.now(),
   };
   await collect(item);

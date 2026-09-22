@@ -14,6 +14,7 @@ export async function treeHash(files: readonly TreeFile[]): Promise<string> {
   const sorted = [...files].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const parts = sorted.flatMap(file =>
     [encoder.encode(`${file.path}\n${file.bytes.length}\n`), file.bytes]);
+  // ponytail: Web Crypto に streaming digest は無い。実測ピークが配布基準を超えたら incremental SHA-256 へ替える。
   // Node と DOM で Blob の引数型が違い、どちらも SharedArrayBuffer 由来を受けない。
   // 実際に渡すのは通常の Uint8Array なので、型だけ外して両方の lib で通す。
   const digest = await crypto.subtle.digest("SHA-256",

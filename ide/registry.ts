@@ -138,7 +138,11 @@ function write(env: Env, registry: Registry): void {
   mkdirSync(env.appSupport, { recursive: true });
   const destination = registryFile(env);
   const temporary = destination + ".tmp";
-  writeFileSync(temporary, encode(registry));
+  const body = encode(registry);
+  if (Buffer.byteLength(body) > REGISTRY_SIZE_LIMIT) {
+    throw new AgentToolError("OPERATION_FAILED", "registry.json is too large to save (limit 2 MB)");
+  }
+  writeFileSync(temporary, body);
   renameSync(temporary, destination);
 }
 

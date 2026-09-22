@@ -103,8 +103,14 @@ export function extractPageEvidence(): PageEvidence {
     }
     if ("@graph" in node) walk(node["@graph"]);
   };
+  // `executeScript` はこの関数を文字列にしてページへ送るので、`core/limits.ts` の
+  // `PAGE_LIMIT` を参照できない。同じ 2 MB を直書きする。長さは UTF-16 単位で数える。
+  let jsonLdLength = 0;
   for (const block of jsonLd.slice(0, 12)) {
-    try { walk(JSON.parse(block.textContent ?? "")); } catch { /* malformed metadata */ }
+    const body = block.textContent ?? "";
+    jsonLdLength += body.length;
+    if (jsonLdLength > 2 * 1024 * 1024) break;
+    try { walk(JSON.parse(body)); } catch { /* malformed metadata */ }
   }
 
   /**

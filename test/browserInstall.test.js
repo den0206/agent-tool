@@ -107,6 +107,18 @@ test("導入すると実体・台帳・収集一覧が揃う", async () => {
   assert.equal(item.treeHash, await treeHash(await readTree(store.handle, "pdf", true)));
 });
 
+test("同じパスが重複する取得物は最後に書いた内容で hash 化する", async () => {
+  const store = fakeRoot();
+  const item = await install(request(store.handle, {
+    fetchFiles: fetched([
+      { path: "SKILL.md", bytes: text("old") },
+      { path: "SKILL.md", bytes: text("new") },
+    ]),
+  }));
+  assert.equal(store.tree()["pdf/SKILL.md"], "new");
+  assert.equal(item.treeHash, await treeHash(await readTree(store.handle, "pdf", true)));
+});
+
 test("Subagent は .md 1 つとして書く", async () => {
   const store = fakeRoot({ name: "agents" });
   await install(request(store.handle, {

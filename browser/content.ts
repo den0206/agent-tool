@@ -27,8 +27,15 @@
   const report = (): void => {
     // URL だけで取得元が決まらないカタログのために、ページの JSON-LD を添える。
     // HTML 全体は送らない。読むのは service worker 側の `fromJsonLd` だけ。
-    const jsonLd = [...document.querySelectorAll('script[type="application/ld+json"]')]
-      .map(node => node.outerHTML).join("").slice(0, 2 * 1024 * 1024);
+    // content script は ES モジュールを読めないので `PAGE_LIMIT` を参照できない。
+    // 同じ 2 MB を直書きする。長さは UTF-16 単位で数える。
+    const limit = 2 * 1024 * 1024;
+    let jsonLd = "";
+    for (const node of document.querySelectorAll('script[type="application/ld+json"]')) {
+      const remaining = limit - jsonLd.length;
+      if (remaining <= 0) break;
+      jsonLd += node.outerHTML.slice(0, remaining);
+    }
     send({ type: "visited", url: location.href, jsonLd });
   };
 

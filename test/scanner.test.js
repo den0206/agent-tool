@@ -198,6 +198,12 @@ test("プロジェクトの .claude/skills を深さ 3 まで探す", () => {
   skill(join(project, "apps/web/.claude/skills"), "nested", "---\nname: b\n---\n");
   skill(join(project, "a/b/c/d/.claude/skills"), "too-deep", "---\nname: c\n---\n");
   skill(join(project, "node_modules/pkg/.claude/skills"), "vendored", "---\nname: d\n---\n");
+  const outside = makeDir(join(env.home, "outside"));
+  skill(join(outside, ".claude/skills"), "linked", "---\nname: e\n---\n");
+  link(outside, join(project, "linked"));
+  // `.claude` 自体がリンクでも workspace 外へは出ない。
+  makeDir(join(project, "apps/api"));
+  link(join(outside, ".claude"), join(project, "apps/api/.claude"));
   assert.deepEqual(projectSkillRoots(project).map(found => found.prefix).sort(), ["", "apps/web"]);
 });
 

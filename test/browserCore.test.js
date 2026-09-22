@@ -12,7 +12,7 @@ const { PAGE_LIMIT } = require("../out/core/limits.js");
 // --- 検知 ---------------------------------------------------------------
 
 test("ブラウザの JSON 読み込みは上限を超えたら中止する", async () => {
-  const { fetchJson } = await import("../out/web/browser/fetch.js");
+  const { fetchJson, readText } = await import("../out/web/browser/fetch.js");
   let cancelled = false;
   let reads = 0;
   const response = {
@@ -30,6 +30,15 @@ test("ブラウザの JSON 読み込みは上限を超えたら中止する", as
   };
   assert.equal(await fetchJson("https://api.github.com/example", async () => response), null);
   assert.equal(cancelled, true);
+
+  const chunked = new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("1234"));
+      controller.enqueue(new TextEncoder().encode("5678"));
+      controller.close();
+    },
+  }));
+  assert.equal(await readText(chunked, 7), null);
 });
 
 test("パス名から Skill と Subagent を当てる", () => {

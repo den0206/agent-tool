@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { Env } from "./env";
 import { readJsonc } from "./mcpScanner";
-import { isDirectory } from "./writeGuard";
+import { isDirectory, isLink } from "./writeGuard";
 
 /** プロジェクト配下を歩く深さ。これ以上は掘らない。 */
 const SKILL_DEPTH = 3;
@@ -21,8 +21,12 @@ export function projectSkillRoots(project: string): { prefix: string; path: stri
 
 function walk(dir: string, prefix: string, depth: number,
               found: { prefix: string; path: string }[]): void {
-  const skills = join(dir, ".claude", "skills");
-  if (isDirectory(skills)) found.push({ prefix, path: skills });
+  const claude = join(dir, ".claude");
+  const skills = join(claude, "skills");
+  // 掘り当てた置き場がリンクだと、深さ制限があっても workspace 外を走査する。
+  // workspace 直下だけは利用者自身が選んだ置き場なので辿る。
+  const linked = prefix !== "" && (isLink(claude) || isLink(skills));
+  if (!linked && isDirectory(skills)) found.push({ prefix, path: skills });
   if (depth <= 0) return;
   let children: string[];
   try {
@@ -32,7 +36,8 @@ function walk(dir: string, prefix: string, depth: number,
   }
   for (const child of children) {
     const path = join(dir, child);
-    if (!isDirectory(path)) continue;
+    // workspace 外を指すリンクへ降りると、深さ制限があっても走査境界を越える。
+    if (isLink(path) || !isDirectory(path)) continue;
     walk(path, prefix === "" ? child : `${prefix}/${child}`, depth - 1, found);
   }
 }

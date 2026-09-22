@@ -42,9 +42,13 @@ macOS/Linux では symlink、Windows では junction または hardlink を使�
 ## 資源管理
 
 - 一覧キャッシュはメモリだけに保持し、手動更新、書き込み後、View 非表示で破棄する。
+- project 内の深さ制限走査は symlink / junction を辿らず、workspace 外へ走査を広げない。
 - ダウンロード、展開、staging は OS の一時ディレクトリに作り、`finally` で削除する。
 - HTTP キャッシュ、ログ、診断履歴、Undo スナップショットを保存しない。
 - registry、GitHub API 応答、差分本文の合計は 2 MB を上限とする。
+- `registry.json` は読み込み時だけでなく保存前にも 2 MB を検査し、自分で読めないファイルを作らない。
+- HTTP 応答の上限は `Content-Length` だけに依存せず、ストリームの読み込み中に byte 数で打ち切る。
+  全文を読んでから切り詰める実装は上限として扱わない。
 - 読み取る設定ファイルは単一ファイルと同じ 20 MB を上限とする。`~/.claude.json` は履歴で育つ。
 - MCP の状態確認は前回の確認中には重ねて実行しない。非表示・破棄後の結果は保持しない。
 - MCP の健全性確認で設定済みコマンドを起動しない。PATH 上の解決可否と、View 表示中の既存

@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Large HTTP responses and JSON-LD blocks are now cut off while they are read rather than after, and a registry that would exceed its 2 MB limit is rejected before it is saved instead of being written back unreadable.
 - Each site listed under Auto-detect in the browser extension's settings is now a link that opens that site in a new tab.
 - Simplified the browser extension popup's visual hierarchy to use one accent color, quieter surfaces, and sentence-case labels.
 

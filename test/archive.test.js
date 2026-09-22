@@ -53,6 +53,21 @@ test("512 の倍数でない中身も正しく切り出す", async () => {
   assert.equal(new TextDecoder().decode(entry.bytes), body);
 });
 
+test("細かいチャンクでもエントリ境界をまたいで読める", async () => {
+  const archive = tarGz([["a/SKILL.md", "body"]]);
+  let offset = 0;
+  const stream = new ReadableStream({
+    pull(controller) {
+      if (offset === archive.length) return controller.close();
+      controller.enqueue(new Uint8Array(archive.subarray(offset, ++offset)));
+    },
+  });
+  const found = [];
+  for await (const entry of readTarGz(stream)) found.push(entry);
+  const [entry] = found;
+  assert.equal(new TextDecoder().decode(entry.bytes), "body");
+});
+
 test("symlink と hardlink は中身を返さず link として渡す", async () => {
   // リポジトリ直下の CLAUDE.md が symlink というだけで取得ごと諦めさせない。
   // 取り出したいものの中にあるかは呼び出し側が判断する。

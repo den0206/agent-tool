@@ -9,7 +9,7 @@ import {
 import {
   clearRoot, configHandle, exists, PickerError, pickerHint, pickerUnavailable, placeHandle,
 } from "./fs.js";
-import { rateLimitWatch } from "./fetch.js";
+import { rateLimitWatch, readText } from "./fetch.js";
 import {
   filesFor, install, InstallError, InstallRequest, isExtractable, remove, willOverwrite,
 } from "./install.js";
@@ -209,8 +209,8 @@ async function resolve(raw: string, vetted: boolean): Promise<ToolLead | null> {
   if (page === null) return null;
   const response = await fetch(page, { cache: "no-store" }).catch(() => null);
   if (response === null || !response.ok) return null;
-  if (Number(response.headers.get("content-length") ?? 0) > PAGE_LIMIT) return null;
-  return verifiedPage(raw, (await response.text()).slice(0, PAGE_LIMIT), check);
+  const html = await readText(response, PAGE_LIMIT);
+  return html === null ? null : verifiedPage(raw, html, check);
 }
 
 function setMode(detected: boolean): void {

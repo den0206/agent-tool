@@ -1,4 +1,5 @@
 import { PageEvidence } from "./pageEvidence.js";
+import { readText } from "./fetch.js";
 
 const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const RESPONSE_LIMIT = 256 * 1024;
@@ -123,10 +124,8 @@ export async function decideWithJev(
   }
   if (!response.ok) throw new JevError("network", `Jev request failed (${response.status})`);
 
-  const declared = Number(response.headers.get("content-length") ?? 0);
-  if (declared > RESPONSE_LIMIT) throw new JevError("invalid", "Jev response was too large");
-  const text = (await response.text()).slice(0, RESPONSE_LIMIT + 1);
-  if (text.length > RESPONSE_LIMIT) throw new JevError("invalid", "Jev response was too large");
+  const text = await readText(response, RESPONSE_LIMIT);
+  if (text === null) throw new JevError("invalid", "Jev response was too large or unreadable");
 
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { throw new JevError("invalid", "Jev returned invalid JSON"); }

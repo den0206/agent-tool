@@ -41,6 +41,16 @@ test("大きすぎる registry は読み込まない", () => {
   assert.deepEqual(load(env).resources, []);
 });
 
+test("読み戻せない大きさの registry は保存しない", async () => {
+  const env = fakeEnv();
+  const registry = empty();
+  registry.resources.push({
+    name: "x".repeat(REGISTRY_SIZE_LIMIT), kind: "skill", pinned: false,
+  });
+  await assert.rejects(save(env, registry), error => error.code === "OPERATION_FAILED");
+  assert.deepEqual(readdirSync(env.appSupport).filter(name => name.endsWith(".tmp")), []);
+});
+
 test("自分より新しいスキーマは拒否する", () => {
   const env = fakeEnv();
   seed(env, JSON.stringify({ schemaVersion: "2", resources: [] }));

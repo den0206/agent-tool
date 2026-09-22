@@ -59,6 +59,16 @@ else
     echo "✓ 取得と更新の作業領域はOSの一時領域に限定されています"
 fi
 
+# 読み終えてから slice してもピークメモリは減らない。外部応答は browser/fetch.ts の
+# ストリーム上限を使い、全量読み込みを上限に見せかける実装を入れない。
+LEAKS=$(grep -rnE 'response\.(text|json|arrayBuffer)\(\).*slice|\(await response\.(text|json|arrayBuffer)\(\)\)\.slice' \
+        browser/ --include='*.ts' || true)
+if [ -n "$LEAKS" ]; then
+    fail "外部応答を全量読み込み後に切り詰めています" "$LEAKS"
+else
+    echo "✓ 外部応答の上限は全量読み込み後のsliceに依存していません"
+fi
+
 # `assertBody`も数える。これはwriteGuard.ts内の振り分けで、実体の置き場に応じて
 # `assertMutable`（管理ストア）/ `assertProjectArtifact`（ワークスペース）/
 # `assertRecordedArtifact`（registryが記録したルート）のいずれかを必ず通す。

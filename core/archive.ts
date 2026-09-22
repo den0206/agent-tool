@@ -62,23 +62,36 @@ const octal = (block: Uint8Array, offset: number, length: number): number => {
 const isZeroBlock = (block: Uint8Array): boolean => block.every(byte => byte === 0);
 
 class Reader {
-  private buffer = new Uint8Array(0);
+  private chunks: Uint8Array[] = [];
+  private head = 0;
+  private offset = 0;
+  private available = 0;
   private done = false;
   constructor(private readonly source: ReadableStreamDefaultReader<Uint8Array>) {}
 
   async take(length: number): Promise<Uint8Array | null> {
-    while (this.buffer.length < length && !this.done) {
+    while (this.available < length && !this.done) {
       const chunk = await this.source.read();
       if (chunk.done) { this.done = true; break; }
-      const next = new Uint8Array(this.buffer.length + chunk.value.length);
-      next.set(this.buffer);
-      next.set(chunk.value, this.buffer.length);
-      this.buffer = next;
+      if (chunk.value.length === 0) continue;
+      this.chunks.push(chunk.value);
+      this.available += chunk.value.length;
     }
-    if (this.buffer.length < length) return null;
-    const head = this.buffer.subarray(0, length);
-    this.buffer = this.buffer.subarray(length);
-    return head;
+    if (this.available < length) return null;
+
+    const result = new Uint8Array(length);
+    let written = 0;
+    while (written < length) {
+      const chunk = this.chunks[this.head];
+      const count = Math.min(length - written, chunk.length - this.offset);
+      result.set(chunk.subarray(this.offset, this.offset + count), written);
+      written += count;
+      this.offset += count;
+      if (this.offset === chunk.length) { this.head += 1; this.offset = 0; }
+    }
+    this.available -= length;
+    if (this.head > 0) { this.chunks.splice(0, this.head); this.head = 0; }
+    return result;
   }
 }
 
