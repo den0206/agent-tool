@@ -336,10 +336,10 @@
     "description": "ブラウザ拡張が Skill 一覧の取得で GitHub の未認証枠に当たったときに、ツールバーアイコンのツールチップに出す。"
   },
   "aiScanTitle": {
-    "message": "AIによる検出（Beta）"
+    "message": "このページのTool"
   },
   "aiScanText": {
-    "message": "このサイトはAgent Toolの対応カタログではありません。Jevでこのページだけを解析し、GitHub由来のToolを探せます。"
+    "message": "このページをローカルで読み、GitHub由来のSkill / Subagentを探します。ローカル判定で決められない場合だけAI補助を使います。"
   },
   "aiScanButton": {
     "message": "このページからToolを探す"
@@ -371,8 +371,8 @@
   "aiKeyRemoved": {
     "message": "Jev APIキーを削除しました。"
   },
-  "aiKeyRequired": {
-    "message": "先に設定でJev APIキーを登録してください。"
+  "aiSetupRequired": {
+    "message": "ローカル判定では決められませんでした。AI補助を使うには、設定でJev APIキーを登録して有効にしてください。"
   },
   "aiScanning": {
     "message": "Toolを探しています…"
@@ -380,13 +380,20 @@
   "aiNothingFound": {
     "message": "検証できるSkillまたはSubagentは見つかりませんでした。"
   },
-  "aiManyTools": {
-    "message": "このページには $COUNT$ 件の Tool があります。個別のページを開いてから実行してください。",
+  "tabChoicesTitle": {
+    "message": "候補のTool $COUNT$ 件",
     "placeholders": {
       "count": {
-        "content": "$1"
+        "content": "$1",
+        "example": "2"
       }
     }
+  },
+  "tabChoicesText": {
+    "message": "導入前に1件を選んで確認してください。"
+  },
+  "tabChoiceSelect": {
+    "message": "選ぶ"
   },
   "aiPageUnreadable": {
     "message": "このページを読めませんでした。再読み込みしてからもう一度お試しください。"

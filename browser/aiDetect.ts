@@ -225,12 +225,15 @@ export async function detectWithJev(
   return picked.length === 1 ? { kind: "repo", source: picked[0] } : { kind: "none" };
 }
 
-export async function evidenceFromActiveTab(): Promise<PageEvidence | null> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id === undefined) return null;
+export async function evidenceFromActiveTab(): Promise<{
+  readonly tabId: number; readonly url: string; readonly evidence: PageEvidence;
+} | null> {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab?.id === undefined || tab.url === undefined) return null;
   const result = await chrome.scripting.executeScript<PageEvidence>({
     target: { tabId: tab.id },
     func: extractPageEvidence,
   });
-  return result[0]?.result ?? null;
+  const evidence = result[0]?.result;
+  return evidence === undefined ? null : { tabId: tab.id, url: tab.url, evidence };
 }

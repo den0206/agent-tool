@@ -72,16 +72,17 @@ const cases = [
     expect: { repo: "vercel-labs/agent-skills", name: "react-best-practices" },
   },
   {
-    // 直リンクが無く Jev に訊く唯一のケース。名前は popup の一覧が決める。
+    // 直リンクが無く Jev に訊く唯一のケース。同じ repo の `--skill` が並ぶので
+    // 1 件に決めず、取得元だけを渡して popup の一覧に名前を決めさせる。
     name: "Supabase Docs（リポジトリだけ分かる）",
     url: "https://supabase.com/docs/guides/ai-tools/ai-skills",
-    expect: { repo: "supabase/agent-skills", entries: true },
+    expect: { repo: "supabase/agent-skills", entries: true, manual: true },
   },
   {
-    // 1 件に決め打たず、個別ページへ促す。
+    // 1 件に決め打たず、候補を並べて利用者に選ばせる。
     name: "lazyskills.sh（まとめページ）",
     url: "https://lazyskills.sh/skills/react",
-    expect: { status: /\d+/ },
+    expect: { choices: true },
   },
 ];
 

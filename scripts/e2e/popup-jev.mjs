@@ -48,20 +48,26 @@ function testBuild(source, origins) {
  */
 /** 開いた時点でもう出ているか。自動検知が先に解いたページはここで決まる。 */
 const settled = async (popup) =>
-  !await hidden(popup, "#found") || !await hidden(popup, "#index");
+  !await hidden(popup, "#found") || !await hidden(popup, "#index")
+  || !await hidden(popup, "#choices");
 
 async function outcome(popup) {
   // `aria-busy` が下りるまで待つ。`#ai-scan-status` は走っている間「探しています…」を
   // 出すので、文字が入ったことを完了と読むと途中経過を結果として拾う。
   await popup.waitForFunction(() => {
     const shown = id => !document.getElementById(id).hidden;
-    return shown("found") || shown("index")
+    return shown("found") || shown("index") || shown("choices")
       || document.getElementById("ai-scan").getAttribute("aria-busy") === "false";
   }, null, { timeout: DETECT_TIMEOUT_MS }).catch(() => { /* 下で状態を読む */ });
 
   if (!await hidden(popup, "#found")) {
     return { kind: "found", name: await textOf(popup, "#found-name"),
              repo: await textOf(popup, "#found-repo") };
+  }
+  if (!await hidden(popup, "#choices")) {
+    return { kind: "choices",
+             names: await popup.$$eval("#choices-list .choice-name strong",
+                                       nodes => nodes.map(node => node.textContent)) };
   }
   if (!await hidden(popup, "#index")) {
     return { kind: "index", repo: await textOf(popup, "#index-repo"),
@@ -108,8 +114,16 @@ export async function checkPopup(chromium, extensionDir, cases, apiKey) {
           await popup.goto(popupUrl, { waitUntil: "load" });
           await popup.waitForTimeout(700);
 
-          // 自動検知が先に解いていなければ、手動導線を通す。
-          const auto = await settled(popup);
+          // Jev を通るページは、自動で解けていても手動導線を 1 度は通す。鍵を取りに行くのは
+          // 手動側だけで、そこを通らないと「空の鍵で 401」のような受け渡しの不具合が残る。
+          let auto = await settled(popup);
+          if (auto && expect.manual === true) {
+            await click(popup, await hidden(popup, "#index") ? "dismiss" : "index-dismiss");
+            await popup.waitForTimeout(300);
+            await popup.goto(popupUrl, { waitUntil: "load" });
+            await popup.waitForTimeout(700);
+            auto = await settled(popup);
+          }
           if (!auto) {
             if (await hidden(popup, "#ai-scan")) {
               console.error(`✗ popup ${name}: スキャンのカードが出ていない`);
@@ -131,6 +145,18 @@ export async function checkPopup(chromium, extensionDir, cases, apiKey) {
             assert.ok(result.repo.startsWith(expect.repo), `${name}: 取得元が違う（${result.repo}）`);
             assert.ok(result.entries.length > 0, `${name}: 一覧が空`);
             console.log(`ok popup ${name}（${via}）: ${result.repo} → ${result.entries.join(", ")}`);
+          } else if (expect.choices === true) {
+            assert.equal(result.kind, "choices", `${name}: ${JSON.stringify(result)}`);
+            assert.ok(result.names.length > 1, `${name}: 候補が 1 件しかない`);
+            // 一覧を出せるだけでなく、選んだ1件のHEAD確認後に導入画面へ進むことまで通す。
+            await popup.$eval("#choices-list button", node => node.click());
+            await popup.waitForFunction(() => !document.getElementById("found").hidden
+              || (document.getElementById("choices").getAttribute("aria-busy") === "false"
+                && document.getElementById("choices-status").textContent.trim() !== ""),
+              null, { timeout: DETECT_TIMEOUT_MS });
+            assert.equal(await hidden(popup, "#found"), false,
+                         `${name}: ${await textOf(popup, "#choices-status")}`);
+            console.log(`ok popup ${name}（${via}）: ${result.names.length} 件から1件を確認`);
           } else {
             assert.equal(result.kind, "status", `${name}: ${JSON.stringify(result)}`);
             assert.match(result.text, expect.status, `${name}: 文言が違う（${result.text}）`);
