@@ -24,7 +24,7 @@ below.
 | Directory handles you grant via the File System Access API | Your browser's local IndexedDB | So the browser extension can reuse the folders you picked when browser permission is still available |
 | A list of what the browser extension has installed (name, source, install path, timestamp) | Your browser's local IndexedDB | So installed items can be shown, updated, and removed later |
 | An auto-open and a theme preference | Your browser's local IndexedDB | Two UI preferences you control from the popup |
-| Jev API key and AI-assisted detection toggle (Beta feature) | `chrome.storage.local`, restricted to trusted extension contexts | Lets you opt in to manual detection on unsupported sites without exposing the key to page/content-script contexts |
+| Jev API key and AI-assisted detection toggle (Beta feature) | `chrome.storage.local`, restricted to trusted extension contexts | Lets you opt in to AI assistance when a local scan cannot decide, without exposing the key to page/content-script contexts |
 | `registry.json` (pinned state and source metadata) | Your local `globalStorageUri` (the Cursor/VS Code extension's own data folder) | To track installed tools and their update source |
 
 None of this leaves your device. Uninstalling either extension removes its
@@ -46,7 +46,9 @@ also deletes the key and the toggle from your browser.
   the extension can find the source repository.
 - **TypeSafe AI / Jev** (`api.typesafe.ai`): only after you enable AI-assisted
   detection, add your own Jev API key, open the extension on an unsupported
-  site, and click **Find tools on this page**. The extension sends a minimized
+  site, click **Find tools on this page**, and the local scan of that page
+  cannot decide on its own. Scanning itself needs no key, and a page that
+  resolves locally never reaches Jev. The extension sends a minimized
   set of extracted GitHub links, install-command lines, page title,
   headings, and short nearby text, so Jev can judge whether the page ships a
   tool at all — which tool to install is decided locally. Only the lines that

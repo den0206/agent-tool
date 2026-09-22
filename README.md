@@ -45,7 +45,7 @@ Agent Tool keeps the resources used by your coding agents discoverable from one 
 - Preview descriptions, locations, scopes, enabled state, and available updates.
 - Work across user and project resources without copying managed files.
 - Install Skills and Subagents straight from the browser with the companion Chrome/Edge/Brave extension — no IDE extension required.
-- **Beta:** optionally use your own Jev API key to manually inspect an unsupported site for a GitHub-backed Skill or Subagent. It is off until you enable it, and existing supported sites stay deterministic and never call Jev. This experiment may change or be withdrawn in a later release.
+- Scan an unsupported site for a GitHub-backed Skill or Subagent from the popup. Detection runs locally in the page you are on; **Beta:** when local evidence cannot decide, you can add your own Jev API key so a single question goes to TypeSafe. That part is off until you enable it, supported sites stay deterministic and never call Jev, and the experiment may change or be withdrawn in a later release.
 - Run on macOS, Linux, and Windows.
 
 ## Supported sources
@@ -131,7 +131,7 @@ This produces `vsix/browser/`. Open `chrome://extensions` (or the Brave/Edge equ
    </p>
 
 3. Choose the target agent from the dropdown and select **Install**. The first time, your browser's folder picker asks you to choose the agent's config directory (`~/.claude`, `~/.cursor`, `~/.codex`, or the shared `~/.agents`); it is remembered after that.
-4. On an unsupported site, you can optionally open **Settings**, add your Jev API key, and enable **AI-assisted detection (Beta)**. The toggle stays disabled until a key is saved, and **Delete** removes the key again. The popup then offers **Find tools on this page**. It reads only the current tab after you click, sends minimized candidate evidence to TypeSafe, and still verifies the selected GitHub source before showing the normal install flow.
+4. On an unsupported site, the popup offers **Find tools on this page**. It reads only the current tab after you click, decides locally, and verifies the GitHub source before showing the normal install flow. If the page lists several possible tools, choose one and only that choice is verified. Nothing is sent to TypeSafe unless local evidence cannot decide: that needs **AI-assisted detection (Beta)**, which you enable in **Settings** by saving your own Jev API key (the toggle stays disabled until a key is saved, and **Delete** removes the key again).
 5. Once a tool has actually been confirmed on an unsupported site, the popup offers **Enable for this site**. Allowing it grants access to that one origin (`https://example.com/*`, never subdomains and never all sites), after which Agent Tool checks pages on that site as you browse — reading the page locally and verifying against GitHub. A page it cannot resolve on its own goes through the same single Jev question the manual scan asks, capped per hour, and only if you enabled AI-assisted detection. Remove the site under **Settings → Automatic detection** to stop it immediately.
 6. Open **Settings** to see everything the extension has installed, remove an item, re-grant a folder, or switch the popup's theme (System / Light / Dark).
 
@@ -139,7 +139,7 @@ This produces `vsix/browser/`. Open `chrome://extensions` (or the Brave/Edge equ
 
 - It writes only into folders you pick yourself, through the File System Access API. It never requests `<all_urls>`.
 - Pages you visit are never stored. Directory handles, the installed-items list, and UI settings stay local; an optional Jev API key and its enable toggle are stored locally in extension storage restricted to trusted extension contexts.
-- Jev is contacted only for an explicit unsupported-page scan. The extension sends extracted candidate links/commands and limited page context, not the full HTML, form values, cookies, or browsing history.
+- Jev is contacted only when you scan an unsupported page yourself, or on a site you allowed automatic detection for — and in both cases only when local detection cannot decide. The extension sends extracted candidate links/commands and limited page context, not the full HTML, form values, cookies, or browsing history.
 - It records where each tool came from next to the files it wrote. If you also use the IDE extension, it picks those up on its next scan, so the tool can be removed and updated from the dashboard like anything else.
 - See [`PRIVACY.md`](PRIVACY.md) for the full policy.
 
