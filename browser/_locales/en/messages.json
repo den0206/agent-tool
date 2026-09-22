@@ -336,10 +336,10 @@
     "description": "Tooltip shown on the toolbar icon when the browser extension hit GitHub's unauthenticated rate limit while listing skills."
   },
   "aiScanTitle": {
-    "message": "AI-assisted detection (Beta)"
+    "message": "Tools on this page"
   },
   "aiScanText": {
-    "message": "This site is not built into Agent Tool. Scan only this page with Jev to look for a GitHub-backed tool."
+    "message": "Scan this page locally for a GitHub-backed Skill or Subagent. AI assistance is used only when local detection cannot decide."
   },
   "aiScanButton": {
     "message": "Find tools on this page"
@@ -371,8 +371,8 @@
   "aiKeyRemoved": {
     "message": "Jev API key deleted."
   },
-  "aiKeyRequired": {
-    "message": "Add your Jev API key in Settings first."
+  "aiSetupRequired": {
+    "message": "Local detection could not decide. Add and enable a Jev API key in Settings to use AI assistance."
   },
   "aiScanning": {
     "message": "Looking for a tool…"
@@ -380,13 +380,20 @@
   "aiNothingFound": {
     "message": "No verifiable Skill or Subagent was found on this page."
   },
-  "aiManyTools": {
-    "message": "This page lists $COUNT$ tools. Open the one you want and scan there.",
+  "tabChoicesTitle": {
+    "message": "$COUNT$ possible tools",
     "placeholders": {
       "count": {
-        "content": "$1"
+        "content": "$1",
+        "example": "2"
       }
     }
+  },
+  "tabChoicesText": {
+    "message": "Choose one to verify before installing."
+  },
+  "tabChoiceSelect": {
+    "message": "Choose"
   },
   "aiPageUnreadable": {
     "message": "Agent Tool could not read this page. Reload it and try again."

@@ -21,7 +21,7 @@ import {
   animateDetection, applyI18n, applyLang, applyTheme, byId, clearStatus, setBusy, showStatus,
 } from "./popupUi.js";
 import { rootStates, targetSet, TargetOption } from "./targets.js";
-import { detectWithJev, evidenceFromActiveTab } from "./aiDetect.js";
+import { confirms, detectWithJev, evidenceFromActiveTab } from "./aiDetect.js";
 import { PageEvidence } from "./pageEvidence.js";
 import {
   jevApiKey, jevEnabled, protectAiStorage, setJevApiKey, setJevEnabled,
@@ -35,6 +35,15 @@ const agentLabel = (configDir: string): string =>
   t(`agent${configDir.slice(1, 2).toUpperCase()}${configDir.slice(2)}`);
 const send = (message: Record<string, unknown>): Promise<unknown> =>
   chrome.runtime.sendMessage(message).catch(() => undefined);
+type ActivePage = { readonly tabId: number; readonly url: string };
+const activePage = async (): Promise<ActivePage | null> => {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  return tab?.id === undefined || tab.url === undefined ? null : { tabId: tab.id, url: tab.url };
+};
+const stillActive = async (page: ActivePage): Promise<boolean> => {
+  const current = await activePage();
+  return current?.tabId === page.tabId && current.url === page.url;
+};
 
 /*
  * 配色。持っている値は `color-scheme` にそのまま入るので、当てるのは 1 行で済む
@@ -215,7 +224,9 @@ async function resolve(raw: string, vetted: boolean): Promise<ToolLead | null> {
 
 function setMode(detected: boolean): void {
   document.body.classList.toggle("detected", detected);
-  byId("found").hidden = !detected;
+  // 1 件・一覧・候補のどれも「このページで Tool を確かめられた」状態なので、
+  // 自動検知の提案はここ 1 か所から出す。表示ごとに CTA を足さない。
+  if (detected) void offerAutomation(); else byId("auto-site").hidden = true;
 }
 
 /**
@@ -249,6 +260,7 @@ async function showLead(raw: string, vetted = false, alreadyIn = false): Promise
   byId("picker-hint").textContent = "";
   index = null;
   byId("index").hidden = true;
+  byId("choices").hidden = true;
   byId("found").hidden = found === null;
   setMode(found !== null);
   if (found === null) return;
@@ -267,13 +279,69 @@ async function showLead(raw: string, vetted = false, alreadyIn = false): Promise
   animateDetection(byId("found"));
 }
 
+/** 複数の直リンクから 1 件を選ばせる。選択するまでは実在確認も取得もしない。 */
+function showChoices(leads: readonly ToolLead[]): void {
+  current = null;
+  index = null;
+  byId("found").hidden = true;
+  byId("index").hidden = true;
+  const section = byId("choices");
+  const list = byId<HTMLUListElement>("choices-list");
+  list.replaceChildren();
+  setBusy(section, null, false);
+  clearStatus(byId("choices-status"));
+  byId("choices-title").textContent = t("tabChoicesTitle", String(leads.length));
+  for (const lead of leads) {
+    const row = document.createElement("li");
+    const body = document.createElement("div");
+    body.className = "choice-name";
+    const name = document.createElement("strong");
+    name.textContent = `${t(lead.kind === "skill" ? "kindSkill" : "kindSubagent")} ${lead.name}`;
+    const repo = document.createElement("code");
+    repo.className = "repo";
+    repo.translate = false;
+    // 取得元だけでなく、同じ repo 内のどの Tool を指すかも選択前に見せる。
+    repo.textContent = lead.url.replace(/^https:\/\/github\.com\//, "");
+    body.append(name, repo);
+    const select = document.createElement("button");
+    select.type = "button";
+    select.textContent = t("tabChoiceSelect");
+    // 行が並ぶので、ボタン単独で読み上げても何を選ぶのかが分かる名前を付ける。
+    select.setAttribute("aria-label", `${t("tabChoiceSelect")}: ${name.textContent}`);
+    select.addEventListener("click", () => void (async () => {
+      if (section.getAttribute("aria-busy") === "true") return;
+      setBusy(section, select, true);
+      clearStatus(byId("choices-status"));
+      try {
+        const page = await activePage();
+        if (page === null) return;
+        const verified = await confirms(lead);
+        if (!await stillActive(page)) { backToNormal(); return; }
+        if (verified === true) await showLead(lead.url, true);
+        else showStatus(byId("choices-status"),
+          verified === null ? t("aiSourceUnreadable", lead.source.repo) : t("aiNothingFound"), true);
+      } finally {
+        if (!section.hidden) setBusy(section, select, false);
+      }
+    })());
+    row.className = "choice-row";
+    row.append(body, select);
+    list.append(row);
+  }
+  setMode(true);
+  section.hidden = false;
+  animateDetection(section);
+}
+
 /** 検知の表示をやめて通常の画面に戻す。導入後とタブを移ったときに呼ぶ。 */
 function backToNormal(): void {
   current = null;
   cardTarget.reset();
   index = null;
   byId("destination").hidden = true;
+  byId("found").hidden = true;
   byId("index").hidden = true;
+  byId("choices").hidden = true;
   // 導入済みの印を次回に持ち越さない。導入ボタンも既定の表示に戻す。
   byId("found-installed").hidden = true;
   byId<HTMLButtonElement>("install").hidden = false;
@@ -286,6 +354,11 @@ byId<HTMLInputElement>("url").addEventListener("change", event => {
   const value = (event.target as HTMLInputElement).value.trim();
   if (value === "") { backToNormal(); return; }
   void showLead(value);
+});
+
+byId<HTMLButtonElement>("choices-dismiss").addEventListener("click", () => {
+  backToNormal();
+  void send({ type: "dismiss" });
 });
 
 byId<HTMLButtonElement>("dismiss").addEventListener("click", () => {
@@ -357,7 +430,7 @@ byId<HTMLButtonElement>("install").addEventListener("click", async () => {
     await send({ type: "dismiss" });               // バッジを下ろす。導入済みは収集一覧が持つ
     // 現在のタブへ「もう一度検知して」と伝える。content script が visited を送り直し、
     // SW の visit() が走り直し、次に popup を開いたとき「導入済み」が返る。
-    void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
+    void chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
       if (tab?.id !== undefined) {
         void chrome.tabs.sendMessage(tab.id, { type: "rescan" }).catch(() => { /* content script 不在 */ });
       }
@@ -599,13 +672,12 @@ async function removeItem(item: Collected): Promise<void> {
   await renderCollection();
 }
 
-// --- 未対応サイトの AI-assisted detection -------------------------------
+// --- 未対応サイトの Tool 検知 -------------------------------------------
 
 async function showAiScanIfAvailable(): Promise<void> {
   const section = byId("ai-scan");
   section.hidden = true;
-  if (!await jevEnabled().catch(() => false)) return;
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const url = tab?.url ?? "";
   if (!/^https?:\/\//.test(url)) return;
   // 既知サイトは deterministic path が正本。AI の fallback にしない。
@@ -617,21 +689,18 @@ byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => 
   const status = byId("ai-scan-status");
   const button = byId<HTMLButtonElement>("ai-scan-button");
   clearStatus(status);
-  const key = await jevApiKey();
-  if (key === "") {
-    showStatus(status, t("aiKeyRequired"), true);
-    return;
-  }
 
   setBusy(byId("ai-scan"), button, true);
   showStatus(status, t("aiScanning"));
   try {
-    const evidence = await evidenceFromActiveTab();
+    const scanned = await evidenceFromActiveTab();
     // 読めなかった（権限・内部ページ）と、読めたが手がかりが無いを分ける。
-    if (evidence === null) {
+    if (scanned === null) {
       showStatus(status, t("aiPageUnreadable"), true);
       return;
     }
+    const { evidence, ...page } = scanned;
+    if (!await stillActive(page)) throw new StaleScan();
     if (evidence.candidates.length === 0) {
       showStatus(status, t("aiNoCandidates"), true);
       return;
@@ -640,11 +709,19 @@ byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => 
     // 特定できない（Beta の間は特に）。保持はせず、開いている devtools にだけ出す。
     let decision: JevDecision | undefined;
     let sent: PageEvidence | undefined;
-    const result = await detectWithJev(evidence, key, async (...args) => {
-      [sent] = args;                               // 絞り込み後。実際に送ったもの
-      decision = await decideWithJev(...args);
+    // 鍵はこの callback の中だけで解決する。`detectWithJev` へ渡す第 2 引数は使わない
+    // （渡ってきた方を `decideWithJev` へ素通しすると、空の鍵で 401 になる）。
+    const result = await detectWithJev(evidence, "", async asked => {
+      // ローカルで決まる場合は、この callback に来ない。API key と設定を読むのも
+      // Jev が必要になった時だけにする。
+      const key = await jevEnabled().catch(() => false) ? await jevApiKey() : "";
+      if (!await stillActive(page)) throw new StaleScan();
+      if (key === "") throw new AiSetupRequired();
+      sent = asked;                                // 絞り込み後。実際に送ったもの
+      decision = await decideWithJev(asked, key);
       return decision;
     });
+    if (!await stillActive(page)) throw new StaleScan();
     if (result.kind === "unsupported-kind") {
       showStatus(status, t("aiUnsupportedKind", result.resource.toUpperCase()), true);
       return;
@@ -668,10 +745,12 @@ byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => 
       return;
     }
 
-    // ページが複数の Tool を載せている。1 つに決めず、個別ページを開いてもらう。
+    // ページが複数の Tool を載せている。1 つに決めず、利用者に選んでもらう。
     // ここで当てにいくと、まとめページで無関係な 1 件を出すことになる。
     if (result.kind === "many") {
-      showStatus(status, t("aiManyTools", String(result.leads.length)), true);
+      clearStatus(status);                         // 「探しています…」を残さない
+      byId("ai-scan").hidden = true;
+      showChoices(result.leads);
       return;
     }
 
@@ -696,10 +775,12 @@ byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => 
       return;
     }
     byId("ai-scan").hidden = true;
-    // Tool を確かめられたので、ここで初めて「次からは自動で」を提案できる。
-    await offerAutomation();
   } catch (error) {
-    if (error instanceof JevError) {
+    if (error instanceof StaleScan) {
+      clearStatus(status);
+    } else if (error instanceof AiSetupRequired) {
+      showStatus(status, t("aiSetupRequired"), true);
+    } else if (error instanceof JevError) {
       const key = error.kind === "auth" ? "aiAuthError"
         : error.kind === "rateLimit" ? "aiRateLimit"
         : "aiRequestFailed";
@@ -713,14 +794,18 @@ byId<HTMLButtonElement>("ai-scan-button").addEventListener("click", async () => 
   }
 });
 
+/** Jev が必要なページだけで表示する設定案内。ネットワーク失敗とは混ぜない。 */
+class AiSetupRequired extends Error {}
+class StaleScan extends Error {}
+
 // --- 許可済みサイトの自動検知 -------------------------------------------
 
-/** 今開いているタブの URL。`chrome.tabs` を何度も叩かないよう 1 箇所にまとめる。 */
-const activeUrl = async (): Promise<string> =>
-  (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.url ?? "";
+// `permissions.request()` はクリックの user gesture 中に呼ぶ必要がある。現在タブの origin は
+// 候補を表示した時点で取り、ボタン押下中に `tabs.query()` を待たない。
+let automationPattern = "";
 
 /**
- * Tool を確認できたサイトにだけ「今後は自動で」を出す。
+ * 候補を検知できたサイトにだけ「今後は自動で」を出す。
  *
  * **見つかっただけでは permission を求めない。** 出すのは CTA までで、
  * `chrome.permissions.request()` は利用者がボタンを押したときにしか呼ばない
@@ -729,37 +814,40 @@ const activeUrl = async (): Promise<string> =>
 async function offerAutomation(): Promise<void> {
   const card = byId("auto-site");
   card.hidden = true;
-  const pattern = originPattern(await activeUrl());
-  if (pattern === null) return;
+  automationPattern = originPattern((await activePage())?.url ?? "") ?? "";
+  if (automationPattern === "") return;              // 内部ページ・ポート付き
   // 既に許可済みなら勧めない。外すのは設定画面でできる。
-  if (await chrome.permissions.contains({ origins: [pattern] })) return;
-  byId("auto-site-origin").textContent = patternHost(pattern) ?? pattern;
+  if (await chrome.permissions.contains({ origins: [automationPattern] })) return;
+  byId("auto-site-origin").textContent = patternHost(automationPattern) ?? automationPattern;
   clearStatus(byId("auto-site-status"));
   card.hidden = false;
 }
 
 byId("auto-site-dismiss").addEventListener("click", () => { byId("auto-site").hidden = true; });
 
-byId("auto-site-allow").addEventListener("click", async () => {
+function allowAutomation(): void {
   const status = byId("auto-site-status");
-  const pattern = originPattern(await activeUrl());
-  if (pattern === null) return;
-  try {
-    // Chrome の permission dialog は popup を閉じることがある。**戻り値で UI を組み立てない** —
-    // 許可は成立するので、開き直したときに `contains` から出し直す（`offerAutomation`）。
-    if (!await chrome.permissions.request({ origins: [pattern] })) {
-      showStatus(status, t("autoSiteDenied"), true);
-      return;
-    }
-  } catch {
+  if (automationPattern === "") {
     showStatus(status, t("autoSiteFailed"), true);
     return;
   }
-  byId("auto-site").hidden = true;
-  // 許可は grant 後のページにしか効かない。開いたままのタブは、ここで一度走らせないと
-  // 次に遷移するまで何も起きない。
-  await send({ type: "rescanActive" });
-});
+  // `request()` は await より前に始める。クリックの user gesture を失うと Chrome は
+  // 権限ダイアログを開かず false を返す。
+  void chrome.permissions.request({ origins: [automationPattern] }).then(async granted => {
+    if (!granted) {
+      showStatus(status, t("autoSiteDenied"), true);
+      return;
+    }
+    byId("auto-site").hidden = true;
+    // 許可は grant 後のページにしか効かない。開いたままのタブは、ここで一度走らせないと
+    // 次に遷移するまで何も起きない。
+    await send({ type: "rescanActive" });
+  }).catch(() => {
+    showStatus(status, t("autoSiteFailed"), true);
+  });
+}
+
+byId("auto-site-allow").addEventListener("click", () => allowAutomation());
 
 /**
  * 許可したサイトの一覧。正本は `chrome.permissions` なので、開くたびにそこから作る
@@ -967,10 +1055,14 @@ void (async () => {
 
   // 検知の候補は「今見ているタブのもの」だけを受け取る（別のタブのものを出さない）。
   const candidate = await send({ type: "candidate" }) as
-    { url?: string; index?: SkillIndex | null; installed?: string } | undefined;
+    { url?: string; choices?: readonly ToolLead[]; index?: SkillIndex | null; installed?: string } | undefined;
   // 列挙済みの一覧があればそれを使う。popup から API をもう一度叩かない。
   if (candidate?.index != null && candidate.index.entries.length > 0) {
     await showIndex(candidate.index);
+    return;
+  }
+  if (candidate?.choices != null && candidate.choices.length > 0) {
+    showChoices(candidate.choices);
     return;
   }
   if (typeof candidate?.url === "string" && candidate.url !== "") {

@@ -124,19 +124,25 @@ section + section { margin-top: 14px; padding-top: 14px; border-top: 1px solid v
  * 隣接セレクタは隠れているセクションにも当たる。検知セクションが hidden でも
  * その分の区切りと余白が入ってしまうので、各画面の先頭になるものは打ち消す。
  */
-#url-section, #settings-view { margin-top: 0; padding-top: 0; border-top: 0; }
+#url-section, #settings-view, body.detected #choices {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
 
 /* 画面は 3 つ。検知・通常・設定のどれか 1 つだけを出す。 */
 body.detected #url-section,
 body.detected #ai-scan,
 body.settings #found,
+body.settings #choices,
 body.settings #index,
 body.settings #url-section,
 body.settings #ai-scan,
+body.settings #auto-site,
 body.settings #done { display: none; }
 
 /* 画面が入れ替わったことを一度だけ示す。切り替えの向きは付けない。 */
-#found:not([hidden]), #index:not([hidden]), #settings-view:not([hidden])
+#found:not([hidden]), #choices:not([hidden]), #index:not([hidden]), #settings-view:not([hidden])
   { animation: rise 0.18s var(--ease) both; }
 
 /* 戻るは設定のときだけ。歯車は設定と検知のときに引っ込める。 */
@@ -159,6 +165,14 @@ body.detected #open-settings { display: none; }
   border-top-color: var(--accent);
   box-shadow: inset 0 2px color-mix(in srgb, var(--accent) 65%, transparent);
 }
+
+#choices .card { border-top-color: var(--accent); }
+#choices h2 { margin: 0; font-size: 16px; }
+#choices-list { padding: 0; margin: 12px 0 0; list-style: none; }
+#choices-list li + li { border-top: 1px solid var(--line); }
+.choice-row { display: flex; align-items: center; gap: 8px; padding: 9px 0; }
+.choice-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.choice-row .repo { margin: 0; }
 
 /* 検知の一段目。種類を先に置き、名前を主役にする。 */
 .found-head { display: flex; align-items: baseline; gap: 9px; }

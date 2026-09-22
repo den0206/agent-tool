@@ -8,16 +8,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- The browser extension can now scan unsupported pages with local detection even when AI-assisted detection is disabled or has no Jev API key. It asks for Jev setup only when local evidence cannot decide.
+- When automatic or manual detection finds several direct Skill or Subagent links, the popup now lets you choose one and verifies only that choice before opening the install flow.
+- Unsupported-page scanning now reads installation commands one line at a time. It recognizes a single `--skill` argument from `npx`, `bunx`, or `pnpm dlx`, verifies that Skill through GitHub, and never executes the command.
 - A stale detection request can no longer replace the current tab's candidate after a navigation, dismissal, or tab close.
 - Automatic detection now retries twice within five seconds when a permitted page adds its tool links after initial rendering.
-- Unsupported-page scanning now reads installation commands one line at a time. It recognizes a single `--skill` argument from `npx`, `bunx`, or `pnpm dlx`, verifies that Skill through GitHub, and never executes the command.
 - Large HTTP responses and JSON-LD blocks are now cut off while they are read rather than after, and a registry that would exceed its 2 MB limit is rejected before it is saved instead of being written back unreadable.
 - Each site listed under Auto-detect in the browser extension's settings is now a link that opens that site in a new tab.
 - Simplified the browser extension popup's visual hierarchy to use one accent color, quieter surfaces, and sentence-case labels.
 
 ### Fixed
 
+- **Enable for this site** now appears for every confirmed result — a single tool, a folder listing, or a candidate list — instead of only the single-tool card. A site whose pages resolve to a folder listing, such as Supabase's skills guide, could not be enabled again once it had been removed.
 - Removing a site under **Settings → Automatic detection** now also drops what automatic detection already showed for that tab, so the popup no longer answers with the removed site's previous result.
+- The browser extension now resolves the active browser tab from a popup or service worker correctly, so enabling automatic detection opens the site-permission prompt and rescans the current page after approval.
+- A multi-candidate unsupported-page scan no longer shows an empty install card or divider above its candidate list.
 - A page that does not offer any installable tool is no longer reported as an unsupported MCP server or plugin. The assisted scan now checks whether the page offers a tool before it looks at the kind.
 - When Jev is temporarily overloaded, the assisted scan now says so and asks you to try again later, instead of reporting that the page could not be analyzed.
 - Adding, renaming, or deleting a file under a project's `.claude/rules` or `.cursor/rules` now refreshes the view.
