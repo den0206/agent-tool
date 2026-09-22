@@ -27,7 +27,7 @@ declare namespace chrome {
     function openPopup(): Promise<void>;
   }
   namespace tabs {
-    function query(filter: { active?: boolean; currentWindow?: boolean }):
+    function query(filter: { active?: boolean; currentWindow?: boolean; lastFocusedWindow?: boolean }):
       Promise<{ id?: number; url?: string }[]>;
     function sendMessage<T = unknown>(tabId: number, message: T): Promise<unknown>;
     const onRemoved: { addListener(handler: (tabId: number) => void): void };

@@ -6,9 +6,9 @@ import { rootStateOf, splitRoot } from "../core/placement.js";
 import { autoOpenEnabled, loadCollection, loadHandle } from "./store.js";
 import { isExtractable } from "./install.js";
 import { rateLimitWatch } from "./fetch.js";
-import { automaticVisit, evidenceFromTab, forgetTab } from "./autoDetect.js";
+import { automaticVisit, evidenceFromTab, forgetTab, waitForEvidenceChange } from "./autoDetect.js";
 import { confirms } from "./aiDetect.js";
-import { grantedSites, patternHost } from "./sitePermissions.js";
+import { grantedSites, originPattern, patternHost } from "./sitePermissions.js";
 
 /**
  * 検知の判定はここで行う。content script は URL を送るだけにする
@@ -23,6 +23,24 @@ import { grantedSites, patternHost } from "./sitePermissions.js";
  * 同じページをもう一度開けば、もう一度出る。
  */
 const candidates = new Map<number, string>();
+
+/** タブの新しいページだけが非同期検知結果を書ける。永続化しない。 */
+const epochs = new Map<number, { id: number; url: string; at: number }>();
+const EPOCH_DEBOUNCE_MS = 500;
+const begin = (tabId: number, url: string): number => {
+  const previous = epochs.get(tabId);
+  const now = Date.now();
+  // `onCompleted` と SPA の同一 URL 通知は 1 回の検知として扱う。後者で前者を
+  // 無効化すると、autoDetect の重複抑制だけが残り候補が出なくなる。
+  if (previous?.url === url && now - previous.at < EPOCH_DEBOUNCE_MS) return previous.id;
+  const id = (previous?.id ?? 0) + 1;
+  epochs.set(tabId, { id, url, at: now });
+  return id;
+};
+const active = (tabId: number, id: number): boolean => epochs.get(tabId)?.id === id;
+
+/** 直リンクが複数あるときだけ、popup が選ぶために持つ。実在確認は選択後に 1 件だけ行う。 */
+const choices = new Map<number, readonly ToolLead[]>();
 
 /**
  * 既に入っているものは**バッジを出さず**、popup を開いたときにだけ「導入済み」として
@@ -143,12 +161,13 @@ async function handleStillKnown(item: Collected): Promise<boolean> {
 
 const clear = async (tabId: number): Promise<void> => {
   const had = candidates.delete(tabId);
+  const hadChoices = choices.delete(tabId);
   const hadIndex = shown.delete(tabId);
   const hadLimit = rateLimited.delete(tabId);
   const hadInstalled = installed.delete(tabId);
-  if (!had && !hadIndex && !hadLimit && !hadInstalled) return;
+  if (!had && !hadChoices && !hadIndex && !hadLimit && !hadInstalled) return;
   // 導入済み表示はバッジを持たないので、それだけの場合は setBadgeText を呼ばない。
-  if (had || hadIndex || hadLimit) {
+  if (had || hadChoices || hadIndex || hadLimit) {
     await chrome.action.setBadgeText({ text: "", tabId }).catch(() => { /* タブが閉じた */ });
   }
   // rate limit の告知だけがタイトルを差し替える。ここでも必ず元へ戻す。
@@ -188,10 +207,13 @@ async function announceRateLimited(tabId: number): Promise<void> {
  * Skill が並ぶ置き場なら一覧を出す。カタログの遷移と、自動検知が Jev から得た
  * 取得元（`repo`）の両方がここを通る。置き場でなければ何もせず `false`。
  */
-async function showIndex(tabId: number, url: string, autoOpen: boolean): Promise<boolean> {
+async function showIndex(
+  tabId: number, url: string, autoOpen: boolean, current: () => boolean = () => true,
+): Promise<boolean> {
   const at = skillIndex(url);
   if (at === null) return false;
   const result = await enumerate(at);
+  if (!current()) return true;
   if (result.kind === "rateLimited") {
     // popup は開かない（autoOpen 設定に関わらず）。バッジと tooltip だけで告げる。
     await announceRateLimited(tabId);
@@ -205,22 +227,29 @@ async function showIndex(tabId: number, url: string, autoOpen: boolean): Promise
 
 async function visit(url: string, tabId: number | undefined, jsonLd?: string): Promise<void> {
   if (tabId === undefined) return;
+  const epoch = begin(tabId, url);
+  const current = (): boolean => active(tabId, epoch);
   // 遷移したら前のページの検知は無かったことにする。
   if (candidates.get(tabId) !== url) await clear(tabId);
+  if (!current()) return;
   const autoOpen = await autoOpenEnabled();
+  if (!current()) return;
 
   // 展開確認はアーカイブを 1 本丸ごと落とす（実測で数 MB）。ネットワークに触れない
   // 判定を全部先に通し、**出すと決まったものだけ**確かめる。導入済みのものを
   // 見るたびに落とし直さない。
   // Skill が並ぶディレクトリなら、1 件ではなく一覧を出す。アーカイブは落とさない。
-  if (await showIndex(tabId, url, autoOpen)) return;
+  if (await showIndex(tabId, url, autoOpen, current)) return;
+  if (!current()) return;
 
   const found = detectPage(url, jsonLd ?? "");
   if (found === null) return;
   if (!await exists(found)) return;
+  if (!current()) return;
   // 取得元まで一致するものだけを「導入済み」として popup で見せる。
   // バッジは出さない — 毎回勧めないという方針は保つ。
   if (await installedFromSameSource(found)) {
+    if (!current()) return;
     installed.set(tabId, found.url);
     return;
   }
@@ -228,6 +257,7 @@ async function visit(url: string, tabId: number | undefined, jsonLd?: string): P
   // 名前だけの一致は「導入済み」とは扱わない。ただし黙って引くのはやめて、
   // 導入ボタン付きで見せる（同名上書きは導入時の確認ダイアログが止める）。
   if (!await extractable(found)) return;
+  if (!current()) return;
 
   candidates.set(tabId, found.url);
   await announce(tabId, "1", autoOpen);
@@ -238,12 +268,13 @@ async function visit(url: string, tabId: number | undefined, jsonLd?: string): P
  * 一覧は列挙済みのものをそのまま渡す — popup がもう一度 API を叩かないため。
  */
 async function activeCandidate(): Promise<{
-  url: string; index: Index | null; installed: string;
+  url: string; choices: readonly ToolLead[]; index: Index | null; installed: string;
 }> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id === undefined) return { url: "", index: null, installed: "" };
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab?.id === undefined) return { url: "", choices: [], index: null, installed: "" };
   return {
     url: candidates.get(tab.id) ?? "",
+    choices: choices.get(tab.id) ?? [],
     index: shown.get(tab.id) ?? null,
     installed: installed.get(tab.id) ?? "",
   };
@@ -251,16 +282,17 @@ async function activeCandidate(): Promise<{
 
 /** 許可した直後に、今開いているタブをもう一度読む。 */
 async function rescanActive(): Promise<void> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (tab?.id === undefined || tab.url === undefined) return;
   forgetTab(tab.id);                               // 直前の遷移で見た記録を無効にする
+  begin(tab.id, tab.url);
   await autoDetect(tab.id, tab.url);
 }
 
 /** 今の表示をやめる。「今はしない」と導入後の両方が呼ぶ。次に開けばまた出る。 */
 async function clearActive(): Promise<void> {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id !== undefined) await clear(tab.id);
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab?.id !== undefined) { begin(tab.id, ""); await clear(tab.id); }
 }
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
@@ -285,13 +317,16 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 // SPA の遷移。カタログは JSON-LD をページから読む必要があるので、
 // URL だけで判定せず content script に送り直してもらう。
 chrome.webNavigation.onHistoryStateUpdated.addListener(details => {
+  begin(details.tabId, details.url);
   void clear(details.tabId);
   void chrome.tabs.sendMessage(details.tabId, { type: "rescan" })
     .catch(() => { /* content script が入っていないページ */ });
 });
 
 chrome.tabs.onRemoved.addListener(tabId => {
+  epochs.delete(tabId);
   candidates.delete(tabId);
+  choices.delete(tabId);
   shown.delete(tabId);
   rateLimited.delete(tabId);
   installed.delete(tabId);
@@ -308,25 +343,38 @@ chrome.tabs.onRemoved.addListener(tabId => {
  * 何もしない」をコードで担保するには、届く前に落とすしかない。
  */
 async function autoDetect(tabId: number, url: string): Promise<void> {
+  const epoch = begin(tabId, url);
+  const current = (): boolean => active(tabId, epoch);
   const result = await automaticVisit(tabId, url, {
     allowed: pattern => chrome.permissions.contains({ origins: [pattern] }),
     // content script が無い許可サイトでも、遷移後に前ページの候補を残さない。
     clear,
     evidence: evidenceFromTab,
+    wait: waitForEvidenceChange,
     verify: confirms,
+    active: current,
   });
-  if (result.kind === "none") return;
+  if (result.kind === "none" || !current()) return;
   const autoOpen = await autoOpenEnabled();
+  if (!current()) return;
   // 取得元だけ決まったときは、手動スキャンと同じ skills.sh 形の URL に直して
   // 既存の一覧経路へ渡す（記録・取得は解決後の `GitHubSource` で行う）。
   if (result.kind === "repo") {
-    await showIndex(tabId, `https://skills.sh/${result.repo}`, autoOpen);
+    await showIndex(tabId, `https://skills.sh/${result.repo}`, autoOpen, current);
     return;
   }
-  // `many` は候補を覚えない。件数だけ出し、選ぶのは popup の手動スキャンに任せる。
-  // ここで 1 件に決めると、まとめページで無関係なものを見せることになる。
-  if (result.kind === "many") { await announce(tabId, String(result.count), autoOpen); return; }
-  if (await installedFromSameSource(result.lead)) { installed.set(tabId, result.lead.url); return; }
+  // ここで 1 件に決めず、popup で利用者に選ばせる。実在確認は選んだ 1 件だけで足りる。
+  if (result.kind === "many") {
+    choices.set(tabId, result.leads);
+    await announce(tabId, String(result.leads.length), autoOpen);
+    return;
+  }
+  if (await installedFromSameSource(result.lead)) {
+    if (!current()) return;
+    installed.set(tabId, result.lead.url);
+    return;
+  }
+  if (!current()) return;
   candidates.set(tabId, result.lead.url);
   await announce(tabId, "1", autoOpen);
 }
@@ -353,5 +401,20 @@ async function rewire(): Promise<void> {
 }
 
 chrome.permissions.onAdded.addListener(() => void rewire());
-chrome.permissions.onRemoved.addListener(() => void rewire());
+chrome.permissions.onRemoved.addListener(() => {
+  // 許可を外した直後に、進行中の抽出・Jev・確認結果を書き戻させない。
+  const open = [...epochs].map(([tabId, epoch]) => [tabId, epoch.url] as const);
+  for (const [tabId] of open) begin(tabId, "");
+  void (async () => {
+    // 許可を外したサイトの表示もその場で下ろす。残すと次に popup を開いたときに
+    // 古い結果が返り、スキャン → 「このサイトで有効にする」という**もう一度許可する
+    // 導線まで塞ぐ**（実測: 一度外した supabase.com を再登録できない）。
+    for (const [tabId, url] of open) {
+      const pattern = originPattern(url);
+      if (pattern === null) continue;                // 内部ページ・無効化済みの印
+      if (!await chrome.permissions.contains({ origins: [pattern] })) await clear(tabId);
+    }
+    await rewire();
+  })();
+});
 void rewire();

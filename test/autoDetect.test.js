@@ -81,12 +81,13 @@ test('ページ名と一致する 1 件なら found', async () => {
   assert.equal(result.lead.name, 'frontend-design');
 });
 
-// 複数載っているページで 1 件に決めない。件数だけ出す。
-test('複数候補は many で件数だけ返す', async () => {
+// 複数載っているページで 1 件に決めない。popup が選べる候補を返す。
+test('複数候補は many で選択肢を返す', async () => {
   const {automaticVisit} = await load();
   const d = deps({evidence: evidenceOf('https://site.test/list', SKILL, OTHER)});
   const result = await automaticVisit(5, 'https://site.test/list', d.deps);
-  assert.deepEqual(result, {kind: 'many', count: 2});
+  assert.equal(result.kind, 'many');
+  assert.deepEqual(result.leads.map(item => item.name), ['frontend-design', 'backend-design']);
   assert.equal(d.calls.verify, 0);
 });
 
@@ -112,6 +113,20 @@ test('ページを読めなければ none', async () => {
   assert.equal((await automaticVisit(7, 'https://site.test/a', d.deps)).kind, 'none');
 });
 
+test('遅延描画で候補が増えたら最大2回まで抽出し直す', async () => {
+  const {automaticVisit} = await load();
+  const d = deps({evidence: null});
+  let reads = 0;
+  let waits = 0;
+  d.deps.evidence = async () => ++reads === 1
+    ? evidenceOf('https://site.test/late')
+    : evidenceOf('https://site.test/late', SKILL);
+  d.deps.wait = async () => { waits += 1; return true; };
+  assert.equal((await automaticVisit(84, 'https://site.test/late', d.deps)).kind, 'found');
+  assert.equal(reads, 2);
+  assert.equal(waits, 1);
+});
+
 // 通信不能（null）を「無い」と言わない。ただし押していない利用者には黙る。
 test('実在を確かめられなければ黙る', async () => {
   const {automaticVisit} = await load();
@@ -122,6 +137,15 @@ test('実在を確かめられなければ黙る', async () => {
     assert.equal(result.kind, 'none', String(verify));
     assert.equal(d.calls.verify, 1);
   }
+});
+
+test('新しい遷移で無効になった検知結果を返さない', async () => {
+  const {automaticVisit} = await load();
+  const d = deps();
+  let alive = true;
+  d.deps.active = () => alive;
+  d.deps.verify = async () => { alive = false; return true; };
+  assert.equal((await automaticVisit(83, 'https://site.test/skills/frontend-design', d.deps)).kind, 'none');
 });
 
 test('同じ URL の連続イベントは 1 回に畳む', async () => {
@@ -138,12 +162,13 @@ test('同じ URL の連続イベントは 1 回に畳む', async () => {
   assert.equal(d.calls.evidence, 2);
 });
 
-test('URL が変われば畳まない', async () => {
+test('path や query が変われば畳まない', async () => {
   const {automaticVisit} = await load();
   const d = deps();
   assert.equal((await automaticVisit(10, 'https://site.test/skills/frontend-design', d.deps)).kind, 'found');
+  await automaticVisit(10, 'https://site.test/skills/frontend-design?tab=other', d.deps);
   await automaticVisit(10, 'https://site.test/skills/other', d.deps);
-  assert.equal(d.calls.evidence, 2);
+  assert.equal(d.calls.evidence, 3);
 });
 
 test('タブを閉じたら覚えていない', async () => {
@@ -168,7 +193,9 @@ test('直リンクで決まるページは Jev を呼ばない', async () => {
 test('まとめページも Jev を呼ばない', async () => {
   const {automaticVisit} = await load();
   const d = deps({evidence: evidenceOf('https://site.test/list', SKILL, OTHER)});
-  assert.deepEqual(await automaticVisit(21, 'https://site.test/list', d.deps), {kind: 'many', count: 2});
+  const result = await automaticVisit(21, 'https://site.test/list', d.deps);
+  assert.equal(result.kind, 'many');
+  assert.equal(result.leads.length, 2);
   assert.equal(d.calls.jev, 0);
 });
 

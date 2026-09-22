@@ -263,6 +263,7 @@ test('導入済みの検知はバッジを出さず、popup を開いたとき�
     });
     assert.deepEqual(answer, {
       url: '',
+      choices: [],
       index: null,
       installed: 'https://skills.sh/acme/repo/pdf',
     });
@@ -708,6 +709,64 @@ const emptyIndexedDB = () => {
     }),
   };
 };
+
+test('サイトの許可を外したら、そのタブの自動検知の表示も下ろす', async () => {
+  // 外した後も候補が残ると、次に popup を開いたとき古い結果が返り、スキャンから
+  // 「このサイトで有効にする」へ進む導線まで塞ぐ（= 二度と登録できない）。
+  // `autoDetect` の重複抑制はモジュール 1 つを全テストで共有するので、URL は他と変える。
+  const saved = {chrome: globalThis.chrome, indexedDB: globalThis.indexedDB};
+  let nav;
+  let message;
+  let removed;
+  let tabQuery;
+  let allowed = true;
+  globalThis.indexedDB = emptyIndexedDB();
+  globalThis.chrome = {
+    runtime: {onMessage: {addListener: (handler) => { message = handler; }}},
+    tabs: {onRemoved: {addListener: () => {}}, query: async (filter) => {
+      tabQuery = filter;
+      return [{id: 1}];
+    }},
+    action: {setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {},
+             setBadgeTextColor: async () => {}, setTitle: async () => {}, openPopup: async () => {}},
+    scripting: {executeScript: async () => [{result: {
+      page: {url: 'https://site.test/pair', title: 't', headings: []},
+      candidates: [
+        {id: '0', kind: 'url', value: 'https://github.com/acme/skills/tree/main/skills/one'},
+        {id: '1', kind: 'url', value: 'https://github.com/acme/skills/tree/main/skills/two'},
+      ],
+    }}]},
+    webNavigation: {
+      onCompleted: {addListener: (handler) => { nav = handler; }, removeListener: () => {}},
+      onHistoryStateUpdated: {addListener: () => {}, removeListener: () => {}},
+    },
+    permissions: {
+      getAll: async () => ({origins: ['https://site.test/*']}),
+      contains: async () => allowed,
+      onAdded: {addListener: () => {}},
+      onRemoved: {addListener: (handler) => { removed = handler; }},
+    },
+    storage: {local: {get: async () => ({}), set: async () => {}, setAccessLevel: async () => {}}},
+  };
+  try {
+    await import(`../out/web/browser/background.js?revoke=${Date.now()}`);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    nav({tabId: 1, url: 'https://site.test/pair', frameId: 0});
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const before = await new Promise(resolve => message({type: 'candidate'}, {}, resolve));
+    assert.deepEqual(before.choices.map(item => item.name), ['one', 'two']);
+    assert.deepEqual(tabQuery, {active: true, lastFocusedWindow: true});
+
+    allowed = false;
+    removed({origins: ['https://site.test/*']});
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const after = await new Promise(resolve => message({type: 'candidate'}, {}, resolve));
+    assert.deepEqual(after, {url: '', choices: [], index: null, installed: ''});
+  } finally {
+    globalThis.chrome = saved.chrome;
+    globalThis.indexedDB = saved.indexedDB;
+  }
+});
 
 /**
  * SPA は読み込み直後に `replaceState` を呼ぶことがあり、同じ URL で `onCompleted` と
