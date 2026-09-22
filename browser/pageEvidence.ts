@@ -133,10 +133,15 @@ export function extractPageEvidence(): PageEvidence {
 
   let commands = 0;
   for (const node of Array.from(root.querySelectorAll<HTMLElement>("pre, code"))) {
-    const lines = (node.textContent ?? "").split("\n").filter(line => installLine.test(line));
-    if (lines.length === 0) continue;
-    add("command", scrub(lines.join(" ")), scrub(trim(node.parentElement?.textContent ?? "", 240)));
-    if (++commands >= 32 || candidates.length >= 128) break;
+    // `<pre><code>` は同じ本文を二重に返す。内側の code だけを外し、1 行ずつ扱うので
+    // 複数 repo を 1 つの文字列に潰さない。
+    if (node.tagName === "CODE" && node.parentElement?.tagName === "PRE") continue;
+    for (const line of (node.textContent ?? "").split("\n")) {
+      if (!installLine.test(line)) continue;
+      add("command", scrub(line), scrub(trim(node.parentElement?.textContent ?? "", 240)));
+      if (++commands >= 32 || candidates.length >= 128) break;
+    }
+    if (commands >= 32 || candidates.length >= 128) break;
   }
 
   const headingsIn = (scope: Element | Document): string[] =>

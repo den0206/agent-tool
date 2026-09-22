@@ -1,5 +1,5 @@
 import { lead, proofUrls, ToolLead } from "../core/detect.js";
-import { GitHubSource, parseUrl } from "../core/github.js";
+import { DEFAULT_REF, GitHubSource, parseUrl } from "../core/github.js";
 import { isExtractable } from "./install.js";
 import { decideWithJev } from "./jev.js";
 import { EvidenceCandidate, extractPageEvidence, PageEvidence } from "./pageEvidence.js";
@@ -25,6 +25,25 @@ export type AiDetectResult =
 const repoFromCommand = (command: string): string | undefined =>
   command.match(/github\.com\/([\w.-]+\/[\w.-]+?)(?:\.git)?(?=[\s"'),\]/]|$)/i)?.[1]
   ?? command.match(/\bskills\s+add\s+([\w.-]+\/[\w.-]+)/i)?.[1];
+
+/**
+ * `skills add` のうち、実行せずに意味を確定できる単一 Skill 指定だけを読む。
+ * shell を解釈しないので、変数・パイプ・複数フラグなどはここを通らず従来の repo 経路へ戻る。
+ */
+export function commandLead(command: string): ToolLead | null {
+  const matched = command.match(
+    /^\s*(?:npx|bunx|pnpm\s+dlx)\s+skills\s+add\s+(?:(?:https?:\/\/)?github\.com\/)?([\w.-]+\/[\w.-]+)(?:\.git)?\s+--skill\s+(?:"([\w.-]+)"|'([\w.-]+)'|([\w.-]+))\s*$/i,
+  );
+  if (matched === null) return null;
+  const [, repo, quoted, singleQuoted, bare] = matched;
+  const name = quoted ?? singleQuoted ?? bare;
+  if (name === undefined || name.startsWith(".")) return null;
+  // `lead()` へ URL として渡し、repo と名前を他の URL 経路と同じ検証で作る。
+  // 規約どおりの置き場を指す形にして、実在確認を **HEAD 1 回**で済ませる。カタログ形
+  // （`skills.sh/...`）にすると `proofs` が空になり、自動経路がページを見るたびに
+  // アーカイブを 1 本落とす。置き場が規約から外れているものはここで決めない。
+  return lead(`https://github.com/${repo}/tree/${DEFAULT_REF}/skills/${name}`);
+}
 
 /**
  * ページ本文由来の文字列から `GitHubSource` を直接組み立てない。URL に戻して
@@ -159,6 +178,27 @@ export async function detectWithJev(
     return verified === null ? { kind: "unverified", source: local.lead.source } : { kind: "none" };
   }
   if (local.kind === "many") return local;                  // 一覧は利用者が選ぶ
+
+  // 指定名付きコマンドは、GitHub のリンクより「何を入れるか」という強い手がかりになる。
+  // ただし URL 直リンクの照合より後に置く。
+  const named = new Map<string, ToolLead>();
+  for (const candidate of evidence.candidates) {
+    if (candidate.kind !== "command") continue;
+    const found = commandLead(candidate.value);
+    if (found !== null) named.set(`${found.source.repo}:${found.name}`, found);
+  }
+  const leads = [...named.values()];
+  // 取得元が割れているときだけ候補選択へ渡す。**同じ repo の名前が並ぶページ**
+  // （実測: Supabase Docs の導入手順）は、その repo の一覧を出す方が正しい。
+  if (new Set(leads.map(item => item.source.repo)).size > 1) return { kind: "many", leads };
+  if (leads.length === 1) {
+    const verified = await verify(leads[0]);
+    if (verified === true) return { kind: "found", lead: leads[0] };
+    if (verified === null) return { kind: "unverified", source: leads[0].source };
+    // 規約の置き場に無い（frontmatter の `name` で指している、`.agent-skills/` に置いて
+    // いる等）。アーカイブを落として当てにいかず、名前を捨てて従来の repo 経路へ戻す。
+    // 実体の照合は導入時の `narrowToSkill` / `locateSkill` が行う。
+  }
 
   // ここから先は推測になる。ページが Tool を配っていることを Jev に確かめてから進む。
   const decision = await decide(evidence, apiKey);

@@ -179,7 +179,7 @@ test('取得元しか分からないページは Jev に訊いて repo を返す
     page: {url: 'https://site.test/docs/ai-skills', title: 'AI Skills', headings: []},
     candidates: [
       {id: '0', kind: 'url', value: 'https://github.com/acme/agent-skills'},
-      {id: '1', kind: 'command', value: 'npx skills add acme/agent-skills --skill foo'},
+      {id: '1', kind: 'command', value: 'npx skills add acme/agent-skills'},
     ],
   };
   const d = deps({evidence});
