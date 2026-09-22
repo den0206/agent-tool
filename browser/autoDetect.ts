@@ -19,8 +19,8 @@ export type AutoResult =
   | { readonly kind: "found"; readonly lead: ToolLead }
   /** 取得元だけ決まった。背景が skills.sh 形の URL に直して既存の一覧経路へ渡す。 */
   | { readonly kind: "repo"; readonly repo: string }
-  /** ページが複数の Tool を載せている。件数だけ出し、選ぶのは popup に任せる。 */
-  | { readonly kind: "many"; readonly count: number }
+  /** ページが複数の Tool を載せている。確認する 1 件は popup で利用者が選ぶ。 */
+  | { readonly kind: "many"; readonly leads: readonly ToolLead[] }
   | { readonly kind: "none" };
 
 const NOTHING: AutoResult = { kind: "none" };
@@ -64,12 +64,11 @@ async function reserveJev(
 /** タブを忘れる。`background.ts` の `onRemoved` から呼ぶ。 */
 export const forgetTab = (tabId: number): void => { seen.delete(tabId); };
 
-/** 比較用。fragment と query を落として、同じページを別物に見せない。 */
+/** fragment だけを落とす。query はSPAで別ページを表せるので同一視しない。 */
 function normalized(url: string): string | null {
   try {
     const parsed = new URL(url);
     parsed.hash = "";
-    parsed.search = "";
     return parsed.toString();
   } catch { return null; }
 }
@@ -107,13 +106,18 @@ export async function automaticVisit(
     /** 前のページの検知を下ろす。**読み直すと決めたときだけ**呼ぶ。 */
     clear: (tabId: number) => Promise<void>;
     evidence: (tabId: number) => Promise<PageEvidence | null>;
+    /** 遅延描画で候補が増えるまで、許可済みページ内だけを 2.5 秒待つ。 */
+    wait?: (tabId: number) => Promise<boolean>;
     key?: () => Promise<string>;
     budget?: (now?: number) => Promise<boolean>;
     decide?: typeof decideWithJev;
     verify?: (lead: ToolLead) => Promise<boolean | null>;
     now?: () => number;
+    /** 新しい遷移・権限解除・タブ終了で古い非同期処理を止める。 */
+    active?: () => boolean;
   },
 ): Promise<AutoResult> {
+  const active = deps.active ?? (() => true);
   // 既知カタログは決定論的経路が正本。自動経路へ二重に入れない。
   if (parseUrl(url) !== null || needsPage(url) !== null) return NOTHING;
 
@@ -128,14 +132,23 @@ export async function automaticVisit(
 
   // listener は許可済み origin で絞ってあるが、張り直しとイベントが競合しうるので
   // ここでももう一度見る。許可を消した直後に読み始めない。
-  if (!await deps.allowed(pattern)) return NOTHING;
+  if (!await deps.allowed(pattern) || !active()) return NOTHING;
   seen.set(tabId, { url: key, at });
   // ここまで来た = 読み直す。前のページのバッジと候補はここで下ろす。
   // 重複イベントで弾かれた側は通らないので、直前に出したバッジを消さない。
   await deps.clear(tabId);
+  if (!active()) return NOTHING;
 
-  const page = await deps.evidence(tabId);
-  if (page === null) return NOTHING;
+  let page = await deps.evidence(tabId);
+  if (page === null || !active()) return NOTHING;
+  // 初回に証拠が無いときだけ、合計 5 秒・最大 2 回まで待って抽出し直す。
+  // 常時監視や service worker を保つタイマーにはしない。
+  const wait = deps.wait ?? (async (): Promise<boolean> => false);
+  for (let retry = 0; page.candidates.length === 0 && retry < 2; retry++) {
+    if (!await wait(tabId) || !active()) break;
+    page = await deps.evidence(tabId);
+    if (page === null || !active()) return NOTHING;
+  }
 
   const ask = deps.decide ?? decideWithJev;
   // Jev へ回るかは `detectWithJev` の中でしか分からない。鍵も枠も**実際に訊く直前**に取る。
@@ -144,7 +157,9 @@ export async function automaticVisit(
   const decide: typeof decideWithJev = async (evidence) => {
     // 鍵は推測の fallback だけを止める。`detectWithJev` のローカル解決は鍵不要。
     const apiKey = await (deps.key ?? enabledKey)();
-    if (apiKey === "" || !await reserveJev(key, deps.budget ?? takeJevBudget)) throw new BudgetExhausted();
+    if (apiKey === "" || !active() || !await reserveJev(key, deps.budget ?? takeJevBudget) || !active()) {
+      throw new BudgetExhausted();
+    }
     charged = true;
     return ask(evidence, apiKey);
   };
@@ -162,10 +177,12 @@ export async function automaticVisit(
     return NOTHING;
   }
 
+  if (!active()) return NOTHING;
+
   switch (result.kind) {
     case "found": return result;
     case "repo": return { kind: "repo", repo: result.source.repo };
-    case "many": return { kind: "many", count: result.leads.length };
+    case "many": return result;
     // `unverified`（通信不能）と `unsupported-kind`（MCP / Plugin）は自動では告げない。
     case "none": case "unverified": case "unsupported-kind": return NOTHING;
   }
@@ -185,4 +202,40 @@ export async function evidenceFromTab(tabId: number): Promise<PageEvidence | nul
     func: extractPageEvidence,
   }).catch(() => null);                              // 権限が消えた・タブが閉じた
   return result?.[0]?.result ?? null;
+}
+
+/** ページのリンク・コードブロックが追加されるまで、2.5 秒だけ待つ。ページ本文は送らない。 */
+export async function waitForEvidenceChange(tabId: number): Promise<boolean> {
+  const result = await chrome.scripting.executeScript({
+    target: { tabId },
+    // `executeScript` の型は引数付き関数を表せない。待ち時間はページへ送る関数に直書きする。
+    func: () => new Promise<boolean>(resolve => {
+      let finished = false;
+      let settle: ReturnType<typeof setTimeout> | undefined;
+      let timeout: ReturnType<typeof setTimeout>;
+      const finish = (changed: boolean): void => {
+        if (finished) return;
+        finished = true;
+        observer.disconnect();
+        if (settle !== undefined) clearTimeout(settle);
+        clearTimeout(timeout);
+        resolve(changed);
+      };
+      const observer = new MutationObserver(records => {
+        const relevant = records.some(record => {
+          if (record.type === "attributes") return record.target instanceof HTMLAnchorElement;
+          if (record.target instanceof Element && record.target.matches("pre, code")) return true;
+          return [...record.addedNodes].some(node => node instanceof Element
+            && (node.matches("a[href], pre, code") || node.querySelector("a[href], pre, code") !== null));
+        });
+        // React等が1回の描画を複数mutationに分けるので、最初の関連変更から500msまとめる。
+        if (relevant && settle === undefined) settle = setTimeout(() => finish(true), 500);
+      });
+      observer.observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ["href"],
+      });
+      timeout = setTimeout(() => finish(false), 2500);
+    }),
+  }).catch(() => null);
+  return (await result?.[0]?.result) === true;
 }

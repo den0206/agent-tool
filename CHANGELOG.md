@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- A stale detection request can no longer replace the current tab's candidate after a navigation, dismissal, or tab close.
+- Automatic detection now retries twice within five seconds when a permitted page adds its tool links after initial rendering.
 - Unsupported-page scanning now reads installation commands one line at a time. It recognizes a single `--skill` argument from `npx`, `bunx`, or `pnpm dlx`, verifies that Skill through GitHub, and never executes the command.
 - Large HTTP responses and JSON-LD blocks are now cut off while they are read rather than after, and a registry that would exceed its 2 MB limit is rejected before it is saved instead of being written back unreadable.
 - Each site listed under Auto-detect in the browser extension's settings is now a link that opens that site in a new tab.
@@ -15,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Removing a site under **Settings → Automatic detection** now also drops what automatic detection already showed for that tab, so the popup no longer answers with the removed site's previous result.
 - A page that does not offer any installable tool is no longer reported as an unsupported MCP server or plugin. The assisted scan now checks whether the page offers a tool before it looks at the kind.
 - When Jev is temporarily overloaded, the assisted scan now says so and asks you to try again later, instead of reporting that the page could not be analyzed.
 - Adding, renaming, or deleting a file under a project's `.claude/rules` or `.cursor/rules` now refreshes the view.
