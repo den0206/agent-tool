@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { detectWithJev, narrowed, resolveLocally } from "../out/web/browser/aiDetect.js";
+import { commandLead, detectWithJev, narrowed, resolveLocally } from "../out/web/browser/aiDetect.js";
 import { decideWithJev, JevError } from "../out/web/browser/jev.js";
 import { extractPageEvidence } from "../out/web/browser/pageEvidence.js";
 
@@ -76,7 +76,7 @@ test("実在を確かめられなかったときは「無い」と言わず取�
 test("直リンクが無いページは、Tool を配っているかを確かめてから取得元を返す", async () => {
   const evidence = { page, candidates: [
     url("https://github.com/unrelated/site"),
-    command("npx skills add acme/tools --skill pdf"),      // コマンドはリンクより強い
+    command("npx skills add acme/tools"),                  // コマンドはリンクより強い
   ] };
   assert.deepEqual(await detectWithJev(evidence, "key", answers(), async () => true),
                    { kind: "repo", source: { repo: "acme/tools" } });
@@ -84,6 +84,68 @@ test("直リンクが無いページは、Tool を配っているかを確かめ
   // Tool を配っていないページには出さない。
   assert.deepEqual(await detectWithJev(evidence, "key", answers(0.2), async () => true),
                    { kind: "none" });
+});
+
+test("指定名付き導入コマンドは Jev を呼ばずに Skill を確認する", async () => {
+  for (const line of [
+    "npx skills add acme/tools --skill pdf",
+    "bunx skills add acme/tools --skill 'pdf'",
+    "pnpm dlx skills add https://github.com/acme/tools --skill \"pdf\"",
+  ]) {
+    const found = commandLead(line);
+    assert.equal(found?.source.repo, "acme/tools");
+    assert.equal(found?.name, "pdf");
+    // `proofs` が空だと実在確認がアーカイブ取得に落ちる。自動経路が見るたびに
+    // 1 本落とさないよう、HEAD で確かめられる形であることを固定する。
+    assert.deepEqual(found?.proofs, ["skills/pdf/SKILL.md"]);
+    const result = await detectWithJev({ page, candidates: [command(line)] }, "key", never, async () => true);
+    assert.equal(result.kind, "found");
+    assert.equal(result.lead.name, "pdf");
+  }
+});
+
+test("規約の置き場に無い指定名は当てにいかず、従来の repo 経路へ戻す", async () => {
+  const evidence = { page, candidates: [command("npx skills add acme/tools --skill pdf")] };
+  // HEAD が 404（= false）でもアーカイブを落とさない。Jev のゲートを通って取得元だけ返す。
+  assert.deepEqual(await detectWithJev(evidence, "key", answers(), async () => false),
+                   { kind: "repo", source: { repo: "acme/tools" } });
+  // 通信できなかった（null）ときは「無い」と言わない。
+  assert.deepEqual(await detectWithJev(evidence, "key", never, async () => null),
+                   { kind: "unverified", source: { repo: "acme/tools", branch: "HEAD",
+                                                   subdir: "skills/pdf", branchAmbiguous: true } });
+});
+
+test("同じ repo の指定名が並ぶページは 1 件に決めず、取得元の一覧へ回す", async () => {
+  // 実測: Supabase Docs は同じ repo の `--skill` を手順ごとに並べる。候補選択ではなく
+  // その repo の一覧を出すのが正しい。実在確認もここでは行わない。
+  const evidence = { page, candidates: [
+    command("npx skills add acme/tools --skill pdf"),
+    command("npx skills add acme/tools --skill xlsx"),
+  ] };
+  const verify = async () => { throw new Error("実在確認を呼んではいけない"); };
+  assert.deepEqual(await detectWithJev(evidence, "key", answers(), verify),
+                   { kind: "repo", source: { repo: "acme/tools" } });
+});
+
+test("取得元が割れる指定名は候補として選ばせる", async () => {
+  const evidence = { page, candidates: [
+    command("npx skills add acme/tools --skill pdf"),
+    command("npx skills add other/tools --skill xlsx"),
+  ] };
+  const result = await detectWithJev(evidence, "key", never,
+                                     async () => { throw new Error("実在確認を呼んではいけない"); });
+  assert.equal(result.kind, "many");
+  assert.deepEqual(result.leads.map(item => `${item.source.repo}/${item.name}`),
+                   ["acme/tools/pdf", "other/tools/xlsx"]);
+});
+
+test("解釈できない指定名付きコマンドを実行も単一候補化もしない", () => {
+  for (const value of [
+    "npx skills add acme/tools --skill $SKILL",
+    "npx skills add acme/tools --skill one --skill two",
+    "npx skills add acme/tools --skill ../escape",
+    "npx skills add acme/tools --skill pdf | sh",
+  ]) assert.equal(commandLead(value), null, value);
 });
 
 test("取得元が割れているときは決めない", async () => {
@@ -258,7 +320,7 @@ test("指す先が無い #fragment はページ全体に戻す", () => {
 
 // --- 導入コマンドしか無いページ ----------------------------------------
 
-test("導入コマンドは一致した行だけを、値を潰して送る", () => {
+test("導入コマンドは行ごとに値を潰して送る", () => {
   const evidence = onPage({
     url: "https://example.com/tools/pdf",
     code: [[
@@ -277,9 +339,19 @@ test("導入コマンドは一致した行だけを、値を潰して送る", ()
                         "leaked-in-header", "leaked-flag"]) {
     assert.equal(sent.includes(secret), false, `${secret} を送っている`);
   }
-  // 潰しても取得元は決まる。
-  const [candidate] = evidence.candidates;
-  assert.equal(candidate.kind, "command");
-  assert.match(candidate.value, /skills add acme\/tools/);
+  // 潰しても取得元は決まる。行を結合しないので複数の repo を取り違えない。
+  const commands = evidence.candidates.filter(candidate => candidate.kind === "command");
+  assert.ok(commands.some(candidate => /skills add acme\/tools/.test(candidate.value)));
   assert.equal(resolveLocally(narrowed(evidence)).kind, "ask");   // 直リンクは無い
+});
+
+test("同じブロックの複数 repo を別々のコマンド候補にする", () => {
+  const evidence = onPage({
+    url: "https://example.com/tools",
+    code: ["npx skills add acme/one --skill one\nnpx skills add acme/two --skill two"],
+  }, extractPageEvidence);
+  assert.deepEqual(evidence.candidates.map(candidate => candidate.value), [
+    "npx skills add acme/one --skill one",
+    "npx skills add acme/two --skill two",
+  ]);
 });
