@@ -12,6 +12,13 @@ const { fakeEnv, makeDir, writeFileIn } = require("./helpers.js");
 const code = expected => error => error.code === expected;
 const server = (name, definition) => parseAll({ mcpServers: { [name]: definition } })[0];
 
+test("project の Rule も表示中は監視する", () => {
+  const project = join(fakeEnv().home, "project");
+  const watched = agentTool.watchPaths({ storagePath: join(project, "storage"), projectPath: project });
+  assert.ok(watched.includes(join(project, ".claude", "rules")));
+  assert.ok(watched.includes(join(project, ".cursor", "rules")));
+});
+
 /** プロセス境界が無いので版ずれは起きない。互換判定は registry の schemaVersion だけ。 */
 test("互換判定は registry の schemaVersion が持つ", () => {
   const { SCHEMA_VERSION, decode } = require("../out/ide/registry.js");

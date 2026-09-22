@@ -398,6 +398,8 @@ TS 拡張は `vscode.workspace.createFileSystemWatcher` と `RelativePattern` �
 | `~/.cursor/agents/**` | Cursor サブエージェント |
 | `<workspaceFolder>/.claude/skills/**` | Current Project スキル |
 | `<workspaceFolder>/.claude/agents/**` | Current Project サブエージェント |
+| `<workspaceFolder>/.claude/rules/**` | Current Project Claude Rule |
+| `<workspaceFolder>/.cursor/rules/**` | Current Project Cursor Rule |
 | `<workspaceFolder>/.mcp.json` | Current Project MCP |
 | `~/.cursor/mcp.json` | Cursor MCP 設定 |
 | `~/.claude.json` | Claude MCP・プロジェクト設定 |

@@ -144,6 +144,8 @@ export function watchPaths(params: { storagePath: string; projectPath: string | 
   if (params.projectPath !== null) {
     paths.push(join(params.projectPath, ".claude", "skills"),
       join(params.projectPath, ".claude", "agents"),
+      join(params.projectPath, ".claude", "rules"),
+      join(params.projectPath, ".cursor", "rules"),
       join(params.projectPath, ".mcp.json"));
   }
   return [...new Set(paths)].sort();
