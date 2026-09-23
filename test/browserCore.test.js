@@ -41,6 +41,31 @@ test("ブラウザの JSON 読み込みは上限を超えたら中止する", as
   assert.equal(await readText(chunked, 7), null);
 });
 
+/** 入れる前に何をするものかを出す。読むのは frontmatter の先頭 4 KB だけ。 */
+test("導入前の説明は SKILL.md の先頭だけを読む", async () => {
+  const { description } = await import("../out/web/browser/fetch.js");
+  const found = lead("https://github.com/o/r/tree/main/skills/pdf");
+  const original = globalThis.fetch;
+  const seen = [];
+  try {
+    globalThis.fetch = async (url) => {
+      seen.push(url);
+      return new Response("---\nname: pdf\ndescription: fills forms\n---\n" + "x".repeat(200_000));
+    };
+    assert.equal(await description(found), "fills forms");
+    assert.match(seen[0], /raw\.githubusercontent\.com\/o\/r\/main\/skills\/pdf\/SKILL\.md$/);
+
+    // 閉じ `---` が 4 KB の外にあるものは「説明なし」と混ぜず、出さない。
+    globalThis.fetch = async () => new Response("---\n" + "# ".repeat(4000) + "\ndescription: late\n---\n");
+    assert.equal(await description(found), null);
+
+    globalThis.fetch = async () => new Response("nope", { status: 404 });
+    assert.equal(await description(found), null);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("パス名から Skill と Subagent を当てる", () => {
   assert.equal(kindOf(["skills", "pdf"]), "skill");
   assert.equal(kindOf(["agents", "reviewer.md"]), "subagent");

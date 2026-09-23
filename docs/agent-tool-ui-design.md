@@ -532,6 +532,8 @@ Codex        [導入先を選ぶ]
    ┌─────────────────────────────────────────────┐
    │ スキル「pdf」 — example/my-skills           │
    │ 説明文（frontmatter の description）         │
+   │   取得元の SKILL.md の先頭 4 KB だけを読む。  │
+   │   読めないときは出さない（導入は妨げない）。   │
    │                                             │
    │ 導入先                                       │
    │   ● Claude Code      ~/.claude/skills       │

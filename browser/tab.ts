@@ -9,7 +9,7 @@ import {
 import {
   clearRoot, configHandle, exists, PickerError, pickerHint, pickerUnavailable, placeHandle,
 } from "./fs.js";
-import { rateLimitWatch, readText } from "./fetch.js";
+import { description, rateLimitWatch, readText } from "./fetch.js";
 import {
   filesFor, install, InstallError, InstallRequest, isExtractable, remove, willOverwrite,
 } from "./install.js";
@@ -267,6 +267,7 @@ async function showLead(raw: string, vetted = false, alreadyIn = false): Promise
 
   byId("found-kind").textContent = t(found.kind === "skill" ? "kindSkill" : "kindSubagent");
   byId("found-name").textContent = found.name;
+  showDescription(found);
   byId("found-repo").textContent = found.source.repo;
   byId("security-source").textContent = t("tabSecuritySource", found.source.repo);
   byId("destination").hidden = true;             // 導入を押してから出す
@@ -277,6 +278,21 @@ async function showLead(raw: string, vetted = false, alreadyIn = false): Promise
   tag.hidden = !alreadyIn;
   installBtn.hidden = false;
   animateDetection(byId("found"));
+}
+
+/**
+ * 取得元の説明を後から入れる。カードの表示は待たせない — 読めなくても導入はできる。
+ * 出す前に `current` を見て、URL を打ち替えた後の古い応答を反映しない。
+ */
+function showDescription(found: ToolLead): void {
+  const box = byId("found-desc");
+  box.textContent = "";
+  box.hidden = true;
+  void description(found).then(text => {
+    if (current !== found || text === null || text === "") return;
+    box.textContent = text;
+    box.hidden = false;
+  });
 }
 
 /** 複数の直リンクから 1 件を選ばせる。選択するまでは実在確認も取得もしない。 */

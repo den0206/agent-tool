@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Each tool row now shows the first line of its description, so the list says what a tool does without opening it.
 - The detail panel now explains how to call the tool by name and agent, folds a long description to three lines behind **Show more**, and offers **Open the file** for a Skill, Subagent, or Rule. Tools without a description now say what their kind is instead of only "No description was provided."; a Plugin's version moved to its own row.
+- The browser extension now shows the description of a Skill or Subagent on the install card, read from the first 4 KB of its source file before you install it.
 - The browser extension can now scan unsupported pages with local detection even when AI-assisted detection is disabled or has no Jev API key. It asks for Jev setup only when local evidence cannot decide.
 - When automatic or manual detection finds several direct Skill or Subagent links, the popup now lets you choose one and verifies only that choice before opening the install flow.
 - Unsupported-page scanning now reads installation commands one line at a time. It recognizes a single `--skill` argument from `npx`, `bunx`, or `pnpm dlx`, verifies that Skill through GitHub, and never executes the command.

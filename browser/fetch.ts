@@ -1,3 +1,5 @@
+import { proofUrls, ToolLead } from "../core/detect.js";
+import { HEAD_BYTES, parse } from "../core/frontmatter.js";
 import { PAGE_LIMIT } from "../core/limits.js";
 
 /** 本文を読みながら byte 上限を掛ける。全文読込後の切り詰めは上限にならない。 */
@@ -27,6 +29,46 @@ export async function readText(response: Response, limit: number): Promise<strin
   } finally {
     reader.releaseLock();
   }
+}
+
+/**
+ * 先頭だけを読んで打ち切る。`readText` は上限超過を「読めなかった」にするので、
+ * 全文が上限より大きいのが普通な SKILL.md には使えない。
+ */
+async function readHead(response: Response, limit: number): Promise<string> {
+  if (response.body === null) return "";
+  const reader = response.body.getReader();
+  // 先頭 limit byte 分だけを持つ。全文は一度もメモリに載せない。
+  const head = new Uint8Array(limit);
+  let size = 0;
+  try {
+    while (size < limit) {
+      const next = await reader.read();
+      if (next.done) break;
+      const take = Math.min(next.value.length, limit - size);
+      head.set(next.value.subarray(0, take), size);
+      size += take;
+    }
+  } catch {
+    /* 読めた分だけ返す */
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+  return new TextDecoder().decode(head.subarray(0, size));
+}
+
+/**
+ * 導入する前に「何をするものか」を出すための 1 行。frontmatter の先頭 4 KB だけ読む。
+ * カタログ（`proofs` が空）は実体パスが分からないので、アーカイブは落とさず諦める。
+ */
+export async function description(found: ToolLead): Promise<string | null> {
+  const [url] = proofUrls(found);
+  if (url === undefined) return null;
+  const response = await fetch(url, { cache: "no-store" }).catch(() => null);
+  if (response === null || !response.ok) return null;
+  const result = parse(await readHead(response, HEAD_BYTES));
+  return result.status === "parsed" ? result.matter.description ?? null : null;
 }
 
 /**

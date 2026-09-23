@@ -177,6 +177,18 @@ body.detected #open-settings { display: none; }
 /* 検知の一段目。種類を先に置き、名前を主役にする。 */
 .found-head { display: flex; align-items: baseline; gap: 9px; }
 
+/* 説明は長いものが多い。4 行で切って、カードが画面を埋めないようにする。 */
+.found-desc {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 #found-name {
   flex: 1;
   min-width: 0;
