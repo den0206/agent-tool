@@ -79,6 +79,7 @@ export type InventoryItem = {
   hasUpdate: boolean;
   pinned: boolean;         // 更新を追わないと利用者が決めたもの
   summary?: string;        // frontmatter の先頭 4 KB から取得
+  version?: string;        // Plugin の版。説明とは分けて表示する
   mcpScope?: 'user' | 'project' | 'local';    // MCP の登録先。削除コマンドの -s に載る
   floating?: string;       // `@latest` 指定のパッケージ名。版を固定できていない MCP
   pluginScope?: 'user' | 'project' | 'local'; // Plugin の登録先

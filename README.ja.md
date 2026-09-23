@@ -42,7 +42,7 @@ Agent Toolは、同じ検知・導入ロジックを共有する2つの拡張か
 - Skill、Subagent、Rule、MCPサーバー、Pluginを1つのダッシュボードで確認
 - GitHubと対応カタログからSkill / Subagentを導入
 - GitHubサブディレクトリ内のPluginを含むClaude Code / Codex Pluginの導入
-- 説明、場所、スコープ、有効状態、更新の確認
+- 説明、呼び出し方、場所、スコープ、有効状態、更新の確認と、Skill・Subagent・Rule のファイルを開く
 - 管理対象ファイルをコピーせず、ユーザー領域とプロジェクト領域を管理
 - Chrome / Edge / Brave の拡張から、ブラウザで見つけたSkillとSubagentをそのまま導入 — IDE拡張は不要
 - 未対応サイトでも、popupからそのページを解析してGitHub由来のSkill / Subagent候補を探せる。判定はページ内でローカルに行う。**Beta:** ローカルで決められないときだけ、任意で登録した自分のJev APIキーでTypeSafeへ1問だけ訊ける。登録して有効にするまでJevは動かず、既存の対応サイトではJevを使わず従来の決定論的検知を維持する。今後の版で変更・撤去することがある

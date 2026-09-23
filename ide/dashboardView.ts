@@ -13,6 +13,7 @@ export type DashboardItem = {
   repoUrl?: string;
   sourceUrl?: string;
   summary?: string;
+  version?: string;
   hasUpdate: boolean;
   pinned?: boolean;
   running?: boolean;
@@ -86,11 +87,19 @@ const webviewText = (): Record<string, string> => ({
   location: vscode.l10n.t("Location"),
   source: vscode.l10n.t("Source"),
   loadFailed: vscode.l10n.t("The tool list could not be read; it may be incomplete."),
-  useSkill: vscode.l10n.t("Name it in chat, or ask for something it covers."),
-  useSubagent: vscode.l10n.t("Delegate to it from the agent's subagent feature."),
-  useRule: vscode.l10n.t("Loaded by the agent according to its frontmatter."),
-  useMcp: vscode.l10n.t("Available as an MCP tool in the matching agent."),
-  usePlugin: vscode.l10n.t("Use it from the matching agent's plugin feature."),
+  useSkill: vscode.l10n.t("Name it in chat (for example /{0}), or ask for something its description covers."),
+  useSubagent: vscode.l10n.t("Ask {0} to hand the work to the \"{1}\" subagent."),
+  useRule: vscode.l10n.t("{0} loads it on its own, following the frontmatter of this file."),
+  useMcp: vscode.l10n.t("Its tools are available in {0} while the server runs."),
+  usePlugin: vscode.l10n.t("Turn it on or off from the plugin feature of {0}."),
+  mcpStopped: vscode.l10n.t("The server is not running now; it starts with the agent."),
+  aboutSkill: vscode.l10n.t("A Skill — instructions the agent loads when the work matches."),
+  aboutSubagent: vscode.l10n.t("A Subagent — a separate agent that takes over one task."),
+  aboutRule: vscode.l10n.t("A Rule — instructions applied to the work in this scope."),
+  aboutPlugin: vscode.l10n.t("A Plugin — a bundle of Skills, Subagents and MCP servers."),
+  openFile: vscode.l10n.t("Open the file"),
+  showMore: vscode.l10n.t("Show more"),
+  version: vscode.l10n.t("Version"),
 });
 
 /**
@@ -217,6 +226,10 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .detail-inline .body { color:var(--vscode-foreground); font-size:11.5px; line-height:1.55; }
     .detail-inline .mono { color:var(--at-fg-mute); font-size:11px; font-family:var(--vscode-editor-font-family); overflow-wrap:anywhere; }
     .detail-inline .floating-note { color:var(--at-warn); font-size:11px; }
+    /* Clamp long descriptions: a Skill description runs to hundreds of characters. */
+    .detail-inline .body.clamp { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+    .detail-inline .more { margin-top:3px; }
+    .detail-inline .detail-actions { display:flex; gap:6px; flex-wrap:wrap; }
 
     /* Preview / clipboard cards keep old .detail style */
     .detail { margin:0 0 12px; padding:11px; border:1px solid var(--at-border); border-radius:7px; background:var(--at-card); position:relative; }
@@ -289,7 +302,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
   const vscode = acquireVsCodeApi(); const T = ${text};
   let items = []; let issues = []; let diagnostics = []; let loadError = '';
   let agent = ''; let scope = 'user'; let projectName = 'Current Project'; let sectionExpanded = {};
-  let onlyUpdates = false; let loaded = false; let selected = '';
+  let onlyUpdates = false; let loaded = false; let selected = ''; let descOpen = false;
   let projects = []; let otherPath = ''; let otherItems = []; let otherLoading = false; let otherError = ''; let otherIssues = [];
   let lastPreview = null; let environment = []; let compatibility = []; let readOnly = '';
   const kinds = {skill:'Skills',subagent:'Subagents',rule:'Rules',mcp:'MCP Servers',plugin:'Plugins'};
@@ -331,7 +344,9 @@ export function dashboardHtml(webview: vscode.Webview): string {
     if (x.floating) nameBits.push('<span class="pin" style="color:var(--at-warn)">'+floatSvg+'</span>');
     const metaBits = [];
     if (x.origin === 'bundled') metaBits.push(esc(T.bundled));
-    if (x.repoUrl) metaBits.push(esc(x.repoUrl.replace(/^https?:\\/\\//,'')));
+    // Say what it does in the row; the source and path are in the open detail.
+    if (x.summary) metaBits.push(esc(firstLine(x.summary)));
+    else if (x.repoUrl) metaBits.push(esc(x.repoUrl.replace(/^https?:\\/\\//,'')));
     else if (x.sourcePath) metaBits.push(esc(x.sourcePath));
     const meta = metaBits.length ? '<div class="row-meta">'+metaBits.join(' · ')+'</div>' : '';
     return '<div class="'+cls+'"'+at+' role="button" tabindex="0" aria-expanded="'+(selected===keyOf(x))+'">'
@@ -390,6 +405,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
       : otherLoading ? '<div class="loading"><span class="spinner"></span>'+esc(T.readingProject)+'</div>'
       : warn + (rows.length ? '<div class="group">'+rows.map((x,i)=>rowHtml(x,true,i)).join('')+'</div>' : (warn ? '' : '<div class="empty">'+esc(T.projectEmpty)+'</div>'));
     bindRows(body.querySelectorAll('.row[data-other]'), node=>rows[Number(node.dataset.other)]);
+    bindDetail(body);
   }
   function render() {
     const agents=Object.keys(agentNames).filter(a=>items.some(x=>x.agents.includes(a)));
@@ -488,6 +504,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const cu=document.querySelector('#check-updates'); if (cu) cu.onclick=()=>vscode.postMessage({type:'checkUpdates'});
     bindRows(document.querySelectorAll('#content .row[data-index]'), node=>items[Number(node.dataset.index)]);
     document.querySelectorAll('.action').forEach(b=>b.onclick=e=>{e.stopPropagation(); vscode.postMessage({type:'actions',item:items[Number(b.dataset.index)]});});
+    bindDetail(document.querySelector('#content'));
     document.querySelectorAll('.section-toggle').forEach(b=>b.onclick=()=>{const key=b.dataset.kind; sectionExpanded[key]=!sectionExpanded[key]; render();});
     document.querySelectorAll('.footer-toggle').forEach(b=>b.onclick=()=>{const key=b.dataset.fold; sectionExpanded[key]=!sectionExpanded[key]; render();});
     renderOthers();
@@ -510,16 +527,55 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const key={BROKEN_LINK:'brokenLink',MISSING_SKILL_FILE:'missingSkillFile',DUPLICATE_IDENTITY:'duplicateIdentity',DUPLICATE_MCP_NAME:'duplicateMcpName',MISSING_EXECUTABLE:'missingExecutable'}[d.code];
     return (T[key]||d.message||'').replace('{0}',name);
   }
-  function hideDetail() { selected=''; }
-  function toggleDetail(x) { selected = selected===keyOf(x) ? '' : keyOf(x); render(); }
+  /** Buttons inside the open detail; called for the list and for other projects. */
+  function bindDetail(root) {
+    if (!root) return;
+    root.querySelectorAll('.open-file').forEach(b=>b.onclick=e=>{
+      e.stopPropagation(); vscode.postMessage({type:'openFile',path:b.dataset.path,kind:b.dataset.kind});});
+    const toggle=root.querySelector('.desc-toggle');
+    const body=root.querySelector('.detail-description');
+    if (toggle && body) {
+      const open=toggle.getAttribute('aria-expanded')==='true';
+      toggle.hidden=!open && body.scrollHeight<=body.clientHeight;
+      toggle.onclick=e=>{
+        e.stopPropagation(); const open=toggle.getAttribute('aria-expanded')!=='true';
+        descOpen=open;
+        body.classList.toggle('clamp',!open); toggle.setAttribute('aria-expanded',String(open));
+        toggle.textContent=open?T.showLess:T.showMore;
+      };
+    }
+  }
+  function hideDetail() { selected=''; descOpen=false; }
+  function toggleDetail(x) { selected = selected===keyOf(x) ? '' : keyOf(x); descOpen=false; render(); }
+  /** Keep rows one line high: a description may hold several lines. */
+  const firstLine = s => String(s).split('\\n').find(line=>line.trim()!=='') || '';
+  /** How to call it. Without the name and the agent, the sentence says nothing usable. */
+  function usageText(x) {
+    const who = x.agents.map(a=>agentNames[a]||a).join(' / ') || Object.values(agentNames).join(' / ');
+    if (x.kind==='skill') return T.useSkill.replace('{0}', x.name);
+    if (x.kind==='subagent') return T.useSubagent.replace('{0}', who).replace('{1}', x.name);
+    if (x.kind==='rule') return T.useRule.replace('{0}', who);
+    if (x.kind==='mcp') return T.useMcp.replace('{0}', who);
+    return T.usePlugin.replace('{0}', who);
+  }
+  /** Many tools carry no description; say at least what the kind is. */
+  const aboutKind = kind =>
+    ({skill:T.aboutSkill,subagent:T.aboutSubagent,rule:T.aboutRule,plugin:T.aboutPlugin}[kind]||T.noDescription);
   function detailHtml(x) {
-    const usage=esc({skill:T.useSkill,subagent:T.useSubagent,rule:T.useRule,mcp:T.useMcp,plugin:T.usePlugin}[x.kind]||'');
+    const description = x.summary || aboutKind(x.kind);
+    const usage = esc(usageText(x))
+      + (x.kind==='mcp' && x.running===false ? '<br>'+esc(T.mcpStopped) : '');
     return '<div class="detail-inline"><div class="detail-inline-inner">'
-      + '<div><div class="label">'+esc(T.description)+'</div><div class="body">'+esc(x.summary||T.noDescription)+'</div></div>'
+      + '<div><div class="label">'+esc(T.description)+'</div>'
+      + '<div class="body detail-description'+(descOpen?'':' clamp')+'">'+esc(description)+'</div>'
+      + '<button class="link more desc-toggle" aria-expanded="'+descOpen+'"'+(descOpen?'':' hidden')+'>'+esc(descOpen?T.showLess:T.showMore)+'</button>'
+      + '</div>'
       + '<div><div class="label">'+esc(T.howToUse)+'</div><div class="body">'+usage+'</div></div>'
+      + (x.version?'<div><div class="label">'+esc(T.version)+'</div><div class="mono">'+esc(x.version)+'</div></div>':'')
       + (x.sourcePath?'<div><div class="label">'+esc(T.location)+'</div><div class="mono">'+esc(x.sourcePath)+'</div></div>':'')
       + (x.repoUrl?'<div><div class="label">'+esc(T.source)+'</div><div class="mono">'+esc(x.repoUrl)+'</div></div>':'')
       + (x.floating?'<div class="floating-note">'+esc(T.floatingWhy.replace('{0}',x.floating))+'</div>':'')
+      + (x.sourcePath && x.kind!=='mcp' && x.kind!=='plugin'?'<div class="detail-actions"><button class="ghost open-file" data-path="'+esc(x.sourcePath)+'" data-kind="'+esc(x.kind)+'">'+esc(T.openFile)+'</button></div>':'')
       + '</div></div>';
   }
   const element = (tag, className, text) => { const node=document.createElement(tag); if(className) node.className=className; if(text!==undefined) node.textContent=String(text); return node; };
@@ -567,6 +623,10 @@ export function dashboardHtml(webview: vscode.Webview): string {
     if (e.data.type==='installDone') { if (e.data.ok) hidePreview(); else if (lastPreview) showPreview(lastPreview); }
     if (e.data.type==='analysisStart') showPreview(e.data);
     if (e.data.type==='preview') showPreview(e.data);
+  });
+  window.addEventListener('resize',()=>{
+    bindDetail(document.querySelector('#content'));
+    bindDetail(document.querySelector('#other-body'));
   });
   render();
   </script></body></html>`;

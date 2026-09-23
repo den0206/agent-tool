@@ -2,6 +2,7 @@
 const { strict: assert } = require("node:assert");
 const Module = require("node:module");
 const { test } = require("node:test");
+const { join } = require("node:path");
 const { fakeEnv } = require("./helpers.js");
 
 /** `require("vscode")` だけを差し替える。差し替えは 1 回の読み込みごとに戻す。 */
@@ -22,7 +23,7 @@ function loadExtension(stub, tool) {
 function stubVscode(overrides = {}) {
   const state = {
     warnings: [], warningDetails: [], commands: new Map(), disposed: 0,
-    provider: undefined, posted: [], picks: [], watchers: 0, badge: {shown: false},
+    provider: undefined, posted: [], picks: [], opened: [], watchers: 0, badge: {shown: false},
   };
   const stub = {
     l10n: { t: (text, ...args) => args.reduce((acc, value, i) => acc.replace(`{${i}}`, value), text) },
@@ -54,6 +55,7 @@ function stubVscode(overrides = {}) {
         return Promise.resolve(confirmed ? actions[actions.length - 1] : undefined);
       },
       showInformationMessage: () => Promise.resolve(undefined),
+      showTextDocument: (uri, options) => { state.opened.push({ uri, options }); return Promise.resolve(); },
       showInputBox: () => Promise.resolve(undefined),
       showQuickPick: items => { state.picks.push(items); return Promise.resolve(undefined); },
       createStatusBarItem: () => ({
@@ -158,6 +160,26 @@ test("Dashboard からブラウザ拡張のストアページを開く", async (
     state.onMessage({ type: "openBrowserExtension" });
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(state.externalUri.value, "https://chromewebstore.google.com/detail/agent-tool/allbohfeiidaiemnagikcghaialfafhp");
+  } finally {
+    for (const item of context.subscriptions) item.dispose?.();
+  }
+});
+
+test("Dashboard から Tool の実体ファイルを開く", async () => {
+  const { stub, state } = stubVscode();
+  const { context } = activateWith(stub, fakeEnv().appSupport, {
+    inventory: async () => ({ items: [], issues: [], diagnostics: [] }),
+    mcpStatus: async () => ({}), watchPaths: () => [], scanPath: async () => [], projects: () => [],
+  });
+  try {
+    showView(state);
+    state.onMessage({ type: "openFile", path: "/tools/pdf", kind: "skill" });
+    state.onMessage({ type: "openFile", path: "/agents/reviewer.md", kind: "subagent" });
+    await new Promise(resolve => setImmediate(resolve));
+    // 区切り文字は OS で変わる。Windows の CI で落ちないよう join で組む。
+    assert.deepEqual(state.opened.map(({ uri, options }) => [uri.fsPath, options.preview]), [
+      [join("/tools/pdf", "SKILL.md"), true], ["/agents/reviewer.md", true],
+    ]);
   } finally {
     for (const item of context.subscriptions) item.dispose?.();
   }
@@ -389,7 +411,7 @@ function runWebviewScript() {
   const element = () => ({
     innerHTML: "", textContent: "", value: "", dataset: {},
     classList: { add() {}, remove() {}, toggle() {} },
-    querySelectorAll: () => [], scrollIntoView() {},
+    querySelectorAll: () => [], querySelector: () => null, scrollIntoView() {},
   });
   const listeners = [];
   const context = {
@@ -414,27 +436,76 @@ test("管理下 Skill を別の AI Agent に追加すると取得元を開く", 
   assert.equal(state.externalUri.value, "https://github.com/owner/repo/tree/main/skills/pdf");
 });
 
-test("カードのタップで説明を開き、もう一度で閉じる", () => {
+test("一覧には説明の1行を出し、タップで詳細を開いてもう一度で閉じる", () => {
   const { context, send } = runWebviewScript();
   const tool = {
     name: "my-skill", kind: "skill", scope: "user", agents: ["claude"], origin: "user",
-    enabled: true, hasUpdate: false, summary: "what it does",
+    enabled: true, hasUpdate: false, summary: "what it does\nand more",
     sourcePath: "/home/me/.agents/skills/my-skill",
   };
   send({ type: "inventory", items: [tool], projects: [], issues: [] });
 
+  // 閉じていても何をするものかは読める。改行の後ろは行に出さない。
   const closed = context.rowsHtml([tool]);
   assert.match(closed, /role="button"/);
-  assert.equal(closed.includes("what it does"), false);
+  assert.match(closed, /what it does/);
+  assert.equal(closed.includes("and more"), false);
+  assert.equal(closed.includes("/home/me/.agents"), false);
 
   context.toggleDetail(tool);
   const open = context.rowsHtml([tool]);
   assert.match(open, /aria-expanded="true"/);
-  assert.match(open, /what it does/);
+  assert.match(open, /and more/);
   assert.match(open, /\/home\/me\/\.agents\/skills\/my-skill/);
+  // 使い方には名前が入る。固定文のままでは何をすればよいか分からない。
+  assert.match(open, /\(for example \/my-skill\)/);
+  assert.match(open, /Open the file/);
 
   context.toggleDetail(tool);
-  assert.equal(context.rowsHtml([tool]).includes("what it does"), false);
+  assert.equal(context.rowsHtml([tool]).includes("and more"), false);
+});
+
+test("説明が無いものには種別の説明を出し、3行を超えた説明だけ開ける", () => {
+  const { context, send } = runWebviewScript();
+  const rule = {
+    name: "house-style", kind: "rule", scope: "user", agents: ["cursor"], origin: "user",
+    enabled: true, hasUpdate: false, sourcePath: "/home/me/.cursor/rules/house-style.mdc",
+  };
+  const long = {
+    name: "big", kind: "subagent", scope: "user", agents: ["claude"], origin: "user",
+    enabled: true, hasUpdate: false, summary: "x".repeat(200),
+  };
+  send({ type: "inventory", items: [rule, long], projects: [], issues: [] });
+
+  context.toggleDetail(rule);
+  const shown = context.rowsHtml([rule]);
+  assert.match(shown, /A Rule/);
+  assert.match(shown, /Cursor/);            // 誰が読むのかを名指しする
+  assert.match(shown, /detail-description clamp/);
+  assert.match(shown, /aria-expanded="false" hidden/);
+
+  context.toggleDetail(long);
+  const body = {
+    scrollHeight: 80, clientHeight: 40,
+    classList: { toggle(name, enabled) { this.last = [name, enabled]; } },
+  };
+  const toggle = {
+    hidden: true, textContent: "Show more", attributes: { "aria-expanded": "false" },
+    getAttribute(name) { return this.attributes[name]; },
+    setAttribute(name, value) { this.attributes[name] = value; },
+  };
+  context.bindDetail({
+    querySelectorAll: () => [],
+    querySelector: selector => selector === ".desc-toggle" ? toggle : body,
+  });
+  assert.equal(toggle.hidden, false);
+  toggle.onclick({ stopPropagation() {} });
+  assert.deepEqual(body.classList.last, ["clamp", false]);
+  assert.equal(toggle.attributes["aria-expanded"], "true");
+  assert.equal(toggle.textContent, "Show less");
+  const redrawn = context.rowsHtml([long]);
+  assert.equal(redrawn.includes("detail-description clamp"), false);
+  assert.match(redrawn, /aria-expanded="true">Show less/);
 });
 
 /** 「導入しています…」を元に戻せるのは結果の通知だけ。成否を Webview へ返す。 */

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { basename, dirname } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { KindId, supports } from '../core/agent';
 import * as agentTool from './agentTool';
 import { dashboardHtml, type DashboardItem } from './dashboardView';
@@ -65,6 +65,8 @@ export class DashboardProvider
         void this.install(message);
       if (message?.type === 'addMcp')
         void vscode.commands.executeCommand('agent-tool.addMcp');
+      if (message?.type === 'openFile')
+        void openToolFile(message.path, message.kind);
       if (message?.type === 'actions' && isItem(message.item))
         void vscode.commands.executeCommand('agent-tool.openToolActions', message.item);
       if (message?.type === 'selectProject' && typeof message.path === 'string')
@@ -270,6 +272,23 @@ export class DashboardProvider
       projects: this.knownProjects, environment: this.environment ?? [], compatibility,
       readOnly: readOnlyReason(),
     });
+  }
+}
+
+/**
+ * 実体をエディタで開く。説明欄に出せるのは frontmatter の 1 行だけなので、
+ * 使い方を確かめる経路はここに寄せる（本文は拡張のメモリに載せない）。
+ * Skill はディレクトリなので SKILL.md を指す。書き込みはしないので Remote でも許す。
+ */
+async function openToolFile(path: unknown, kind: unknown): Promise<void> {
+  if (typeof path !== 'string' || path === '') return;
+  if (kind !== 'skill' && kind !== 'subagent' && kind !== 'rule') return;
+  const file = kind === 'skill' ? join(path, 'SKILL.md') : path;
+  try {
+    await vscode.window.showTextDocument(vscode.Uri.file(file), {preview: true});
+  } catch {
+    void vscode.window.showWarningMessage(
+      vscode.l10n.t('Agent Tool: {0} could not be opened.', file));
   }
 }
 

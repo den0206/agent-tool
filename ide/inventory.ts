@@ -31,6 +31,8 @@ export type InventoryItem = {
   readonly pinned: boolean;
   /** frontmatter の先頭 4 KB から取得。本文は詳細表示のときだけ読む。 */
   readonly summary?: string;
+  /** Plugin の版。説明ではないので `summary` に混ぜず別に持つ。 */
+  readonly version?: string;
   /** MCP の登録先。削除コマンドの `-s` になるので `scope` に潰さず持つ。 */
   readonly mcpScope?: MCPScope;
   /**
@@ -271,7 +273,7 @@ export async function inventory(params: {
       origin: plugin.isBundled ? "bundled" : "user",
       sourcePath: plugin.projectPath, hasUpdate: false, pinned: false,
       pluginScope: plugin.scope,
-      summary: plugin.version === undefined ? undefined : `v${plugin.version}`,
+      version: plugin.version,
     })).sort(byName);
 
   const projectItemList = projectPath === null ? [] : projectItems(projectPath, registry, projectSkills, projectSubagents);

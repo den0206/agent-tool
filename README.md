@@ -42,7 +42,7 @@ Agent Tool keeps the resources used by your coding agents discoverable from one 
 - See Skills, Subagents, Rules, MCP servers, and Plugins in one dashboard.
 - Install Skills and Subagents from GitHub and supported catalogs.
 - Install Claude Code and Codex Plugins, including Plugins in GitHub subdirectories.
-- Preview descriptions, locations, scopes, enabled state, and available updates.
+- Preview descriptions, how to call each tool, locations, scopes, enabled state, and available updates, and open a Skill, Subagent, or Rule in the editor.
 - Work across user and project resources without copying managed files.
 - Install Skills and Subagents straight from the browser with the companion Chrome/Edge/Brave extension — no IDE extension required.
 - Scan an unsupported site for a GitHub-backed Skill or Subagent from the popup. Detection runs locally in the page you are on; **Beta:** when local evidence cannot decide, you can add your own Jev API key so a single question goes to TypeSafe. That part is off until you enable it, supported sites stay deterministic and never call Jev, and the experiment may change or be withdrawn in a later release.
