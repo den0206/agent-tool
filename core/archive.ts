@@ -54,6 +54,7 @@ const text = (block: Uint8Array, offset: number, length: number): string => {
   return decoder.decode(end < 0 ? raw : raw.subarray(0, end));
 };
 
+/** 空欄は 0 で読む（ディレクトリの size を NUL のままにする実装がある）。負は呼び出し側が弾く。 */
 const octal = (block: Uint8Array, offset: number, length: number): number => {
   const value = parseInt(text(block, offset, length).trim(), 8);
   return Number.isFinite(value) ? value : 0;
@@ -125,6 +126,10 @@ export async function* readTarGz(
 
     const flag = String.fromCharCode(header[156]);
     const size = octal(header, 124, 12);
+    // size 欄は符号なし 8 進。`-0000001234` を通すと `take` に負値が渡って `RangeError` に
+    // なり、`ArchiveError` のマスク経路を外れる。GNU の base-256 表記（先頭バイトの最上位
+    // ビット。8 GB 超で使う）は 8 進として読めず、0 と誤読して本文をヘッダとして読み進める。
+    if (size < 0 || (header[124] & 0x80) !== 0) fail("the archive has an invalid entry size");
     const padded = Math.ceil(size / BLOCK) * BLOCK;
 
     // PAX / GNU の補助エントリも外部入力であり、通常ファイルと同じ資源上限に数える。

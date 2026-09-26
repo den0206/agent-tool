@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- An archive whose entry declares an unreadable size is now rejected with the same message as any other malformed archive, instead of failing with an internal error.
 - **Enable for this site** now appears for every confirmed result — a single tool, a folder listing, or a candidate list — instead of only the single-tool card. A site whose pages resolve to a folder listing, such as Supabase's skills guide, could not be enabled again once it had been removed.
 - Removing a site under **Settings → Automatic detection** now also drops what automatic detection already showed for that tab, so the popup no longer answers with the removed site's previous result.
 - The browser extension now resolves the active browser tab from a popup or service worker correctly, so enabling automatic detection opens the site-permission prompt and rescans the current page after approval.
