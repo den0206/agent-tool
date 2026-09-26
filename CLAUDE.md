@@ -65,7 +65,7 @@ CI はローカルと同じスクリプトを呼び、別ロジックを持た�
 
 リソース管理ツール自身がディスクとメモリを増やさないことを機能要件として扱う。
 
-- 可変メタデータは `<globalStorageUri>/registry.json` だけ。`registry.lock` は内容を持たないロック inode。
+- 可変メタデータは `<globalStorageUri>/registry.json` だけ。`registry.lock` は保持者の PID だけを持つロック inode。
 - `registry.json` は読み込み時と保存前の両方で 2 MB 上限を検査する。
 - Skill / Subagent 実体は管理対象データであり、キャッシュではない。既存配置を再利用し、コピーを重複させない。
 - ログ、診断履歴、Undo スナップショット、インベントリ、差分を永続化しない。

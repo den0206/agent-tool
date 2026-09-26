@@ -1,5 +1,5 @@
 const { strict: assert } = require("node:assert");
-const { readdirSync, readFileSync, utimesSync, writeFileSync } = require("node:fs");
+const { readdirSync, readFileSync, unlinkSync, utimesSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { test } = require("node:test");
 const { registryFile } = require("../out/ide/env.js");
@@ -53,8 +53,12 @@ test("読み戻せない大きさの registry は保存しない", async () => {
 
 test("自分より新しいスキーマは拒否する", () => {
   const env = fakeEnv();
-  seed(env, JSON.stringify({ schemaVersion: "2", resources: [] }));
-  assert.throws(() => read(env), error => error.code === "SCHEMA_UNSUPPORTED");
+  // "10" は文字列比較では "2" より小さく見え、数値の 2 は「文字列でない」ので
+  // 見落とされる。どちらも通すと decode が未知のフィールドを落として書き戻す。
+  for (const version of ["2", "10", "abc", 2, 10, {}]) {
+    seed(env, JSON.stringify({ schemaVersion: version, resources: [] }));
+    assert.throws(() => read(env), error => error.code === "SCHEMA_UNSUPPORTED", version);
+  }
 });
 
 test("保存した内容を読み戻せる", async () => {
@@ -99,14 +103,54 @@ test("同時に走る update が互いの変更を消さない", async () => {
   assert.deepEqual(read(env).resources.map(resource => resource.name).sort(), ["a", "b", "c"]);
 });
 
-/** プロセスがクラッシュして残ったロックは、待ち続けずに回収する。 */
-test("古いロックは回収して先へ進む", async () => {
-  const env = fakeEnv();
+const lockIn = (env, body) => {
   makeDir(env.appSupport);
   const lockPath = join(env.appSupport, "registry.lock");
-  writeFileSync(lockPath, "");
+  writeFileSync(lockPath, body);
+  return lockPath;
+};
+
+/** プロセスがクラッシュして残ったロックは、待ち続けずに回収する。 */
+test("居なくなった保持者のロックは回収して先へ進む", async () => {
+  const env = fakeEnv();
+  lockIn(env, "2147483647");                       // どの OS でも走っていない PID
+  assert.equal(await withRegistryLock(env, () => "done"), "done");
+});
+
+/** PID を書く前に落ちた場合と旧版が残したロック。時間でしか判断できない。 */
+test("PID の無い古いロックは回収して先へ進む", async () => {
+  const env = fakeEnv();
+  const lockPath = lockIn(env, "");
   const stale = new Date(Date.now() - 60_000);
   utimesSync(lockPath, stale, stale);
+  assert.equal(await withRegistryLock(env, () => "done"), "done");
+});
+
+/**
+ * 導入の実体コピーは同期で走りイベントループを止める。時間で回収すると、
+ * 作業中の保持者から別プロセスが奪って 2 つが同時に書き込む。
+ */
+test("生きている保持者のロックは古くても回収しない", async () => {
+  const env = fakeEnv();
+  const lockPath = lockIn(env, String(process.pid));
+  const stale = new Date(Date.now() - 60_000);
+  utimesSync(lockPath, stale, stale);
+  const attempt = withRegistryLock(env, () => "acquired");
+  const waited = new Promise(resolve => setTimeout(() => resolve("waited"), 300));
+  assert.equal(await Promise.race([attempt, waited]), "waited");
+  unlinkSync(lockPath);                            // 保持者が解放した
+  assert.equal(await attempt, "acquired");
+});
+
+/**
+ * PID は再利用される。生死だけで決めると、無関係なプロセスが番号を拾った時点で
+ * 書き込みが永久に止まり、`registry.lock` の手動削除しか復旧手段が無くなる。
+ */
+test("生きている保持者でも限度を超えたロックは回収する", async () => {
+  const env = fakeEnv();
+  const lockPath = lockIn(env, String(process.pid));
+  const ancient = new Date(Date.now() - 11 * 60_000);
+  utimesSync(lockPath, ancient, ancient);
   assert.equal(await withRegistryLock(env, () => "done"), "done");
 });
 

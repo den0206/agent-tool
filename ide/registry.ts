@@ -1,4 +1,4 @@
-import { closeSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync, writeSync } from "node:fs";
 import { join } from "node:path";
 import { AgentId, AGENT_IDS, KindId } from "../core/agent";
 import { Env, registryFile } from "./env";
@@ -56,10 +56,15 @@ const arr = (v: unknown): unknown[] => Array.isArray(v) ? v : [];
  */
 export function decode(raw: unknown): Registry {
   const root = obj(raw);
-  const version = str(root.schemaVersion) ?? SCHEMA_VERSION;
-  if (version > SCHEMA_VERSION) {
+  // 文字列でも数値でも来る。`str()` を通すと数値の 2 が「書かれていない」になり、
+  // 数として比べないと `"10" > "2"` が false になる。どちらも未来の schema を読めると
+  // 誤判定し、decode が未知のフィールドを落とした registry を書き戻す。
+  const version = root.schemaVersion ?? SCHEMA_VERSION;
+  const known = (typeof version === "string" || typeof version === "number")
+    && Number(version) <= Number(SCHEMA_VERSION);
+  if (!known) {
     throw new AgentToolError("SCHEMA_UNSUPPORTED",
-      `registry.json uses schema ${version}; update Agent Tool to read it`);
+      `registry.json uses schema ${String(version)}; update Agent Tool to read it`);
   }
   const agents: Partial<Record<AgentId, AgentSetting>> = {};
   for (const [key, value] of Object.entries(obj(root.agents))) {
@@ -146,6 +151,29 @@ function write(env: Env, registry: Registry): void {
   renameSync(temporary, destination);
 }
 
+const STALE_LOCK_MS = 30_000;
+/**
+ * PID が生きていても、これを超えたロックは回収する。PID は再利用されるので、
+ * 生死だけで判断すると無関係なプロセスが番号を拾った時点で書き込みが永久に止まり、
+ * 利用者に `registry.lock` の手動削除しか残らない。展開上限（200 MB）のコピーが
+ * この時間に届くことはないので、作業中の保持者から奪う心配はない。
+ */
+const ABANDONED_LOCK_MS = 10 * 60_000;
+
+/**
+ * 保持者が居なくなったロックか。導入の実体コピーは同期（`cpSync`）でイベントループを
+ * 止めるため、経過時間だけで回収すると作業中の保持者から奪って 2 プロセスが同時に書き込む。
+ * PID を書く前に落ちた場合と旧版が残したロックのためだけに、mtime を残す。
+ */
+function abandoned(lockPath: string): boolean {
+  const held = Date.now() - statSync(lockPath).mtimeMs;
+  const pid = Number(readFileSync(lockPath, "utf8").trim());
+  if (!Number.isInteger(pid) || pid <= 0) return held > STALE_LOCK_MS;
+  // シグナル 0 は存在確認だけを行う。EPERM は他ユーザーのプロセスで、生きている。
+  try { process.kill(pid, 0); return held > ABANDONED_LOCK_MS; }
+  catch (error) { return (error as NodeJS.ErrnoException).code === "ESRCH"; }
+}
+
 /**
  * プロセス間の排他。`wx`（`O_CREAT | O_EXCL`）による原子的生成は 3 OS で同一に動く。
  * `flock` や `proper-lockfile` は Windows での挙動差を避けるため使わない。
@@ -156,13 +184,15 @@ export async function withRegistryLock<T>(env: Env, body: () => Promise<T> | T):
   const deadline = Date.now() + 10_000;
   for (;;) {
     try {
-      closeSync(openSync(lockPath, "wx"));
+      // 誰が持っているかを書く。回収の判断に使うので、作成と同じ try の中で書き切る。
+      const descriptor = openSync(lockPath, "wx");
+      try { writeSync(descriptor, String(process.pid)); } finally { closeSync(descriptor); }
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      // クラッシュで残ったロックは mtime で回収する。
+      // クラッシュで残ったロックは回収する。生きた保持者からは奪わない。
       try {
-        if (Date.now() - statSync(lockPath).mtimeMs > 30_000) { unlinkSync(lockPath); continue; }
+        if (abandoned(lockPath)) { unlinkSync(lockPath); continue; }
       } catch { /* 直前に他プロセスが解放した */ }
       if (Date.now() >= deadline) {
         throw new AgentToolError("LOCK_TIMEOUT",
