@@ -25,6 +25,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Skills that Claude Code keeps in `~/.claude/skills/synced` are now listed as bundled instead of being reported as a directory with no `SKILL.md`. Agent Tool reads them but never writes there, because Claude Code recreates that directory on each sync.
 - An archive whose entry declares an unreadable size is now rejected with the same message as any other malformed archive, instead of failing with an internal error.
 - A long install no longer loses the write lock to another window. The lock now records the window that holds it, so copying a large Skill is no longer mistaken for a crashed process.
 - A `registry.json` written by a newer version of Agent Tool is now always refused, instead of being read and saved back with its unknown fields dropped.

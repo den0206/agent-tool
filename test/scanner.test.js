@@ -4,7 +4,7 @@ const { join } = require("node:path");
 const { test } = require("node:test");
 const { parse, HEAD_BYTES } = require("../out/core/frontmatter.js");
 const { read } = require("../out/ide/frontmatter.js");
-const { scanRuleRoot, scanSkillRoot, scanSubagentRoot, isLoadable } = require("../out/ide/skillScanner.js");
+const { scanRuleRoot, scanSkills, scanSkillRoot, scanSubagentRoot, isLoadable } = require("../out/ide/skillScanner.js");
 const { stripComments } = require("../out/ide/mcpScanner.js");
 const { parseAll, redact, summary, floatingPackage } = require("../out/ide/mcpServer.js");
 const { projectSkillRoots, knownProjects } = require("../out/ide/projectScan.js");
@@ -74,6 +74,18 @@ test("SKILL.md の無いディレクトリは noSkillFile", () => {
   const [found] = scanSkillRoot(root, ".claude/skills");
   assert.equal(found.status, "noSkillFile");
   assert.equal(isLoadable(found.status), false);
+});
+
+/** Claude Code の同期は `synced/<バケット>/<スキル>/SKILL.md`。入れ物を欠落と呼ばない。 */
+test("同期スキルはバケットの中まで見て、入れ物は警告しない", () => {
+  const env = fakeEnv();
+  const root = makeDir(join(env.home, ".claude", "skills"));
+  skill(root, "mine", "---\nname: mine\n---\n");
+  skill(join(root, "synced", "bucket-1"), "pdf", "---\nname: pdf\n---\n");
+  const found = scanSkills(env);
+  assert.deepEqual(found.map(s => s.status), ["ok", "ok"]);
+  assert.deepEqual(found.map(s => [s.name, s.root]).sort(),
+    [["mine", ".claude/skills"], ["pdf", ".claude/skills/synced"]]);
 });
 
 test("リンク切れは brokenLink として出す", () => {

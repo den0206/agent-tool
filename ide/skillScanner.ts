@@ -1,5 +1,6 @@
 import { accessSync, constants, existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { BUNDLED_SKILL_ROOTS, SYNCED_SKILL_ROOT } from "../core/agent";
 import { Env } from "./env";
 import * as frontmatter from "./frontmatter";
 import { relativePath, RULE_SOURCES, SKILL_SOURCES, SUBAGENT_SOURCES, sourcePath } from "./source";
@@ -75,13 +76,26 @@ export const unreadableRoots = (env: Env, extra: readonly string[] = []): string
 export const scanSkills = (env: Env): Skill[] =>
   SKILL_SOURCES.flatMap(source => {
     const root = sourcePath(source, env), label = relativePath(source);
-    return root === null || label === null ? [] : scanSkillRoot(root, label);
+    return root === null || label === null ? []
+      : label === SYNCED_SKILL_ROOT ? scanSyncedBuckets(root, label)
+      : scanSkillRoot(root, label);
   });
+
+/**
+ * 同期スキルは `synced/<バケット>/<スキル>/SKILL.md`。バケット名は識別子で固定できないので、
+ * ここだけ 1 段降りる。リンクは辿らない。
+ */
+const scanSyncedBuckets = (root: string, label: string): Skill[] =>
+  entries(root)
+    .filter(name => !name.startsWith("."))
+    .flatMap(bucket => isLink(join(root, bucket)) ? [] : scanSkillRoot(join(root, bucket), label));
 
 export function scanSkillRoot(root: string, label: string): Skill[] {
   return entries(root)
     .filter(name => !name.startsWith("."))   // .system / .sync-manifest.json などは対象外
     .flatMap(name => {
+      // エージェントが管理する入れ物。別ルートとして走査するので、ここでは拾わない。
+      if (BUNDLED_SKILL_ROOTS.has(`${label}/${name}`)) return [];
       const skill = readSkill(name, root, label);
       return skill === null ? [] : [skill];
     });

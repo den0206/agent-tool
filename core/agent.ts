@@ -30,11 +30,17 @@ export function supports(agent: AgentId, kind: KindId): boolean {
   }
 }
 
+/**
+ * Claude Code が同期したスキルの置き場。`synced/<バケット>/<スキル>/SKILL.md` と
+ * バケットが 1 段挟まる。エージェントが同期で作り直すので、こちらからは書かない。
+ */
+export const SYNCED_SKILL_ROOT = ".claude/skills/synced";
+
 /** このエージェントが実際に走査するスキルルート（ホーム相対）。Cursor は他社のも読む。 */
 export function skillRoots(agent: AgentId): string[] {
   switch (agent) {
     case "claude":
-      return [".claude/skills"];
+      return [".claude/skills", SYNCED_SKILL_ROOT];
     case "cursor":
       return [".cursor/skills", ".cursor/skills-cursor", ".cursor/cloud-skills",
               ".claude/skills", ".codex/skills", ".grok/skills", ".agents/skills"];
@@ -75,4 +81,5 @@ export function ruleRoots(agent: AgentId): string[] {
  */
 export const BUNDLED_SKILL_ROOTS: ReadonlySet<string> = new Set([
   ".cursor/skills-cursor", ".cursor/cloud-skills", ".codex/skills/.system",
+  SYNCED_SKILL_ROOT,
 ]);
