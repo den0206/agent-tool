@@ -16,6 +16,7 @@ Cursor 拡張 **Agent Tool** と、Skill / Subagent を検知して導入する�
 | `docs/agent-tool-security.md` | WriteGuard・権限・信頼境界 |
 | `docs/agent-tool-test-plan.md` | TypeScript と Cursor の検証 |
 | `docs/agent-tool-release-plan.md` | Phase 0 の改名・撤去と開発・配布順序 |
+| `docs/automatic-site-detection-design.md` | 未対応サイトの自動検知（候補生成・照合・Jev） |
 
 Agent Tool の判断では `docs/agent-tool-*.md` を優先する。仕様を複製せず、該当する正本を更新する。
 
