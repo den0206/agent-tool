@@ -57,7 +57,7 @@ const defaultHttp: Http = async (url, headers) => {
   };
 };
 
-export const repoKey = (entry: Entry): string | null =>
+const repoKey = (entry: Entry): string | null =>
   entry.repo === undefined ? null : sourceKey({ repo: entry.repo, branch: entry.branch });
 
 /**
