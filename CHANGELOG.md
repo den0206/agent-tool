@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Simplified the browser extension popup's visual hierarchy to use one accent color, quieter surfaces, and sentence-case labels.
 - The Agent Tool panel in the editor now moves the way the browser extension does: hover and press states settle instead of snapping, a banner, a preview card, and an opened tool detail rise into place, and a collapsible section rotates one caret instead of swapping glyphs. All of it stops under **Reduce motion**.
 - The panel no longer rebuilds its list every three seconds while watching MCP servers; it redraws only when a server starts or stops.
+- Shortened the browser extension's detection animation so a detected tool settles in about half the time.
 
 ### Fixed
 

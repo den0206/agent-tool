@@ -12,7 +12,7 @@
 
 #found.detected-pop .card,
 #index.detected-pop .card {
-  animation: detected-bloom 0.8s var(--ease) both;
+  animation: detected-bloom 0.44s var(--ease) both;
 }
 
 /* インストール前の透明性。情報を増やしてもフォームに見えすぎないよう薄い面で束ねる。 */
@@ -62,9 +62,4 @@
   opacity: 0.72;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  #found.detected-pop .card,
-  #index.detected-pop .card {
-    animation: none !important;
-  }
-}
+/* 動きを減らす設定では tab.css の `* { animation: none !important }` がここも止める。 */
