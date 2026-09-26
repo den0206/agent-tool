@@ -18,6 +18,8 @@ export class DashboardProvider
   private view?: vscode.WebviewView;
   private snapshot?: {at: number; items: DashboardItem[]; diagnostics: agentTool.Diagnostic[]};
   private status = new Map<string, boolean>();
+  /** 直前に送った MCP の稼働状態。3 秒ごとの再送で Webview を作り直さないために持つ。 */
+  private statusShot = '';
   private issues: string[] = [];
   private knownProjects: string[] = [];
   /** CLI の検出結果。ログインシェルを起こすので、手動更新のときだけ引き直す。 */
@@ -230,6 +232,7 @@ export class DashboardProvider
   private stopPoll(): void {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = undefined; }
     this.status.clear();
+    this.statusShot = '';
   }
 
   async refreshStatus(): Promise<void> {
@@ -238,6 +241,10 @@ export class DashboardProvider
     try {
       const status = await agentTool.mcpStatus({storagePath: this.storagePath});
       if (!this.view?.visible) return;
+      // 送り直すと Webview は DOM を作り直す。稼働状態が動いたときだけ送る。
+      const shot = JSON.stringify(status);
+      if (shot === this.statusShot) return;
+      this.statusShot = shot;
       this.status = new Map(Object.entries(status));
       if (this.snapshot) this.post(this.snapshot.items, this.issues, this.snapshot.diagnostics);
     } catch { /* keep previous status */ } finally {
