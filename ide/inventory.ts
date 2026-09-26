@@ -82,13 +82,17 @@ function skillDiagnostics(found: Skill[], kind: "skill" | "subagent", scope: Sco
   const bodies = new Map<string, Map<string, Skill>>();
   for (const item of found) {
     if (item.status === "brokenLink") {
-      diagnostics.push({ code: "BROKEN_LINK", severity: "broken", targets: [targetOf(item, kind, scope, projectPath)],
-        message: `${item.name} has a broken link` });
+      if (!BUNDLED_SKILL_ROOTS.has(item.root)) {
+        diagnostics.push({ code: "BROKEN_LINK", severity: "broken", targets: [targetOf(item, kind, scope, projectPath)],
+          message: `${item.name} has a broken link` });
+      }
       continue;
     }
     if (item.status === "noSkillFile") {
-      diagnostics.push({ code: "MISSING_SKILL_FILE", severity: "broken", targets: [targetOf(item, kind, scope, projectPath)],
-        message: `${item.name} has no SKILL.md` });
+      if (!BUNDLED_SKILL_ROOTS.has(item.root)) {
+        diagnostics.push({ code: "MISSING_SKILL_FILE", severity: "broken", targets: [targetOf(item, kind, scope, projectPath)],
+          message: `${item.name} has no SKILL.md` });
+      }
       continue;
     }
     if (!isLoadable(item.status)) continue;
@@ -99,7 +103,7 @@ function skillDiagnostics(found: Skill[], kind: "skill" | "subagent", scope: Sco
     } catch { /* 消えた実体は次回の prune に任せる */ }
   }
   for (const [name, paths] of bodies) {
-    if (paths.size < 2) continue;
+    if (paths.size < 2 || [...paths.values()].every(item => BUNDLED_SKILL_ROOTS.has(item.root))) continue;
     diagnostics.push({ code: "DUPLICATE_IDENTITY", severity: "warning",
       targets: [...paths.values()].map(item => targetOf(item, kind, scope, projectPath)),
       message: `${name} has ${paths.size} independent bodies` });
