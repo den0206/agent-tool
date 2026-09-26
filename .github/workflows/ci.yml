@@ -49,10 +49,13 @@ jobs:
       - run: ./scripts/release-changelog.sh --check
       - run: ./scripts/test-release-changelog.sh
       # VSIX サイズは完了条件なので、Cursor E2E（リポジトリ変数に依存する）とは別に測る。
-      # stat の書式は OS で違うので、ローカルと同じ Node で測る。
+      # stat の書式は OS で違うので、大きさは Node で測る。超えた分が分かるよう実測も出す。
       - run: npm run package
       - name: Check VSIX size
-        run: node -e "process.exit(require('node:fs').statSync('vsix/agent-tool.vsix').size < 20971520 ? 0 : 1)"
+        run: |
+          size=$(node -p "require('node:fs').statSync('vsix/agent-tool.vsix').size")
+          echo "VSIX $size bytes (limit 20971520)"
+          test "$size" -le 20971520
 
   # Cursor Stable は macOS でのみ起動する。
   cursor:
