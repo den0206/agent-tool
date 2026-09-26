@@ -36,15 +36,26 @@ test("別の実体を持つ同名スキルを競合として診断する", async
   assert.equal(diagnostics.find(d => d.code === "DUPLICATE_IDENTITY").targets.length, 2);
 });
 
+/** エージェントごとに同名の同梱物を持つのは普通。利用者には直せない。 */
+test("同梱ルート同士の同名スキルは競合にしない", async () => {
+  const env = fakeEnv();
+  skill(join(env.home, ".claude/skills/synced/bucket-1"), "skill-creator");
+  skill(join(env.home, ".codex/skills/.system"), "skill-creator");
+  const { items, diagnostics } = await inventory({ env, projectPath: null });
+  assert.equal(diagnostics.filter(d => d.code === "DUPLICATE_IDENTITY").length, 0);
+  assert.equal(find(items, "skill-creator").origin, "bundled");
+});
+
 /** 同梱ルートにしか無いものだけ bundled。ユーザーが同名を持てばそれは自分のもの。 */
 test("同梱スキルと自分のスキルを取り違えない", async () => {
   const env = fakeEnv();
   skill(join(env.home, ".cursor/skills-cursor"), "canvas");
   skill(join(env.home, ".cursor/skills-cursor"), "both");
   skill(skillStore(env), "both");
-  const { items } = await inventory({ env, projectPath: null });
+  const { items, diagnostics } = await inventory({ env, projectPath: null });
   assert.equal(find(items, "canvas").origin, "bundled");
   assert.equal(find(items, "both").origin, "user");
+  assert.equal(diagnostics.find(d => d.code === "DUPLICATE_IDENTITY").targets.length, 2);
 });
 
 test("registry に載っているものは managed になる", async () => {
