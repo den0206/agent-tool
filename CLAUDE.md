@@ -101,7 +101,7 @@ CI はローカルと同じスクリプトを呼び、別ロジックを持た�
 - テストは偽ホーム（`os.tmpdir()` 配下）を使い、実ユーザーのホームへ到達させない。
 - 走査ホワイトリスト、WriteGuard、ロック、移行衝突、出力上限を優先する。
 - View のライフサイクル、Remote / Workspace Trust、OS 別のリンク種別を検証する。
-- Cursor E2E は固定URLとSHA-256のCursor Stable実行ファイルを明示して、全PRで起動する。
+- Cursor E2E は固定URLとSHA-256のCursor Stable実行ファイルを明示する。起動条件は `docs/agent-tool-test-plan.md` の CI 節を正本とする。
 - UI スナップショットやモック自体を検証するテストは書かない。
 - テスト件数を仕様に固定しない。完了条件は全テスト成功とする。
 
