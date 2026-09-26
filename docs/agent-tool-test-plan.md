@@ -141,9 +141,8 @@ URL を 1 つ渡すと、そのページだけをモジュール単位で段ご�
 
 Linux、macOS、Windows で `npm run typecheck` と `npm test` を実行する。
 Linux で不変条件検査、ブラウザ拡張の組み立て検査（`npm run package:browser`）、
-リリース検査を実行する。`CURSOR_URL` と `CURSOR_SHA256` が
-リポジトリ変数に設定されている場合は、macOS で固定 Cursor Stable の E2E と
-VSIX サイズ検査も実行する。
+リリース検査、VSIX 組み立てとサイズ検査を実行する。`CURSOR_URL` と `CURSOR_SHA256` が
+リポジトリ変数に設定されている場合は、macOS で固定 Cursor Stable の E2E も実行する。
 
 ## 手動確認
 
