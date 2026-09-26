@@ -137,18 +137,26 @@ export function dashboardHtml(webview: vscode.Webview): string {
       --at-rule: var(--vscode-charts-yellow, #eab308);
       --at-mcp: var(--vscode-charts-green, #22c55e);
       --at-plugin: var(--vscode-charts-purple, #8b5cf6);
+      /*
+       * One easing curve, shared with the browser extension (--ease in browser/tab.css).
+       * Move transform and opacity only, and keep every duration within 120-200ms.
+       */
+      --at-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
     }
+    /* Say once that something arrived; toggling .hidden replays it. */
+    @keyframes rise { from { opacity:0; transform:translateY(4px); } }
     body { margin: 0; padding: 14px 14px 24px; background: var(--vscode-sideBar-background); line-height: 1.45; }
     * { box-sizing: border-box; }
-    button { border:0; color:var(--vscode-button-foreground); background:var(--vscode-button-background); border-radius:5px; padding:6px 10px; cursor:pointer; font:inherit; font-size:12px; }
+    button { border:0; color:var(--vscode-button-foreground); background:var(--vscode-button-background); border-radius:5px; padding:6px 10px; cursor:pointer; font:inherit; font-size:12px; transition:background-color .13s var(--at-ease), color .13s var(--at-ease), border-color .13s var(--at-ease), transform .08s var(--at-ease); }
     button:hover { background:var(--vscode-button-hoverBackground); }
+    button:active:not(:disabled) { transform:translateY(1px); }
     button.ghost { color:var(--at-fg-mute); background:transparent; border:1px solid var(--at-border); padding:4px 9px; font-size:11px; }
     button.ghost:hover { background:var(--vscode-list-hoverBackground); color:var(--vscode-foreground); }
     button.icon-btn { color:var(--at-fg-mute); background:transparent; padding:3px 5px; }
     button.icon-btn:hover { background:var(--vscode-list-hoverBackground); color:var(--vscode-foreground); }
     button.link { color:var(--at-accent); background:transparent; padding:0; font-size:11px; }
     button.link:hover { background:transparent; text-decoration:underline; }
-    input { min-width:0; color:var(--vscode-input-foreground); background:var(--vscode-input-background); border:1px solid var(--vscode-input-border, var(--at-border)); border-radius:5px; padding:6px 8px 6px 26px; font:inherit; font-size:12px; outline:none; }
+    input { min-width:0; color:var(--vscode-input-foreground); background:var(--vscode-input-background); border:1px solid var(--vscode-input-border, var(--at-border)); border-radius:5px; padding:6px 8px 6px 26px; font:inherit; font-size:12px; outline:none; transition:border-color .13s var(--at-ease); }
     input:focus { border-color:var(--at-accent); }
     select { width:100%; color:var(--vscode-dropdown-foreground); background:var(--vscode-dropdown-background); border:1px solid var(--vscode-dropdown-border,var(--at-border)); border-radius:5px; padding:6px 7px; font:inherit; font-size:12px; }
 
@@ -160,6 +168,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
 
     /* Banners */
     .banner { display:flex; gap:8px; align-items:flex-start; padding:8px 10px; margin:0 0 12px; border:1px solid var(--at-border); border-left:2px solid var(--at-warn); border-radius:6px; background:var(--at-card); color:var(--vscode-foreground); font-size:12px; }
+    .banner:not(.hidden) { animation:rise .18s var(--at-ease) both; }
     .banner .grow { flex:1; min-width:0; }
     .banner.readonly { border-left-color:var(--at-warn); color:var(--at-warn); }
     .banner .icon { color:var(--at-warn); flex-shrink:0; margin-top:1px; }
@@ -173,7 +182,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
 
     /* Agent segmented control */
     .agent-nav { display:flex; background:var(--at-card); border:1px solid var(--at-border); border-radius:6px; padding:2px; margin:0 0 10px; overflow-x:auto; }
-    .agent { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px; background:transparent; color:var(--at-fg-mute); border:0; border-radius:4px; padding:5px 6px; font:inherit; font-size:11px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .agent { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px; background:transparent; color:var(--at-fg-mute); border:0; border-radius:4px; padding:5px 6px; font:inherit; font-size:11px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
     .agent:hover { background:var(--vscode-list-hoverBackground); }
     .agent.active { color:var(--vscode-foreground); background:var(--at-elev); font-weight:500; box-shadow:0 1px 2px rgba(0,0,0,.2); }
     .agent-dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; opacity:.4; }
@@ -187,7 +196,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .scope-row { display:flex; align-items:center; gap:8px; margin:0 0 14px; flex-wrap:wrap; }
     .scope-row .check-updates { flex-shrink:0; }
     .scope { display:inline-flex; background:var(--at-card); border:1px solid var(--at-border); border-radius:5px; padding:1px; }
-    .scope button { background:transparent; color:var(--at-fg-mute); border:0; border-radius:3px; padding:3px 10px; font:inherit; font-size:11px; cursor:pointer; }
+    .scope button { background:transparent; color:var(--at-fg-mute); border:0; border-radius:3px; padding:3px 10px; font:inherit; font-size:11px; cursor:pointer; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
     .scope button.active { color:var(--vscode-foreground); background:var(--at-elev); }
     .scope-name { color:var(--at-fg-faint); font-size:11px; font-family:var(--vscode-editor-font-family); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 
@@ -197,7 +206,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .group { display:grid; gap:1px; background:var(--at-border-soft); border:1px solid var(--at-border-soft); border-radius:7px; overflow:hidden; margin-bottom:6px; }
 
     /* Rows */
-    .row { display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 10px; background:var(--at-card); cursor:pointer; }
+    .row { display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 10px; background:var(--at-card); cursor:pointer; transition:background-color .12s var(--at-ease); }
     .row:hover { background:var(--vscode-list-hoverBackground); }
     .row.selected { border-left:2px solid var(--at-accent); padding-left:8px; }
     .row .glyph { width:22px; height:22px; border-radius:5px; display:grid; place-items:center; }
@@ -220,7 +229,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .status-off { color:var(--at-fg-faint); font-size:10px; }
 
     /* Inline detail */
-    .detail-inline { background:var(--at-card); padding:0 10px 12px 34px; }
+    .detail-inline { background:var(--at-card); padding:0 10px 12px 34px; animation:rise .16s var(--at-ease) both; }
     .detail-inline-inner { border-top:1px solid var(--at-border-soft); padding-top:10px; display:grid; gap:8px; }
     .detail-inline .label { color:var(--at-fg-faint); font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; margin-bottom:3px; }
     .detail-inline .body { color:var(--vscode-foreground); font-size:11.5px; line-height:1.55; }
@@ -233,6 +242,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
 
     /* Preview / clipboard cards keep old .detail style */
     .detail { margin:0 0 12px; padding:11px; border:1px solid var(--at-border); border-radius:7px; background:var(--at-card); position:relative; }
+    .detail:not(.hidden) { animation:rise .18s var(--at-ease) both; }
     .detail .icon-btn.float-close { position:absolute; top:6px; right:6px; }
     .detail h2 { margin:0 0 8px; font-size:13px; }
     .detail p { margin:6px 0; line-height:1.5; font-size:12px; }
@@ -240,8 +250,15 @@ export function dashboardHtml(webview: vscode.Webview): string {
 
     /* Footer sections (Environment / Diagnostics) */
     .footer-section { margin-top:14px; }
-    .footer-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; background:transparent; color:var(--at-fg-mute); border:0; padding:0 0 8px; font:inherit; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
+    .footer-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; background:transparent; color:var(--at-fg-mute); border:0; padding:0 0 8px; font:inherit; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:color .13s var(--at-ease); }
+    .footer-toggle:hover { color:var(--vscode-foreground); }
     .footer-toggle .caret { display:inline-flex; align-items:center; gap:6px; }
+    /*
+     * Rotate one caret instead of swapping glyphs: a swap jumps in weight and width.
+     * Toggling rebuilds this button, so the turn lands at once rather than easing.
+     */
+    .footer-toggle .caret-mark { display:inline-block; width:8px; text-align:center; }
+    .footer-toggle[aria-expanded="true"] .caret-mark { transform:rotate(90deg); }
     .footer-toggle .side { color:var(--at-fg-faint); font-size:10px; letter-spacing:0; text-transform:none; font-weight:400; }
     .footer-toggle .side.warn { color:var(--at-warn); }
     .footer-body { border:1px solid var(--at-border-soft); border-radius:7px; background:var(--at-card); overflow:hidden; }
@@ -266,9 +283,14 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .loading { display:flex; align-items:center; gap:8px; color:var(--at-fg-mute); font-size:12px; }
     .spinner { width:12px; height:12px; border:2px solid var(--at-border); border-top-color:var(--at-accent); border-radius:50%; animation:spin .8s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
-    .section-toggle { width:100%; color:var(--at-fg-mute); background:transparent; border:1px dashed var(--at-border-soft); border-radius:5px; padding:5px 0; font:inherit; font-size:11px; text-align:center; cursor:pointer; margin:4px 0 12px; }
+    .section-toggle { width:100%; color:var(--at-fg-mute); background:transparent; border:1px dashed var(--at-border-soft); border-radius:5px; padding:5px 0; font:inherit; font-size:11px; text-align:center; cursor:pointer; margin:4px 0 12px; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
     .section-toggle:hover { color:var(--vscode-foreground); background:var(--vscode-list-hoverBackground); }
     .row:focus-visible { outline:1px solid var(--at-accent); outline-offset:-1px; }
+    /* A frozen ring reads as finished; the wording alone carries it, so drop the ring. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation:none !important; transition:none !important; }
+      .spinner { display:none; }
+    }
   </style></head><body>
   <header>
     <div>
@@ -466,7 +488,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
       const detected = environment.filter(e=>e.path||e.found||e.configOnly).length;
       const side = detected + ' / ' + environment.length;
       envBox.innerHTML = '<button class="footer-toggle" data-fold="environment" aria-expanded="'+!!sectionExpanded.environment+'">'
-        + '<span class="caret">'+(sectionExpanded.environment?'⌄':'›')+' '+esc(T.environment)+'</span>'
+        + '<span class="caret"><span class="caret-mark">›</span> '+esc(T.environment)+'</span>'
         + '<span class="side">'+esc(side)+'</span></button>'
         + (sectionExpanded.environment ? '<div class="footer-body">'+environment.map(info=>{
             const c=compatibility.find(x=>x.id===info.id)||{supported:[],installed:[]};
@@ -485,7 +507,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const diagBox = document.querySelector('#diagnostics');
     if (diagnostics.length) {
       diagBox.innerHTML = '<button class="footer-toggle" data-fold="diagnostics" aria-expanded="'+!!sectionExpanded.diagnostics+'">'
-        + '<span class="caret">'+(sectionExpanded.diagnostics?'⌄':'›')+' '+esc(T.diagnostics)+'</span>'
+        + '<span class="caret"><span class="caret-mark">›</span> '+esc(T.diagnostics)+'</span>'
         + '<span class="side warn">'+esc(T.issuesCount.replace('{0}',diagnostics.length))+'</span></button>'
         + (sectionExpanded.diagnostics ? '<div class="footer-body">'+diagnostics.map(d=>{
             const paths = (d.targets||[]).map(t=>t.sourcePath).filter(Boolean);
