@@ -131,6 +131,26 @@ test("上限を超えたら読むのをやめる", async () => {
   }, error => error instanceof ArchiveError && error.message.includes("too large"));
 });
 
+/**
+ * size 欄は符号なし 8 進。負は `take` に負値が渡って `RangeError` になり、`ArchiveError`
+ * として扱えなくなる（上位のマスク経路を外れる）。base-256 は 0 と誤読して本文をヘッダとして読む。
+ */
+test("読めない size を ArchiveError として拒否する", async () => {
+  for (const raw of ["-0000001234", "-0000000001", "\x80\0\0\0\0\0\0\0\x02\0\0\0"]) {
+    const block = header("a/b.txt", 0, "0");
+    block.write(raw + "\0", 124, "binary");
+    await rejects(gzipSync(Buffer.concat([block, Buffer.alloc(512, 0x78), Buffer.alloc(1024, 0)])),
+                  "invalid entry size");
+  }
+});
+
+test("size 欄が空でもディレクトリは読める", async () => {
+  const block = header("a", 0, "5");
+  block.write("\0".repeat(12), 124);                      // size を NUL で埋める実装がある
+  const found = await readAll(gzipSync(Buffer.concat([block, Buffer.alloc(1024, 0)])));
+  assert.deepEqual(found.map(entry => [entry.path.join("/"), entry.kind]), [["a", "directory"]]);
+});
+
 test("途中で切れたアーカイブを黙って受け入れない", async () => {
   const whole = Buffer.concat([header("a/b.txt", 1000, "0"), Buffer.alloc(200, 0x78)]);
   await rejects(gzipSync(whole), "ended in the middle");
