@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-09-28
+
 ### Changed
 
 - Each tool row now shows the first line of its description, so the list says what a tool does without opening it.
