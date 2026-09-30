@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- The dashboard puts the tool list first: the URL field opens from a `+` button in the header, Check for updates moves to the header, and the update count becomes a filter toggle next to the scope switch.
+- A clipboard URL now fills the URL field instead of showing a separate card.
+- Rows flagged by Environment diagnostics show a warning or broken mark.
+- Detected tools in a URL analysis use the same row layout as the tool list.
+- Dashboard text follows the editor font size, and agent tabs no longer reuse the tool-kind colors.
+
 ### Fixed
 
 - Background dashboard updates now preserve unchanged tool lists and open details, avoiding repeated entrance animations and flicker.

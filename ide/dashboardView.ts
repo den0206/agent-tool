@@ -32,20 +32,18 @@ const webviewText = (): Record<string, string> => ({
   checkUpdates: vscode.l10n.t("Check for updates"),
   pinned: vscode.l10n.t("Pinned"),
   clipboard: vscode.l10n.t("Found a URL in your clipboard"),
-  analyzeIt: vscode.l10n.t("Analyze it"),
   noCli: vscode.l10n.t("No AI agent CLI was found on PATH. Existing tools are still listed."),
   untrusted: vscode.l10n.t("Untrusted workspace — the list is read-only. Trust the workspace to make changes."),
   remote: vscode.l10n.t("Remote window — tool changes are available only in a local window."),
   close: vscode.l10n.t("Close"),
   actions: vscode.l10n.t("Actions"),
   addSection: vscode.l10n.t("Add a tool"),
+  brokenTool: vscode.l10n.t("This tool cannot be read. See Environment diagnostics."),
+  warnTool: vscode.l10n.t("This tool needs attention. See Environment diagnostics."),
   analyze: vscode.l10n.t("Analyze"),
   analyzing: vscode.l10n.t("Analyzing URL…"),
   urlLabel: vscode.l10n.t("Public GitHub URL"),
   updates: vscode.l10n.t("Updates available"),
-  updateBanner: vscode.l10n.t("{0} tools have updates"),
-  showOnly: vscode.l10n.t("Show only"),
-  showAll: vscode.l10n.t("Show all"),
   environment: vscode.l10n.t("Environment"),
   cliDetected: vscode.l10n.t("CLI detected"),
   configurationFound: vscode.l10n.t("Configuration found"),
@@ -128,7 +126,9 @@ export function dashboardHtml(webview: vscode.Webview): string {
     :root {
       color: var(--vscode-foreground);
       font-family: var(--vscode-font-family);
-      font-size: 12.5px;
+      /* Follow the user's font size; two steps keep the hierarchy in weight, not size. */
+      font-size: var(--vscode-font-size, 13px);
+      --at-fs-sm: .85rem;
       --at-fg-mute: var(--vscode-descriptionForeground);
       --at-fg-faint: color-mix(in srgb, var(--vscode-descriptionForeground) 65%, transparent);
       --at-border: var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 12%, transparent));
@@ -155,34 +155,32 @@ export function dashboardHtml(webview: vscode.Webview): string {
     @keyframes rise { from { opacity:0; transform:translateY(4px); } }
     body { margin: 0; padding: 14px 14px 24px; background: var(--vscode-sideBar-background); line-height: 1.45; }
     * { box-sizing: border-box; }
-    button { border:0; color:var(--vscode-button-foreground); background:var(--vscode-button-background); border-radius:5px; padding:6px 10px; cursor:pointer; font:inherit; font-size:12px; transition:background-color .13s var(--at-ease), color .13s var(--at-ease), border-color .13s var(--at-ease), transform .08s var(--at-ease); }
+    button { border:0; color:var(--vscode-button-foreground); background:var(--vscode-button-background); border-radius:5px; padding:6px 10px; cursor:pointer; font:inherit; font-size:1rem; transition:background-color .13s var(--at-ease), color .13s var(--at-ease), border-color .13s var(--at-ease), transform .08s var(--at-ease); }
     button:hover { background:var(--vscode-button-hoverBackground); }
     button:active:not(:disabled) { transform:translateY(1px); }
-    button.ghost { color:var(--at-fg-mute); background:transparent; border:1px solid var(--at-border); padding:4px 9px; font-size:11px; }
+    button.ghost { color:var(--at-fg-mute); background:transparent; border:1px solid var(--at-border); padding:4px 9px; font-size:var(--at-fs-sm); }
     button.ghost:hover { background:var(--vscode-list-hoverBackground); color:var(--vscode-foreground); }
     button.icon-btn { color:var(--at-fg-mute); background:transparent; padding:3px 5px; }
     button.icon-btn:hover { background:var(--vscode-list-hoverBackground); color:var(--vscode-foreground); }
-    button.link { color:var(--at-accent); background:transparent; padding:0; font-size:11px; }
+    button.link { color:var(--at-accent); background:transparent; padding:0; font-size:var(--at-fs-sm); }
     button.link:hover { background:transparent; text-decoration:underline; }
-    input { min-width:0; color:var(--vscode-input-foreground); background:var(--vscode-input-background); border:1px solid var(--vscode-input-border, var(--at-border)); border-radius:5px; padding:6px 8px 6px 26px; font:inherit; font-size:12px; outline:none; transition:border-color .13s var(--at-ease); }
+    input { min-width:0; color:var(--vscode-input-foreground); background:var(--vscode-input-background); border:1px solid var(--vscode-input-border, var(--at-border)); border-radius:5px; padding:6px 8px 6px 26px; font:inherit; font-size:1rem; outline:none; transition:border-color .13s var(--at-ease); }
     input:focus { border-color:var(--at-accent); }
-    select { width:100%; color:var(--vscode-dropdown-foreground); background:var(--vscode-dropdown-background); border:1px solid var(--vscode-dropdown-border,var(--at-border)); border-radius:5px; padding:6px 7px; font:inherit; font-size:12px; }
+    select { width:100%; color:var(--vscode-dropdown-foreground); background:var(--vscode-dropdown-background); border:1px solid var(--vscode-dropdown-border,var(--at-border)); border-radius:5px; padding:6px 7px; font:inherit; font-size:1rem; }
 
     /* Header */
     header { display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:14px; }
-    header h1 { margin:0; font-size:13px; font-weight:700; letter-spacing:.02em; }
-    header .sub { color:var(--at-fg-mute); font-size:11px; margin-top:2px; }
+    header h1 { margin:0; font-size:1rem; font-weight:700; letter-spacing:.02em; }
     header .actions { display:flex; gap:2px; align-items:center; flex-shrink:0; }
 
     /* Banners */
-    .banner { display:flex; gap:8px; align-items:flex-start; padding:8px 10px; margin:0 0 12px; border:1px solid var(--at-border); border-left:2px solid var(--at-warn); border-radius:6px; background:var(--at-card); color:var(--vscode-foreground); font-size:12px; }
+    .banner { display:flex; gap:8px; align-items:flex-start; padding:8px 10px; margin:0 0 12px; border:1px solid var(--at-border); border-left:2px solid var(--at-warn); border-radius:6px; background:var(--at-card); color:var(--vscode-foreground); font-size:1rem; }
     .banner:not(.hidden) { animation:rise .18s var(--at-ease) both; }
-    .banner .grow { flex:1; min-width:0; }
     .banner.readonly { border-left-color:var(--at-warn); color:var(--at-warn); }
     .banner .icon { color:var(--at-warn); flex-shrink:0; margin-top:1px; }
 
     /* Add tool */
-    .section-label { color:var(--at-fg-mute); font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
+    .section-label { color:var(--at-fg-mute); font-size:var(--at-fs-sm); font-weight:600; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
     .add-form { display:flex; gap:6px; margin:0 0 16px; }
     .add-input { flex:1; position:relative; display:flex; align-items:center; }
     .add-input svg { position:absolute; left:8px; color:var(--at-fg-faint); pointer-events:none; }
@@ -190,27 +188,23 @@ export function dashboardHtml(webview: vscode.Webview): string {
 
     /* Agent segmented control */
     .agent-nav { display:flex; background:var(--at-card); border:1px solid var(--at-border); border-radius:6px; padding:2px; margin:0 0 10px; overflow-x:auto; }
-    .agent { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px; background:transparent; color:var(--at-fg-mute); border:0; border-radius:4px; padding:5px 6px; font:inherit; font-size:11px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
+    .agent { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px; background:transparent; color:var(--at-fg-mute); border:0; border-radius:4px; padding:5px 6px; font:inherit; font-size:var(--at-fs-sm); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
     .agent:hover { background:var(--vscode-list-hoverBackground); }
     .agent.active { color:var(--vscode-foreground); background:var(--at-elev); font-weight:500; box-shadow:0 1px 2px rgba(0,0,0,.2); }
-    .agent-dot { width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; opacity:.4; }
-    .agent.active .agent-dot { opacity:1; }
-    .agent[data-agent="claude"] .agent-dot { color:var(--at-skill); background:currentColor; }
-    .agent[data-agent="cursor"] .agent-dot { color:var(--at-subagent); background:currentColor; }
-    .agent[data-agent="codex"] .agent-dot  { color:var(--at-mcp); background:currentColor; }
-    .agent[data-agent="gemini"] .agent-dot { color:var(--at-plugin); background:currentColor; }
+    .agent .count { color:var(--at-fg-faint); font-size:var(--at-fs-sm); }
 
     /* Scope switch */
     .scope-row { display:flex; align-items:center; gap:8px; margin:0 0 14px; flex-wrap:wrap; }
-    .scope-row .check-updates { flex-shrink:0; }
+    .scope-row .only-updates { margin-left:auto; flex-shrink:0; }
+    .scope-row .only-updates[aria-pressed="true"] { color:var(--at-warn); border-color:color-mix(in srgb, var(--at-warn) 45%, transparent); background:var(--at-warn-bg); }
     .scope { display:inline-flex; background:var(--at-card); border:1px solid var(--at-border); border-radius:5px; padding:1px; }
-    .scope button { background:transparent; color:var(--at-fg-mute); border:0; border-radius:3px; padding:3px 10px; font:inherit; font-size:11px; cursor:pointer; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
+    .scope button { background:transparent; color:var(--at-fg-mute); border:0; border-radius:3px; padding:3px 10px; font:inherit; font-size:var(--at-fs-sm); cursor:pointer; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
     .scope button.active { color:var(--vscode-foreground); background:var(--at-elev); }
-    .scope-name { color:var(--at-fg-faint); font-size:11px; font-family:var(--vscode-editor-font-family); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+    .scope-name { color:var(--at-fg-faint); font-size:var(--at-fs-sm); font-family:var(--vscode-editor-font-family); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 
     /* Sections and grouped lists */
     .group-header { display:flex; align-items:baseline; justify-content:space-between; margin:16px 0 6px; }
-    .group-header .count { color:var(--at-fg-faint); font-size:10.5px; }
+    .group-header .count { color:var(--at-fg-faint); font-size:var(--at-fs-sm); }
     .group { display:grid; gap:1px; background:var(--at-border-soft); border:1px solid var(--at-border-soft); border-radius:7px; overflow:hidden; margin-bottom:6px; }
 
     /* Rows */
@@ -224,41 +218,44 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .row .glyph[data-kind="mcp"]      { background:color-mix(in srgb, var(--at-mcp) 14%, transparent); color:var(--at-mcp); }
     .row .glyph[data-kind="plugin"]   { background:color-mix(in srgb, var(--at-plugin) 14%, transparent); color:var(--at-plugin); }
     .row.stopped .glyph { opacity:.55; }
-    .row-name { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; color:var(--vscode-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .row-name { display:flex; align-items:center; gap:6px; font-size:1rem; font-weight:500; color:var(--vscode-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .row.stopped .row-name { color:var(--at-fg-mute); }
-    .row-meta { font-size:10.5px; color:var(--at-fg-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
+    .row-meta { font-size:var(--at-fs-sm); color:var(--at-fg-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
     .row-tail { display:flex; align-items:center; gap:8px; }
     .pin { color:var(--at-fg-mute); }
-    .pill { font-size:10px; padding:2px 6px; border-radius:10px; font-weight:500; white-space:nowrap; }
+    .pill { font-size:var(--at-fs-sm); padding:2px 6px; border-radius:10px; font-weight:500; white-space:nowrap; }
     .pill.update { color:var(--at-warn); background:var(--at-warn-bg); }
     .pill.floating { color:var(--at-warn); background:transparent; border:1px solid color-mix(in srgb, var(--at-warn) 35%, transparent); }
-    .status-run { display:inline-flex; align-items:center; gap:5px; font-size:10px; color:var(--at-ok); font-weight:500; }
+    .status-run { display:inline-flex; align-items:center; gap:5px; font-size:var(--at-fs-sm); color:var(--at-ok); font-weight:500; }
     .status-run .dot { width:6px; height:6px; border-radius:50%; background:var(--at-ok); box-shadow:0 0 6px color-mix(in srgb, var(--at-ok) 55%, transparent); }
-    .status-off { color:var(--at-fg-faint); font-size:10px; }
+    .diag-mark { display:inline-flex; color:var(--at-warn); }
+    .diag-mark.broken { color:var(--vscode-errorForeground, #e57373); }
+    .row.candidate { cursor:default; }
+    .row.candidate:hover { background:var(--at-card); }
+    .status-off { color:var(--at-fg-faint); font-size:var(--at-fs-sm); }
 
     /* Inline detail */
     .detail-inline { background:var(--at-card); padding:0 10px 12px 34px; animation:rise .16s var(--at-ease) both; }
     .detail-inline-inner { border-top:1px solid var(--at-border-soft); padding-top:10px; display:grid; gap:8px; }
-    .detail-inline .label { color:var(--at-fg-faint); font-size:10px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; margin-bottom:3px; }
-    .detail-inline .body { color:var(--vscode-foreground); font-size:11.5px; line-height:1.55; }
-    .detail-inline .mono { color:var(--at-fg-mute); font-size:11px; font-family:var(--vscode-editor-font-family); overflow-wrap:anywhere; }
-    .detail-inline .floating-note { color:var(--at-warn); font-size:11px; }
+    .detail-inline .label { color:var(--at-fg-faint); font-size:var(--at-fs-sm); font-weight:600; letter-spacing:.05em; text-transform:uppercase; margin-bottom:3px; }
+    .detail-inline .body { color:var(--vscode-foreground); font-size:var(--at-fs-sm); line-height:1.55; }
+    .detail-inline .mono { color:var(--at-fg-mute); font-size:var(--at-fs-sm); font-family:var(--vscode-editor-font-family); overflow-wrap:anywhere; }
+    .detail-inline .floating-note { color:var(--at-warn); font-size:var(--at-fs-sm); }
     /* Clamp long descriptions: a Skill description runs to hundreds of characters. */
     .detail-inline .body.clamp { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
     .detail-inline .more { margin-top:3px; }
     .detail-inline .detail-actions { display:flex; gap:6px; flex-wrap:wrap; }
 
-    /* Preview / clipboard cards keep old .detail style */
+    /* Preview card */
     .detail { margin:0 0 12px; padding:11px; border:1px solid var(--at-border); border-radius:7px; background:var(--at-card); position:relative; }
     .detail:not(.hidden) { animation:rise .18s var(--at-ease) both; }
     .detail .icon-btn.float-close { position:absolute; top:6px; right:6px; }
-    .detail h2 { margin:0 0 8px; font-size:13px; }
-    .detail p { margin:6px 0; line-height:1.5; font-size:12px; }
-    .detail-path { font-family:var(--vscode-editor-font-family); font-size:11px; overflow-wrap:anywhere; color:var(--at-fg-mute); }
+    .detail h2 { margin:0 0 8px; font-size:1rem; }
+    .detail p { margin:6px 0; line-height:1.5; font-size:1rem; }
 
     /* Footer sections (Environment / Diagnostics) */
     .footer-section { margin-top:14px; }
-    .footer-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; background:transparent; color:var(--at-fg-mute); border:0; padding:0 0 8px; font:inherit; font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:color .13s var(--at-ease); }
+    .footer-toggle { width:100%; display:flex; align-items:center; justify-content:space-between; background:transparent; color:var(--at-fg-mute); border:0; padding:0 0 8px; font:inherit; font-size:var(--at-fs-sm); font-weight:600; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; transition:color .13s var(--at-ease); }
     .footer-toggle:hover { color:var(--vscode-foreground); }
     .footer-toggle .caret { display:inline-flex; align-items:center; gap:6px; }
     /*
@@ -267,31 +264,31 @@ export function dashboardHtml(webview: vscode.Webview): string {
      */
     .footer-toggle .caret-mark { display:inline-block; width:8px; text-align:center; }
     .footer-toggle[aria-expanded="true"] .caret-mark { transform:rotate(90deg); }
-    .footer-toggle .side { color:var(--at-fg-faint); font-size:10px; letter-spacing:0; text-transform:none; font-weight:400; }
+    .footer-toggle .side { color:var(--at-fg-faint); font-size:var(--at-fs-sm); letter-spacing:0; text-transform:none; font-weight:400; }
     .footer-toggle .side.warn { color:var(--at-warn); }
     .footer-body { border:1px solid var(--at-border-soft); border-radius:7px; background:var(--at-card); overflow:hidden; }
-    .footer-body p { margin:0; padding:9px 10px; font-size:11.5px; border-bottom:1px solid var(--at-border-soft); }
+    .footer-body p { margin:0; padding:9px 10px; font-size:var(--at-fs-sm); border-bottom:1px solid var(--at-border-soft); }
     .footer-body p:last-child { border-bottom:0; }
     .footer-body .env-line { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
-    .footer-body .env-line strong { font-weight:600; font-size:12px; }
-    .footer-body .env-mono { color:var(--at-fg-mute); font-family:var(--vscode-editor-font-family); font-size:11px; overflow-wrap:anywhere; }
+    .footer-body .env-line strong { font-weight:600; font-size:1rem; }
+    .footer-body .env-mono { color:var(--at-fg-mute); font-family:var(--vscode-editor-font-family); font-size:var(--at-fs-sm); overflow-wrap:anywhere; }
     .footer-body .diag-line { display:flex; gap:8px; align-items:flex-start; }
     .footer-body .diag-line .mark { color:var(--at-warn); flex-shrink:0; margin-top:1px; }
     .footer-body .diag-line .mark.broken { color:var(--vscode-errorForeground, #e57373); }
     .footer-body .diag-line .body { min-width:0; flex:1; }
-    .footer-body .diag-line .body .path { color:var(--at-fg-faint); font-family:var(--vscode-editor-font-family); font-size:10.5px; margin-top:2px; overflow-wrap:anywhere; }
+    .footer-body .diag-line .body .path { color:var(--at-fg-faint); font-family:var(--vscode-editor-font-family); font-size:var(--at-fs-sm); margin-top:2px; overflow-wrap:anywhere; }
 
     /* Others (dropdown) */
     #others { margin-top:14px; }
-    #other-path { color:var(--at-fg-faint); font-family:var(--vscode-editor-font-family); font-size:11px; margin:6px 0 8px; overflow-wrap:anywhere; }
+    #other-path { color:var(--at-fg-faint); font-family:var(--vscode-editor-font-family); font-size:var(--at-fs-sm); margin:6px 0 8px; overflow-wrap:anywhere; }
 
     /* Utility */
     .hidden { display:none; }
-    .empty { color:var(--at-fg-mute); padding:18px 6px; text-align:center; font-size:12px; }
-    .loading { display:flex; align-items:center; gap:8px; color:var(--at-fg-mute); font-size:12px; }
+    .empty { color:var(--at-fg-mute); padding:18px 6px; text-align:center; font-size:1rem; }
+    .loading { display:flex; align-items:center; gap:8px; color:var(--at-fg-mute); font-size:1rem; }
     .spinner { width:12px; height:12px; border:2px solid var(--at-border); border-top-color:var(--at-accent); border-radius:50%; animation:spin .8s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
-    .section-toggle { width:100%; color:var(--at-fg-mute); background:transparent; border:1px dashed var(--at-border-soft); border-radius:5px; padding:5px 0; font:inherit; font-size:11px; text-align:center; cursor:pointer; margin:4px 0 12px; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
+    .section-toggle { width:100%; color:var(--at-fg-mute); background:transparent; border:1px dashed var(--at-border-soft); border-radius:5px; padding:5px 0; font:inherit; font-size:var(--at-fs-sm); text-align:center; cursor:pointer; margin:4px 0 12px; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
     .section-toggle:hover { color:var(--vscode-foreground); background:var(--vscode-list-hoverBackground); }
     .row:focus-visible { outline:1px solid var(--at-accent); outline-offset:-1px; }
     /* A frozen ring reads as finished; the wording alone carries it, so drop the ring. */
@@ -306,13 +303,15 @@ export function dashboardHtml(webview: vscode.Webview): string {
     </div>
     <div class="actions">
       <button class="ghost" id="browser-extension">${text0.browserExtension} ↗</button>
+      <button class="icon-btn" id="add-toggle" title="${text0.addSection}" aria-label="${text0.addSection}" aria-expanded="false" aria-controls="add"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button>
+      <button class="icon-btn" id="check-updates" title="${text0.checkUpdates}" aria-label="${text0.checkUpdates}"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8"/><path d="M4.5 7 8 10.5 11.5 7"/><path d="M3 13.5h10"/></svg></button>
       <button class="icon-btn" id="refresh" title="${text0.refresh}" aria-label="${text0.refresh}"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13.3 8a5.3 5.3 0 1 1-1.55-3.75"/><path d="M13.5 3v3h-3"/></svg></button>
     </div>
   </header>
   <div class="banner hidden" id="banner"></div>
   <div class="banner hidden" id="load-error"></div>
-  <div class="banner hidden" id="update-banner"></div>
-  <div class="section-label">${text0.addSection}</div>
+  <div class="hidden" id="add">
+  <div class="section-label" id="add-label">${text0.addSection}</div>
   <form class="add-form" id="add-form">
     <div class="add-input">
       <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2a6 6 0 0 0-1.9 11.7c.3.05.4-.13.4-.28v-1c-1.68.36-2.03-.8-2.03-.8-.27-.7-.68-.88-.68-.88-.56-.38.04-.37.04-.37.62.04.94.63.94.63.55.94 1.44.67 1.8.51.05-.4.21-.67.4-.83-1.34-.15-2.75-.67-2.75-3a2.35 2.35 0 0 1 .62-1.63c-.06-.15-.27-.77.06-1.6 0 0 .51-.16 1.67.62a5.8 5.8 0 0 1 3.04 0c1.16-.78 1.67-.62 1.67-.62.33.83.12 1.45.06 1.6a2.35 2.35 0 0 1 .62 1.63c0 2.34-1.41 2.85-2.75 3 .22.18.41.55.41 1.12v1.65c0 .16.11.34.42.28A6 6 0 0 0 8 2z"/></svg>
@@ -320,7 +319,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     </div>
     <button type="submit">${text0.analyze}</button>
   </form>
-  <section class="detail hidden" id="clip"></section>
+  </div>
   <section class="detail hidden" id="preview"></section>
   <nav class="agent-nav" id="agents" aria-label="${text0.aiAgents}"></nav>
   <div class="scope-row" id="filters"></div>
@@ -332,7 +331,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
   const vscode = acquireVsCodeApi(); const T = ${text};
   let items = []; let issues = []; let diagnostics = []; let loadError = '';
   let agent = ''; let scope = 'user'; let projectName = T.currentProject; let sectionExpanded = {};
-  let onlyUpdates = false; let loaded = false; let selected = ''; let descOpen = false;
+  let onlyUpdates = false; let addOpen = false; let loaded = false; let selected = ''; let descOpen = false;
   let projects = []; let otherPath = ''; let otherItems = []; let otherLoading = false; let otherError = ''; let otherIssues = [];
   let lastPreview = null; let environment = []; let compatibility = []; let readOnly = '';
   const kinds = {skill:T.skills,subagent:T.subagents,rule:T.rules,mcp:T.mcpServers,plugin:T.plugins};
@@ -360,8 +359,17 @@ export function dashboardHtml(webview: vscode.Webview): string {
   const floatSvg = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4v4"/><circle cx="8" cy="10.5" r=".6" fill="currentColor" stroke="none"/><path d="M8 1.5 14.5 13H1.5L8 1.5z"/></svg>';
   const warnSvg = '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4v4"/><circle cx="8" cy="10.5" r=".6" fill="currentColor" stroke="none"/><path d="M8 1.5 14.5 13H1.5L8 1.5z"/></svg>';
 
+  /** The worst diagnostic that names this row, so a broken tool does not look fine. */
+  function diagOf(x) {
+    const hits=diagnostics.filter(d=>(d.targets||[]).some(t=>t.name===x.name && t.kind===x.kind && t.scope===x.scope
+      && (!t.sourcePath || !x.sourcePath || t.sourcePath===x.sourcePath)));
+    return hits.some(d=>d.severity==='broken') ? 'broken' : (hits.length ? 'warning' : '');
+  }
   function rowTail(x, other) {
     const bits = [];
+    const diag = other ? '' : diagOf(x);
+    const label = esc(diag==='broken'?T.brokenTool:T.warnTool);
+    if (diag) bits.push('<span class="diag-mark '+diag+'" title="'+label+'" role="img" aria-label="'+label+'">'+(diag==='broken'?'✗':warnSvg)+'</span>');
     if (x.hasUpdate) bits.push('<span class="pill update">'+esc(T.updates)+'</span>');
     if (x.floating) bits.push('<span class="pill floating" title="'+esc(T.floatingWhy.replace('{0}',x.floating))+'">'+esc(T.floating)+'</span>');
     if (x.kind === 'mcp' && !other) {
@@ -452,19 +460,11 @@ export function dashboardHtml(webview: vscode.Webview): string {
       ? items.filter(x=>x.hasUpdate)
       : items.filter(x=>x.scope===scope && x.agents.includes(agent));
 
-    // Update banner (click toggles filter)
-    const ub = document.querySelector('#update-banner');
-    if (updates > 0) {
-      ub.innerHTML = '<span class="icon">'+warnSvg+'</span><div class="grow">'+esc(T.updateBanner.replace('{0}', updates))+'</div>'
-        + '<button class="link" id="only-updates" title="'+esc(T.showUpdates)+'" aria-pressed="'+onlyUpdates+'">'+esc(onlyUpdates?T.showAll:T.showOnly)+'</button>';
-      ub.classList.remove('hidden');
-      const btn = document.querySelector('#only-updates');
-      if (btn) btn.onclick = () => { onlyUpdates=!onlyUpdates; hideDetail(); render(); };
-    } else {
-      ub.classList.add('hidden'); ub.innerHTML='';
-    }
-
     renderBanner();
+    // The URL field says it is above the empty list, so keep it open while there is nothing.
+    const addShown = addOpen || (loaded && !items.length);
+    document.querySelector('#add').classList.toggle('hidden', !addShown);
+    document.querySelector('#add-toggle').setAttribute('aria-expanded', String(addShown));
 
     // Agent segmented control
     const nav = document.querySelector('#agents');
@@ -472,7 +472,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
       ? agents.map(a=>{
           const cnt = items.filter(x=>x.agents.includes(a) && x.scope===scope && x.origin!=='bundled').length;
           return '<button class="agent '+(a===agent?'active':'')+'" data-agent="'+a+'" role="tab" aria-selected="'+(a===agent)+'">'
-            + '<span class="agent-dot"></span><span>'+esc(agentShort[a])+'</span><span style="color:var(--at-fg-faint); font-size:10.5px">'+cnt+'</span></button>';
+            + '<span>'+esc(agentShort[a])+'</span><span class="count">'+cnt+'</span></button>';
         }).join('')
       : (loaded ? '<div class="empty" style="width:100%">'+esc(T.noAgents)+'</div>' : '');
 
@@ -483,7 +483,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
         + '<button data-filter="project" class="'+(scope==='project'?'active':'')+'">'+esc(T.project)+'</button>'
       + '</div>'
       + (scope==='project' ? '<span class="scope-name">'+esc(projectName)+'</span>' : '')
-      + '<button class="ghost check-updates" id="check-updates" title="'+esc(T.checkUpdates)+'" style="margin-left:auto">'+esc(T.checkUpdates)+'</button>';
+      + (updates > 0 ? '<button class="ghost only-updates" id="only-updates" title="'+esc(T.showUpdates)+'" aria-pressed="'+onlyUpdates+'">'+esc(T.updates)+' · '+updates+'</button>' : '');
 
     // Content
     const yours=visible.filter(x=>x.origin!=='bundled');
@@ -537,7 +537,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     // Bindings
     document.querySelectorAll('[data-agent]').forEach(b=>b.onclick=()=>{agent=b.dataset.agent; onlyUpdates=false; hideDetail(); render();});
     document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{scope=b.dataset.filter; onlyUpdates=false; hideDetail(); render();});
-    const cu=document.querySelector('#check-updates'); if (cu) cu.onclick=()=>vscode.postMessage({type:'checkUpdates'});
+    const ou=document.querySelector('#only-updates'); if (ou) ou.onclick=()=>{ onlyUpdates=!onlyUpdates; hideDetail(); render(); };
     bindRows(document.querySelectorAll('#content .row[data-index]'), node=>items[Number(node.dataset.index)]);
     document.querySelectorAll('.action').forEach(b=>b.onclick=e=>{e.stopPropagation(); vscode.postMessage({type:'actions',item:items[Number(b.dataset.index)]});});
     bindDetail(document.querySelector('#content'));
@@ -615,13 +615,12 @@ export function dashboardHtml(webview: vscode.Webview): string {
       + '</div></div>';
   }
   const element = (tag, className, text) => { const node=document.createElement(tag); if(className) node.className=className; if(text!==undefined) node.textContent=String(text); return node; };
+  /** Fill the URL field; the user still presses Analyze, and typed text is never replaced. */
   function showClipboard(url) {
-    const box=document.querySelector('#clip'); box.replaceChildren();
-    const close=element('button','icon-btn float-close','×'); close.id='clip-close'; close.title=T.close; box.append(close);
-    box.append(element('h2','',T.clipboard), element('p','detail-path',url));
-    const use=element('button','',T.analyzeIt); use.id='clip-use'; box.append(use); box.classList.remove('hidden');
-    close.onclick=()=>box.classList.add('hidden');
-    use.onclick=()=>{ box.classList.add('hidden'); document.querySelector('#tool-url').value=url; vscode.postMessage({type:'analyzeTool',url}); };
+    const input=document.querySelector('#tool-url');
+    if (input.value) return;
+    input.value=url; document.querySelector('#add-label').textContent=T.clipboard;
+    addOpen=true; render();
   }
   function hidePreview() { lastPreview=null; document.querySelector('#preview').classList.add('hidden'); }
   function showPreview(result) {
@@ -631,19 +630,26 @@ export function dashboardHtml(webview: vscode.Webview): string {
       const loading=element('div','loading'); loading.append(element('span','spinner'), document.createTextNode(T.analyzing)); panel.append(loading);
     } else if (rows.length) {
       panel.append(element('h2','',T.detected));
+      // Same shape as the list, so it reads as "this is where it will appear".
+      const group=element('div','group');
       rows.forEach((x,i)=>{
-        const row=element('p'); const strong=element('strong','',x.installSelector||x.name);
-        row.append(strong, document.createTextNode(' · '+(kinds[x.kind]||x.kind)), document.createElement('br'), document.createTextNode(x.description||T.noDescription), document.createElement('br'));
+        const row=element('div','row candidate'); const glyph=element('div','glyph');
+        if (icons[x.kind]) { glyph.dataset.kind=x.kind; glyph.innerHTML=icons[x.kind]; }
+        const main=element('div'); main.style.minWidth='0';
+        main.append(element('div','row-name',x.installSelector||x.name), element('div','row-meta',(kinds[x.kind]||x.kind)+' · '+firstLine(x.description||T.noDescription)));
         const install=element('button','install',T.install); install.dataset.index=String(i);
         install.onclick=()=>{ install.disabled=true; install.textContent=T.installing; const candidate=rows[i]; vscode.postMessage({type:'installTool',url:result.url,kind:candidate.kind,name:candidate.name,selector:candidate.installSelector}); };
-        row.append(install); panel.append(row);
+        row.append(glyph, main, install); group.append(row);
       });
+      panel.append(group);
     } else {
       panel.append(element('h2','',T.notFound), element('p','',result.error||T.notFoundBody));
     }
     panel.classList.remove('hidden');
   }
   document.querySelector('#refresh').onclick=()=>vscode.postMessage({type:'refresh'});
+  document.querySelector('#check-updates').onclick=()=>vscode.postMessage({type:'checkUpdates'});
+  document.querySelector('#add-toggle').onclick=()=>{ addOpen=!addOpen; render(); if (addOpen) document.querySelector('#tool-url').focus(); };
   document.querySelector('#browser-extension').onclick=()=>vscode.postMessage({type:'openBrowserExtension'});
   document.querySelector('#add-form').onsubmit=e=>{e.preventDefault(); vscode.postMessage({type:'analyzeTool',url:document.querySelector('#tool-url').value});};
   window.addEventListener('message',e=>{

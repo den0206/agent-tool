@@ -48,7 +48,6 @@
   "Unpin (follow updates again)": "Unpin (follow updates again)",
   "Pinned": "Pinned",
   "Found a URL in your clipboard": "Found a URL in your clipboard",
-  "Analyze it": "Analyze it",
   "Agent Tool: {0} updates available": "Agent Tool: {0} updates available",
   "Environment": "Environment",
   "No AI agent CLI was found on PATH. Existing tools are still listed.": "No AI agent CLI was found on PATH. Existing tools are still listed.",
@@ -61,10 +60,7 @@
   "Analyzing URL…": "Analyzing URL…",
   "Public GitHub URL": "Public GitHub URL",
   "Updates available": "Updates available",
-  "{0} tools have updates": "{0} tools have updates",
   "{0} issues": "{0} issues",
-  "Show only": "Show only",
-  "Show all": "Show all",
   "Project": "Project",
   "CLI detected": "CLI detected",
   "Configuration found": "Configuration found",
@@ -127,5 +123,7 @@
   "MCP Servers": "MCP Servers",
   "Plugins": "Plugins",
   "{0} more": "{0} more",
-  "AI Agents": "AI Agents"
+  "AI Agents": "AI Agents",
+  "This tool cannot be read. See Environment diagnostics.": "This tool cannot be read. See Environment diagnostics.",
+  "This tool needs attention. See Environment diagnostics.": "This tool needs attention. See Environment diagnostics."
 }

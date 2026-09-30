@@ -410,7 +410,7 @@ function runWebviewScript() {
   const elements = new Map();
   const element = () => ({
     innerHTML: "", textContent: "", value: "", dataset: {},
-    classList: { add() {}, remove() {}, toggle() {} },
+    classList: { add() {}, remove() {}, toggle() {} }, setAttribute() {},
     querySelectorAll: () => [], querySelector: () => null, scrollIntoView() {},
   });
   const listeners = [];
@@ -494,6 +494,26 @@ test("一覧には説明の1行を出し、タップで詳細を開いてもう�
 
   context.toggleDetail(tool);
   assert.equal(context.rowsHtml([tool]).includes("and more"), false);
+});
+
+test("診断に載ったツールだけ行に印を出す", () => {
+  const { context, send } = runWebviewScript();
+  const row = (name, sourcePath) => ({
+    name, kind: "skill", scope: "user", agents: ["claude"], origin: "user",
+    enabled: true, hasUpdate: false, sourcePath,
+  });
+  const broken = row("deploy", "/home/me/.claude/skills/deploy");
+  const sameName = row("deploy", "/home/me/.agents/skills/deploy");
+  const fine = row("lint", "/home/me/.claude/skills/lint");
+  send({ type: "inventory", items: [broken, sameName, fine], projects: [], issues: [], diagnostics: [
+    { code: "BROKEN_LINK", severity: "broken", message: "",
+      targets: [{ name: "deploy", kind: "skill", scope: "user", sourcePath: broken.sourcePath }] },
+  ] });
+
+  assert.match(context.rowsHtml([broken]), /diag-mark broken/);
+  // 同名でも別の実体には付けない。
+  assert.equal(context.rowsHtml([sameName]).includes("diag-mark"), false);
+  assert.equal(context.rowsHtml([fine]).includes("diag-mark"), false);
 });
 
 test("説明が無いものには種別の説明を出し、3行を超えた説明だけ開ける", () => {

@@ -48,7 +48,6 @@
   "Unpin (follow updates again)": "固定を解除する（更新を追う）",
   "Pinned": "固定中",
   "Found a URL in your clipboard": "クリップボードにURLがあります",
-  "Analyze it": "解析する",
   "Agent Tool: {0} updates available": "Agent Tool: 更新が{0}件あります",
   "Environment": "環境",
   "No AI agent CLI was found on PATH. Existing tools are still listed.": "PATH上にAIエージェントのCLIが見つかりません。導入済みのツールは引き続き表示します。",
@@ -61,10 +60,7 @@
   "Analyzing URL…": "URLを解析しています…",
   "Public GitHub URL": "公開GitHubのURL",
   "Updates available": "更新あり",
-  "{0} tools have updates": "{0} 件のツールに更新があります",
   "{0} issues": "{0} 件",
-  "Show only": "絞り込む",
-  "Show all": "すべて表示",
   "Project": "プロジェクト",
   "CLI detected": "CLIを検出済み",
   "Configuration found": "設定を検出済み",
@@ -127,5 +123,7 @@
   "MCP Servers": "MCPサーバー",
   "Plugins": "Plugin",
   "{0} more": "ほか {0} 件",
-  "AI Agents": "AI Agent"
+  "AI Agents": "AI Agent",
+  "This tool cannot be read. See Environment diagnostics.": "このツールは読み込めません。「環境診断」を確認してください。",
+  "This tool needs attention. See Environment diagnostics.": "このツールは確認が必要です。「環境診断」を確認してください。"
 }
