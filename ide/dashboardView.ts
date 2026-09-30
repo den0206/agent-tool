@@ -140,11 +140,19 @@ export function dashboardHtml(webview: vscode.Webview): string {
       --at-warn: var(--vscode-editorWarning-foreground);
       --at-warn-bg: color-mix(in srgb, var(--vscode-editorWarning-foreground) 12%, transparent);
       --at-ok: var(--vscode-charts-green, #7dc383);
-      --at-skill: var(--vscode-charts-orange, #d97706);
-      --at-subagent: var(--vscode-charts-blue, #3b82f6);
-      --at-rule: var(--vscode-charts-yellow, #eab308);
-      --at-mcp: var(--vscode-charts-green, #22c55e);
-      --at-plugin: var(--vscode-charts-purple, #8b5cf6);
+      /*
+       * Agents and kinds each have a color. Kinds avoid the agent hues (orange, green, blue, grey),
+       * or a Skill inside the Claude section would read as "Claude".
+       */
+      --at-claude: #c8744d;
+      --at-codex: #4a9a72;
+      --at-cursor: color-mix(in srgb, var(--vscode-foreground) 55%, transparent);
+      --at-gemini: #4f86e8;
+      --at-skill: #1a9fb5;
+      --at-subagent: #7470e8;
+      --at-rule: var(--vscode-charts-yellow, #d4a72c);
+      --at-mcp: var(--vscode-charts-purple, #a35ee0);
+      --at-plugin: #d65a9c;
       /*
        * One easing curve, shared with the browser extension (--ease in browser/tab.css).
        * Move transform and opacity only, and keep every duration within 120-200ms.
@@ -187,20 +195,32 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .add-input input { width:100%; }
 
     /* Agent segmented control */
-    .agent-nav { display:flex; background:var(--at-card); border:1px solid var(--at-border); border-radius:6px; padding:2px; margin:0 0 10px; overflow-x:auto; }
-    .agent { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px; background:transparent; color:var(--at-fg-mute); border:0; border-radius:4px; padding:5px 6px; font:inherit; font-size:var(--at-fs-sm); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
+    [data-agent] { --at-agent: var(--at-fg-mute); }
+    [data-agent="claude"] { --at-agent: var(--at-claude); }
+    [data-agent="codex"]  { --at-agent: var(--at-codex); }
+    [data-agent="cursor"] { --at-agent: var(--at-cursor); }
+    [data-agent="gemini"] { --at-agent: var(--at-gemini); }
+    .agent-nav { display:flex; gap:4px; margin:0 0 8px; overflow-x:auto; }
+    .agent { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:5px; background:transparent; color:var(--at-fg-mute); border:1px solid transparent; border-radius:5px; padding:4px 6px; font:inherit; font-size:var(--at-fs-sm); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:background-color .13s var(--at-ease), color .13s var(--at-ease), border-color .13s var(--at-ease); }
     .agent:hover { background:var(--vscode-list-hoverBackground); }
-    .agent.active { color:var(--vscode-foreground); background:var(--at-elev); font-weight:500; box-shadow:0 1px 2px rgba(0,0,0,.2); }
+    .agent.active { color:var(--vscode-foreground); background:var(--at-elev); border-color:var(--at-agent); font-weight:600; }
+    .agent-mark { width:10px; height:10px; border-radius:3px; background:var(--at-agent); opacity:.55; flex-shrink:0; }
+    .agent.active .agent-mark { opacity:1; }
     .agent .count { color:var(--at-fg-faint); font-size:var(--at-fs-sm); }
+    .agent-section { background:var(--at-elev); border-left:3px solid var(--at-agent); border-radius:6px; padding:10px 10px 4px; }
+    .agent-head { display:grid; grid-template-columns:24px minmax(0,1fr); gap:6px 8px; align-items:center; margin-bottom:4px; }
+    .agent-head .filters { grid-column:1 / -1; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .agent-tile { width:24px; height:24px; border-radius:5px; background:var(--at-agent); color:#fff; display:grid; place-items:center; font-size:var(--at-fs-sm); font-weight:700; }
+    .agent-head .name { font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .agent-head .sub { color:var(--at-fg-mute); font-size:var(--at-fs-sm); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
     /* Scope switch */
-    .scope-row { display:flex; align-items:center; gap:8px; margin:0 0 14px; flex-wrap:wrap; }
-    .scope-row .only-updates { margin-left:auto; flex-shrink:0; }
-    .scope-row .only-updates[aria-pressed="true"] { color:var(--at-warn); border-color:color-mix(in srgb, var(--at-warn) 45%, transparent); background:var(--at-warn-bg); }
+    .only-updates { white-space:nowrap; border:1px solid color-mix(in srgb, var(--at-warn) 45%, transparent); color:var(--at-warn); background:transparent; border-radius:5px; padding:0 6px; font-size:var(--at-fs-sm); font-weight:600; }
+    .only-updates:hover { background:var(--at-warn-bg); }
+    .only-updates[aria-pressed="true"] { background:var(--at-warn); color:var(--vscode-editor-background); }
     .scope { display:inline-flex; background:var(--at-card); border:1px solid var(--at-border); border-radius:5px; padding:1px; }
     .scope button { background:transparent; color:var(--at-fg-mute); border:0; border-radius:3px; padding:3px 10px; font:inherit; font-size:var(--at-fs-sm); cursor:pointer; transition:background-color .13s var(--at-ease), color .13s var(--at-ease); }
     .scope button.active { color:var(--vscode-foreground); background:var(--at-elev); }
-    .scope-name { color:var(--at-fg-faint); font-size:var(--at-fs-sm); font-family:var(--vscode-editor-font-family); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 
     /* Sections and grouped lists */
     .group-header { display:flex; align-items:baseline; justify-content:space-between; margin:16px 0 6px; }
@@ -208,31 +228,31 @@ export function dashboardHtml(webview: vscode.Webview): string {
     .group { display:grid; gap:1px; background:var(--at-border-soft); border:1px solid var(--at-border-soft); border-radius:7px; overflow:hidden; margin-bottom:6px; }
 
     /* Rows */
-    .row { display:grid; grid-template-columns:22px minmax(0,1fr) auto; gap:10px; align-items:center; padding:9px 10px; background:var(--at-card); cursor:pointer; transition:background-color .12s var(--at-ease); }
+    .row { display:grid; grid-template-columns:22px minmax(0,1fr) fit-content(60%); gap:10px; align-items:center; padding:9px 10px; background:var(--at-card); cursor:pointer; transition:background-color .12s var(--at-ease); }
     .row:hover { background:var(--vscode-list-hoverBackground); }
     .row.selected { border-left:2px solid var(--at-accent); padding-left:8px; }
-    .row .glyph { width:22px; height:22px; border-radius:5px; display:grid; place-items:center; }
-    .row .glyph[data-kind="skill"]    { background:color-mix(in srgb, var(--at-skill) 14%, transparent); color:var(--at-skill); }
-    .row .glyph[data-kind="subagent"] { background:color-mix(in srgb, var(--at-subagent) 14%, transparent); color:var(--at-subagent); }
-    .row .glyph[data-kind="rule"]     { background:color-mix(in srgb, var(--at-rule) 14%, transparent); color:var(--at-rule); }
-    .row .glyph[data-kind="mcp"]      { background:color-mix(in srgb, var(--at-mcp) 14%, transparent); color:var(--at-mcp); }
-    .row .glyph[data-kind="plugin"]   { background:color-mix(in srgb, var(--at-plugin) 14%, transparent); color:var(--at-plugin); }
+    .row .glyph { --at-kind: var(--at-fg-mute); width:22px; height:22px; border-radius:5px; display:grid; place-items:center; color:var(--at-kind); background:color-mix(in srgb, var(--at-kind) 16%, transparent); }
+    .row .glyph[data-kind="skill"]    { --at-kind: var(--at-skill); }
+    .row .glyph[data-kind="subagent"] { --at-kind: var(--at-subagent); }
+    .row .glyph[data-kind="rule"]     { --at-kind: var(--at-rule); }
+    .row .glyph[data-kind="mcp"]      { --at-kind: var(--at-mcp); }
+    .row .glyph[data-kind="plugin"]   { --at-kind: var(--at-plugin); }
     .row.stopped .glyph { opacity:.55; }
     .row-name { display:flex; align-items:center; gap:6px; font-size:1rem; font-weight:500; color:var(--vscode-foreground); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .row.stopped .row-name { color:var(--at-fg-mute); }
     .row-meta { font-size:var(--at-fs-sm); color:var(--at-fg-mute); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; }
-    .row-tail { display:flex; align-items:center; gap:8px; }
+    .row-tail { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:4px 8px; }
     .pin { color:var(--at-fg-mute); }
-    .pill { font-size:var(--at-fs-sm); padding:2px 6px; border-radius:10px; font-weight:500; white-space:nowrap; }
-    .pill.update { color:var(--at-warn); background:var(--at-warn-bg); }
-    .pill.floating { color:var(--at-warn); background:transparent; border:1px solid color-mix(in srgb, var(--at-warn) 35%, transparent); }
-    .status-run { display:inline-flex; align-items:center; gap:5px; font-size:var(--at-fs-sm); color:var(--at-ok); font-weight:500; }
-    .status-run .dot { width:6px; height:6px; border-radius:50%; background:var(--at-ok); box-shadow:0 0 6px color-mix(in srgb, var(--at-ok) 55%, transparent); }
+    .pill { font-size:var(--at-fs-sm); padding:1px 7px; border-radius:5px; font-weight:600; white-space:nowrap; border:1px solid transparent; }
+    .pill.update { color:var(--vscode-editor-background); background:var(--at-warn); }
+    .pill.running { color:#fff; background:var(--at-agent); }
+    .pill.floating, .pill.stopped { font-weight:500; background:transparent; }
+    .pill.floating { color:var(--at-warn); border-color:color-mix(in srgb, var(--at-warn) 45%, transparent); }
+    .pill.stopped { color:var(--at-fg-faint); border-color:var(--at-border); }
     .diag-mark { display:inline-flex; color:var(--at-warn); }
     .diag-mark.broken { color:var(--vscode-errorForeground, #e57373); }
     .row.candidate { cursor:default; }
     .row.candidate:hover { background:var(--at-card); }
-    .status-off { color:var(--at-fg-faint); font-size:var(--at-fs-sm); }
 
     /* Inline detail */
     .detail-inline { background:var(--at-card); padding:0 10px 12px 34px; animation:rise .16s var(--at-ease) both; }
@@ -322,8 +342,10 @@ export function dashboardHtml(webview: vscode.Webview): string {
   </div>
   <section class="detail hidden" id="preview"></section>
   <nav class="agent-nav" id="agents" aria-label="${text0.aiAgents}"></nav>
-  <div class="scope-row" id="filters"></div>
-  <div id="content"></div>
+  <section class="agent-section" id="agent-section">
+    <div class="agent-head" id="agent-head"></div>
+    <div id="content"></div>
+  </section>
   <section id="others"></section>
   <section id="environment" class="footer-section"></section>
   <section id="diagnostics" class="footer-section"></section>
@@ -351,6 +373,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
   };
   const agentNames = {claude:'Claude Code',cursor:'Cursor',codex:'Codex',gemini:'Gemini CLI'};
   const agentShort = {claude:'Claude',cursor:'Cursor',codex:'Codex',gemini:'Gemini'};
+  const agentTile = {claude:'✳',cursor:'◇',codex:'›_',gemini:'✦'};
   const esc = s => String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const keyOf = x => x.name+'|'+x.kind+'|'+x.scope+'|'+(x.sourcePath||'');
   const shortName = p => String(p).split(/[\\\\/]/).filter(Boolean).pop() || String(p);
@@ -374,8 +397,8 @@ export function dashboardHtml(webview: vscode.Webview): string {
     if (x.floating) bits.push('<span class="pill floating" title="'+esc(T.floatingWhy.replace('{0}',x.floating))+'">'+esc(T.floating)+'</span>');
     if (x.kind === 'mcp' && !other) {
       bits.push(x.running
-        ? '<span class="status-run"><span class="dot"></span>'+esc(T.running)+'</span>'
-        : '<span class="status-off">'+esc(T.stopped)+'</span>');
+        ? '<span class="pill running">'+esc(T.running)+'</span>'
+        : '<span class="pill stopped">'+esc(T.stopped)+'</span>');
     }
     if (!other) bits.push('<button class="icon-btn action" data-index="'+items.indexOf(x)+'" title="'+esc(T.actions)+'">•••</button>');
     return '<div class="row-tail">'+bits.join('')+'</div>';
@@ -472,18 +495,23 @@ export function dashboardHtml(webview: vscode.Webview): string {
       ? agents.map(a=>{
           const cnt = items.filter(x=>x.agents.includes(a) && x.scope===scope && x.origin!=='bundled').length;
           return '<button class="agent '+(a===agent?'active':'')+'" data-agent="'+a+'" role="tab" aria-selected="'+(a===agent)+'">'
-            + '<span>'+esc(agentShort[a])+'</span><span class="count">'+cnt+'</span></button>';
+            + '<span class="agent-mark"></span><span>'+esc(agentShort[a])+'</span><span class="count">'+cnt+'</span></button>';
         }).join('')
       : (loaded ? '<div class="empty" style="width:100%">'+esc(T.noAgents)+'</div>' : '');
 
-    // Scope switch
-    document.querySelector('#filters').innerHTML =
-      '<div class="scope">'
+    // Agent section header: the updates filter spans every agent, so it drops the agent color.
+    const shown = onlyUpdates ? '' : agent;
+    document.querySelector('#agent-section').dataset.agent = shown;
+    setHtml(document.querySelector('#agent-head'), !agents.length ? '' :
+      '<div class="agent-tile">'+(shown ? esc(agentTile[shown]) : '⬆')+'</div>'
+      + '<div style="min-width:0"><div class="name">'+esc(shown ? agentNames[shown] : T.updates)+'</div>'
+      + '<div class="sub">'+esc(scope==='project' ? projectName : T.userGlobal)+' · '+visible.filter(x=>x.origin!=='bundled').length+'</div></div>'
+      + '<div class="filters"><div class="scope">'
         + '<button data-filter="user" class="'+(scope==='user'?'active':'')+'">'+esc(T.userGlobal)+'</button>'
         + '<button data-filter="project" class="'+(scope==='project'?'active':'')+'">'+esc(T.project)+'</button>'
       + '</div>'
-      + (scope==='project' ? '<span class="scope-name">'+esc(projectName)+'</span>' : '')
-      + (updates > 0 ? '<button class="ghost only-updates" id="only-updates" title="'+esc(T.showUpdates)+'" aria-pressed="'+onlyUpdates+'">'+esc(T.updates)+' · '+updates+'</button>' : '');
+      + (updates > 0 ? '<button class="only-updates" id="only-updates" title="'+esc(T.showUpdates)+'" aria-pressed="'+onlyUpdates+'">'+esc(T.updates)+' · '+updates+'</button>' : '')
+      + '</div>');
 
     // Content
     const yours=visible.filter(x=>x.origin!=='bundled');
@@ -535,7 +563,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     }
 
     // Bindings
-    document.querySelectorAll('[data-agent]').forEach(b=>b.onclick=()=>{agent=b.dataset.agent; onlyUpdates=false; hideDetail(); render();});
+    document.querySelectorAll('.agent[data-agent]').forEach(b=>b.onclick=()=>{agent=b.dataset.agent; onlyUpdates=false; hideDetail(); render();});
     document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{scope=b.dataset.filter; onlyUpdates=false; hideDetail(); render();});
     const ou=document.querySelector('#only-updates'); if (ou) ou.onclick=()=>{ onlyUpdates=!onlyUpdates; hideDetail(); render(); };
     bindRows(document.querySelectorAll('#content .row[data-index]'), node=>items[Number(node.dataset.index)]);

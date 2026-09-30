@@ -12,7 +12,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A clipboard URL now fills the URL field instead of showing a separate card.
 - Rows flagged by Environment diagnostics show a warning or broken mark.
 - Detected tools in a URL analysis use the same row layout as the tool list.
-- Dashboard text follows the editor font size, and agent tabs no longer reuse the tool-kind colors.
+- Dashboard text follows the editor font size.
+- The dashboard takes the look of an agent-colored panel: each agent has its own color, the selected agent's list sits in a section with its color stripe, name, scope switch and update filter; statuses such as Updates available and Running appear as filled pills, and tool-kind icons use colors that do not overlap the agent colors.
 
 ### Fixed
 
