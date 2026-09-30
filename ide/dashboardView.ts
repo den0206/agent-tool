@@ -329,6 +329,12 @@ export function dashboardHtml(webview: vscode.Webview): string {
   let lastPreview = null; let environment = []; let compatibility = []; let readOnly = '';
   const kinds = {skill:'Skills',subagent:'Subagents',rule:'Rules',mcp:'MCP Servers',plugin:'Plugins'};
   const kindOrder = ['skill','subagent','rule','mcp','plugin'];
+  const renderedHtml = new WeakMap();
+  function setHtml(node, html) {
+    if (renderedHtml.get(node) === html) return;
+    node.innerHTML = html;
+    renderedHtml.set(node, html);
+  }
   const icons = {
     skill:'<svg viewBox="0 0 14 14" width="12" height="12" fill="currentColor"><path d="M2 0h10v14H2V0zm2 3h6v1.5H4V3zm0 3h6v1.5H4V6zm0 3h4v1.5H4V9z"/></svg>',
     subagent:'<svg viewBox="0 0 14 14" width="12" height="12" fill="currentColor"><circle cx="7" cy="4" r="3"/><path d="M1 13.5c0-3.3 2.7-6 6-6s6 2.7 6 6H1z"/></svg>',
@@ -423,9 +429,9 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const body=document.querySelector('#other-body');
     const warn = otherError ? '<div class="empty">'+esc(otherError)+'</div>'
       : (otherIssues.length ? '<div class="empty">'+esc(T.loadFailed)+'<br>'+otherIssues.map(esc).join('<br>')+'</div>' : '');
-    body.innerHTML = !otherPath ? ''
+    setHtml(body, !otherPath ? ''
       : otherLoading ? '<div class="loading"><span class="spinner"></span>'+esc(T.readingProject)+'</div>'
-      : warn + (rows.length ? '<div class="group">'+rows.map((x,i)=>rowHtml(x,true,i)).join('')+'</div>' : (warn ? '' : '<div class="empty">'+esc(T.projectEmpty)+'</div>'));
+      : warn + (rows.length ? '<div class="group">'+rows.map((x,i)=>rowHtml(x,true,i)).join('')+'</div>' : (warn ? '' : '<div class="empty">'+esc(T.projectEmpty)+'</div>')));
     bindRows(body.querySelectorAll('.row[data-other]'), node=>rows[Number(node.dataset.other)]);
     bindDetail(body);
   }
@@ -475,12 +481,12 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const yours=visible.filter(x=>x.origin!=='bundled');
     const bundled=visible.filter(x=>x.origin==='bundled');
     const yourGroups = kindOrder.map(k=>[kinds[k], yours.filter(x=>x.kind===k), k]).filter(([,rows])=>rows.length);
-    document.querySelector('#content').innerHTML = !loaded
+    setHtml(document.querySelector('#content'), !loaded
       ? '<div class="loading"><span class="spinner"></span>'+esc(T.loading)+'</div>'
       : (visible.length
           ? yourGroups.map(([title,rows,kv])=>groupHtml(title,rows,kv,false)).join('')
             + (bundled.length ? bundledHtml(bundled) : '')
-          : '<div class="empty">'+esc(T.noMatch)+'</div>');
+          : '<div class="empty">'+esc(T.noMatch)+'</div>'));
 
     // Environment (collapsible)
     const envBox = document.querySelector('#environment');

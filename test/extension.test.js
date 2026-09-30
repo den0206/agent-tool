@@ -427,6 +427,37 @@ function runWebviewScript() {
   return { context, elements, send: message => listeners.forEach(handler => handler({ data: message })) };
 }
 
+test("一覧が変わらない更新では開いた詳細の DOM を作り直さない", () => {
+  const { context, elements, send } = runWebviewScript();
+  const tool = {
+    name: "skill", kind: "skill", scope: "user", agents: ["claude"], origin: "user",
+    enabled: true, hasUpdate: false, summary: "Agent's <instructions>",
+  };
+  const inventory = { type: "inventory", items: [tool], projects: ["/project"] };
+  send(inventory);
+  context.toggleDetail(tool);
+  const content = elements.get("#content");
+  const otherBody = elements.get("#other-body");
+  let replacements = 0;
+  for (const node of [content, otherBody]) {
+    let html = node.innerHTML;
+    Object.defineProperty(node, "innerHTML", {
+      get: () => html,
+      set: value => { html = value; replacements += 1; },
+    });
+  }
+  send(inventory);
+  send({ ...inventory, environment: [{ id: "claude", found: true }] });
+  assert.equal(replacements, 0);
+  assert.match(content.innerHTML, /aria-expanded="true"/);
+  send({ ...inventory, items: [{ ...tool, summary: "Changed" }] });
+  assert.equal(replacements, 1);
+  assert.match(content.innerHTML, /Changed/);
+  context.toggleDetail(tool);
+  assert.equal(replacements, 2);
+  assert.equal(content.innerHTML.includes('aria-expanded="true"'), false);
+});
+
 test("管理下 Skill を別の AI Agent に追加すると取得元を開く", async () => {
   const { stub, state } = stubVscode();
   activateWith(stub, fakeEnv().appSupport);

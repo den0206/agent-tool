@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Background dashboard updates now preserve unchanged tool lists and open details, avoiding repeated entrance animations and flicker.
+
 ## [0.7.0] — 2026-09-28
 
 ### Changed
