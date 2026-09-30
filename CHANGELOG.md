@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-09-30
+
 ### Changed
 
 - The dashboard puts the tool list first: the URL field opens from a `+` button in the header, Check for updates moves to the header, and the update count becomes a filter toggle next to the scope switch.
