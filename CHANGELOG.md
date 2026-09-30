@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - Background dashboard updates now preserve unchanged tool lists and open details, avoiding repeated entrance animations and flicker.
+- Dashboard section titles, the "more" toggle, and the project fallback name are now localized.
+- Agent tab counts on the dashboard now match the selected scope.
 
 ## [0.7.0] — 2026-09-28
 

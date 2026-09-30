@@ -100,6 +100,14 @@ const webviewText = (): Record<string, string> => ({
   openFile: vscode.l10n.t("Open the file"),
   showMore: vscode.l10n.t("Show more"),
   version: vscode.l10n.t("Version"),
+  skills: vscode.l10n.t("Skills"),
+  subagents: vscode.l10n.t("Subagents"),
+  rules: vscode.l10n.t("Rules"),
+  mcpServers: vscode.l10n.t("MCP Servers"),
+  plugins: vscode.l10n.t("Plugins"),
+  more: vscode.l10n.t("{0} more"),
+  currentProject: vscode.l10n.t("Current Project"),
+  aiAgents: vscode.l10n.t("AI Agents"),
 });
 
 /**
@@ -314,7 +322,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
   </form>
   <section class="detail hidden" id="clip"></section>
   <section class="detail hidden" id="preview"></section>
-  <nav class="agent-nav" id="agents" aria-label="AI Agents"></nav>
+  <nav class="agent-nav" id="agents" aria-label="${text0.aiAgents}"></nav>
   <div class="scope-row" id="filters"></div>
   <div id="content"></div>
   <section id="others"></section>
@@ -323,11 +331,11 @@ export function dashboardHtml(webview: vscode.Webview): string {
   <script nonce="${nonce}">
   const vscode = acquireVsCodeApi(); const T = ${text};
   let items = []; let issues = []; let diagnostics = []; let loadError = '';
-  let agent = ''; let scope = 'user'; let projectName = 'Current Project'; let sectionExpanded = {};
+  let agent = ''; let scope = 'user'; let projectName = T.currentProject; let sectionExpanded = {};
   let onlyUpdates = false; let loaded = false; let selected = ''; let descOpen = false;
   let projects = []; let otherPath = ''; let otherItems = []; let otherLoading = false; let otherError = ''; let otherIssues = [];
   let lastPreview = null; let environment = []; let compatibility = []; let readOnly = '';
-  const kinds = {skill:'Skills',subagent:'Subagents',rule:'Rules',mcp:'MCP Servers',plugin:'Plugins'};
+  const kinds = {skill:T.skills,subagent:T.subagents,rule:T.rules,mcp:T.mcpServers,plugin:T.plugins};
   const kindOrder = ['skill','subagent','rule','mcp','plugin'];
   const renderedHtml = new WeakMap();
   function setHtml(node, html) {
@@ -387,7 +395,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const exp = sectionExpanded['bundled'];
     const head = '<div class="group-header"><div class="section-label">'+esc(T.bundled)+'</div><div class="count">'+rows.length+'</div></div>';
     const body = exp ? '<div class="group">'+rows.map((x,i)=>rowHtml(x, false, i)).join('')+'</div>' : '';
-    const tog = '<button class="section-toggle" data-kind="bundled">'+(exp?'⌃ '+esc(T.showLess):'⌄ '+rows.length+' more')+'</button>';
+    const tog = '<button class="section-toggle" data-kind="bundled">'+(exp?'⌃ '+esc(T.showLess):'⌄ '+esc(T.more.replace('{0}',rows.length)))+'</button>';
     return head + body + tog;
   }
   function groupHtml(title, rows, kv, other) {
@@ -395,7 +403,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const shown = (!exp && rows.length > cap) ? rows.slice(0, cap) : rows;
     const rest = rows.length - shown.length;
     const tog = rows.length > cap
-      ? '<button class="section-toggle" data-kind="'+kv+'">'+(exp?'⌃ '+esc(T.showLess):'⌄ '+rest+' more')+'</button>'
+      ? '<button class="section-toggle" data-kind="'+kv+'">'+(exp?'⌃ '+esc(T.showLess):'⌄ '+esc(T.more.replace('{0}',rest)))+'</button>'
       : '';
     const body = '<div class="group">'+shown.map((x,i)=>rowHtml(x, other, i)).join('')+'</div>'+tog;
     const header = '<div class="group-header"><div class="section-label">'+esc(title)+'</div><div class="count">'+rows.length+'</div></div>';
@@ -462,7 +470,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     const nav = document.querySelector('#agents');
     nav.innerHTML = agents.length
       ? agents.map(a=>{
-          const cnt = items.filter(x=>x.agents.includes(a) && x.origin!=='bundled').length;
+          const cnt = items.filter(x=>x.agents.includes(a) && x.scope===scope && x.origin!=='bundled').length;
           return '<button class="agent '+(a===agent?'active':'')+'" data-agent="'+a+'" role="tab" aria-selected="'+(a===agent)+'">'
             + '<span class="agent-dot"></span><span>'+esc(agentShort[a])+'</span><span style="color:var(--at-fg-faint); font-size:10.5px">'+cnt+'</span></button>';
         }).join('')

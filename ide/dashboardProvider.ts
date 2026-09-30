@@ -266,9 +266,7 @@ export class DashboardProvider
     if (updates > 0) this.badge.show(); else this.badge.hide();
 
     const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    const projectName = folder === undefined
-      ? 'Current Project'
-      : folder.split(/[\\/]/).filter(Boolean).pop() ?? 'Current Project';
+    const projectName = folder?.split(/[\\/]/).filter(Boolean).pop() ?? vscode.l10n.t("Current Project");
     const compatibility = (this.environment ?? []).map(info => ({
       id: info.id,
       supported: KINDS.filter(kind => supports(info.id, kind)),

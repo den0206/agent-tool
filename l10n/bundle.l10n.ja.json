@@ -120,5 +120,12 @@
   "Open the file": "ファイルを開く",
   "Show more": "続きを表示",
   "Version": "バージョン",
-  "Agent Tool: {0} could not be opened.": "Agent Tool: {0} を開けませんでした。"
+  "Agent Tool: {0} could not be opened.": "Agent Tool: {0} を開けませんでした。",
+  "Skills": "Skill",
+  "Subagents": "Subagent",
+  "Rules": "Rule",
+  "MCP Servers": "MCPサーバー",
+  "Plugins": "Plugin",
+  "{0} more": "ほか {0} 件",
+  "AI Agents": "AI Agent"
 }

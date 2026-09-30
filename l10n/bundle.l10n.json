@@ -120,5 +120,12 @@
   "Open the file": "Open the file",
   "Show more": "Show more",
   "Version": "Version",
-  "Agent Tool: {0} could not be opened.": "Agent Tool: {0} could not be opened."
+  "Agent Tool: {0} could not be opened.": "Agent Tool: {0} could not be opened.",
+  "Skills": "Skills",
+  "Subagents": "Subagents",
+  "Rules": "Rules",
+  "MCP Servers": "MCP Servers",
+  "Plugins": "Plugins",
+  "{0} more": "{0} more",
+  "AI Agents": "AI Agents"
 }
