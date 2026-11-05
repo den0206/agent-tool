@@ -208,12 +208,16 @@ export async function withRegistryLock<T>(env: Env, body: () => Promise<T> | T):
   }
 }
 
-/** read-modify-write を 1 つの排他区間にまとめる。 */
+/**
+ * read-modify-write を 1 つの排他区間にまとめる。変更が無ければ書かない。
+ * 一覧は registry.json を監視していて、走査のたびに書くと再走査が止まらなくなる。
+ */
 export function update(env: Env, change: (registry: Registry) => void | Promise<void>): Promise<Registry> {
   return withRegistryLock(env, async () => {
     const registry = read(env);
+    const before = encode(registry);
     await change(registry);
-    write(env, registry);
+    if (encode(registry) !== before) write(env, registry);
     return registry;
   });
 }
