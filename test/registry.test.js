@@ -1,5 +1,5 @@
 const { strict: assert } = require("node:assert");
-const { readdirSync, readFileSync, unlinkSync, utimesSync, writeFileSync } = require("node:fs");
+const { readdirSync, readFileSync, statSync, unlinkSync, utimesSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 const { test } = require("node:test");
 const { registryFile } = require("../out/ide/env.js");
@@ -158,4 +158,17 @@ test("ロックは処理の後に解放される", async () => {
   const env = fakeEnv();
   await assert.rejects(withRegistryLock(env, () => { throw new Error("boom"); }), /boom/);
   assert.equal(await withRegistryLock(env, () => "next"), "next");
+});
+
+/** 一覧は registry.json を監視する。変更なしで書くと、走査と監視が互いを起こし続ける。 */
+test("update は内容が変わらなければ registry.json を書かない", async () => {
+  const env = fakeEnv();
+  await update(env, registry => upsert(registry, { name: "a", kind: "skill", pinned: false }));
+  const past = new Date(0);
+  utimesSync(registryFile(env), past, past);
+  await update(env, () => {});
+  assert.equal(statSync(registryFile(env)).mtimeMs, 0);
+  await update(env, registry => upsert(registry, { name: "b", kind: "skill", pinned: false }));
+  assert.notEqual(statSync(registryFile(env)).mtimeMs, 0);
+  assert.equal(read(env).resources.length, 2);
 });
