@@ -26,6 +26,9 @@ export class DashboardProvider
   private environment?: agentTool.AgentInfo[];
   /** 直前に提案した URL。再表示のたびに同じ提案を出さないためだけに持つ。 */
   private offered = '';
+  private refreshing = false;
+  /** 走査中に来た更新要求。変更を取りこぼさないよう、終わってから 1 回だけ走査し直す。 */
+  private refreshAgain?: {force: boolean};
   private pollTimer?: NodeJS.Timeout;
   private statusPending = false;
   private watchers: vscode.FileSystemWatcher[] = [];
@@ -103,6 +106,22 @@ export class DashboardProvider
       this.post(this.snapshot.items, this.issues, this.snapshot.diagnostics);
       return;
     }
+    if (this.refreshing) {
+      this.refreshAgain = {force: force || this.refreshAgain?.force === true};
+      return;
+    }
+    this.refreshing = true;
+    try {
+      await this.scan(force);
+    } finally {
+      this.refreshing = false;
+    }
+    const again = this.refreshAgain;
+    this.refreshAgain = undefined;
+    if (again) await this.refresh(again.force);
+  }
+
+  private async scan(force: boolean): Promise<void> {
     try {
       const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
       // 他プロジェクトの候補。既知パスを読むだけで、ホームは走査しない。

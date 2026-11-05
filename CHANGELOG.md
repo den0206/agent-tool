@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - The dashboard no longer keeps rescanning tools while it is open. A scan with no changes no longer rewrites `registry.json`.
+- Refresh requests that arrive during a dashboard scan are now combined into one follow-up scan instead of running at the same time.
 
 ## [0.7.1] — 2026-09-30
 

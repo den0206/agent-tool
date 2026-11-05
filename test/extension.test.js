@@ -603,6 +603,34 @@ test("ファイル監視は View の表示中だけ動かす", () => {
   }
 });
 
+/** 走査は CLI を起動する。重ねて走らせず、走査中の更新要求は終了後の 1 回にまとめる。 */
+test("走査中の更新要求は重ねず、終了後に 1 回だけ走査し直す", async () => {
+  const { stub, state } = stubVscode();
+  const finish = [];
+  const { context } = activateWith(stub, fakeEnv().appSupport, {
+    inventory: () => new Promise(resolve => finish.push(() => resolve({ items: [], issues: [] }))),
+    mcpStatus: async () => ({}), watchPaths: () => [], scanPath: async () => [], projects: () => [],
+  });
+  const settle = () => new Promise(resolve => setImmediate(resolve));
+  try {
+    showView(state);
+    await settle();
+    const refresh = state.commands.get("agent-tool.refreshInventory");
+    refresh();
+    refresh();
+    await settle();
+    assert.equal(finish.length, 1);
+    finish[0]();
+    await settle();
+    assert.equal(finish.length, 2);
+    finish[1]();
+    await settle();
+    assert.equal(finish.length, 2);
+  } finally {
+    for (const entry of context.subscriptions) entry.dispose?.();
+  }
+});
+
 test("更新があるときだけ Status Bar にバッジを出す", async () => {
   const { stub, state } = stubVscode();
   const item = hasUpdate => ({
