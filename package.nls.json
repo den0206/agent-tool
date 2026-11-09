@@ -4,5 +4,6 @@
   "command.addMcp": "Add MCP Server",
   "command.refreshInventory": "Reload Tools",
   "command.checkUpdates": "Check for Updates",
-  "capabilities.untrustedWorkspaces": "Agent Tool allows read-only inventory in untrusted workspaces; changes require workspace trust."
+  "capabilities.untrustedWorkspaces": "Agent Tool allows read-only inventory in untrusted workspaces; changes require workspace trust.",
+  "command.addZip": "Install Tool from Zip File"
 }

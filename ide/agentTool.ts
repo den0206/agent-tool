@@ -5,7 +5,7 @@ import { AgentInfo, scanPath as detectAgents } from "./detector";
 import { Env, Run } from "./env";
 import { AgentToolError } from "../core/errors";
 import { run as runCommand } from "./exec";
-import { Candidate, discard, fetchPage, stage } from "./fetcher";
+import { Candidate, discard, fetchPage, stage, stageZip } from "./fetcher";
 import { fromJsonLd, GitHubSource, narrowToSkill, needsPage, parseUrl, skillHint, sourceKey } from "../core/github";
 import { install } from "./installer";
 import { Diagnostic, inventory as buildInventory, InventoryItem } from "./inventory";
@@ -233,6 +233,33 @@ export async function add(params: {
     }
     await mutate(params.storagePath, (registry, env) =>
       install(candidate, staging, env, registry, place));
+  } finally {
+    discard(staging);
+  }
+}
+
+/**
+ * 手元の zip から入れる。展開してからでないと中身が分からないので、
+ * どれをどこへ入れるかは `choose` が候補を見て決める（`undefined` で取りやめ）。
+ * 取得元が無いので registry に repo を書かず、更新確認の対象外になる。
+ */
+export async function addZip(params: {
+  storagePath: string;
+  zip: { path: string } | { name: string; bytes: Uint8Array };
+  choose: (candidates: PreviewCandidate[]) =>
+    Promise<{ candidate: PreviewCandidate; scope: ScopeId; projectPath?: string } | undefined>;
+}): Promise<boolean> {
+  const staging = await stageZip(params.zip);
+  try {
+    const previews = staging.candidates.map(toPreview);
+    const picked = await params.choose(previews);
+    if (picked === undefined) return false;
+    const candidate = staging.candidates[previews.indexOf(picked.candidate)];
+    if (candidate === undefined) throw new AgentToolError("NOT_FOUND", "the chosen tool is not in the zip file");
+    const place = placeFor(picked.scope, picked.projectPath);
+    await mutate(params.storagePath, (registry, env) =>
+      install(candidate, staging, env, registry, place));
+    return true;
   } finally {
     discard(staging);
   }

@@ -125,5 +125,9 @@
   "{0} more": "ほか {0} 件",
   "AI Agents": "AI Agent",
   "This tool cannot be read. See Environment diagnostics.": "このツールは読み込めません。「環境診断」を確認してください。",
-  "This tool needs attention. See Environment diagnostics.": "このツールは確認が必要です。「環境診断」を確認してください。"
+  "This tool needs attention. See Environment diagnostics.": "このツールは確認が必要です。「環境診断」を確認してください。",
+  "Choose a .zip file or drop it here": "zipファイルを選択、またはここにドロップ",
+  "Agent Tool: only a .zip file up to 50 MB can be installed.": "Agent Tool: 導入できるのは50 MB以下の.zipファイルだけです。",
+  "Zip file": "zipファイル",
+  "Choose a tool to install": "導入するToolを選択"
 }

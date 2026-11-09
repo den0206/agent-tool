@@ -68,6 +68,11 @@ export class DashboardProvider
         void this.analyze(message.url);
       if (message?.type === 'installTool' && typeof message.url === 'string' && typeof message.kind === 'string')
         void this.install(message);
+      if (message?.type === 'installZip')
+        void vscode.commands.executeCommand('agent-tool.addZip', droppedZip(message));
+      if (message?.type === 'zipRejected')
+        void vscode.window.showWarningMessage(
+          vscode.l10n.t('Agent Tool: only a .zip file up to 50 MB can be installed.'));
       if (message?.type === 'addMcp')
         void vscode.commands.executeCommand('agent-tool.addMcp');
       if (message?.type === 'openFile')
@@ -314,6 +319,15 @@ async function openToolFile(path: unknown, kind: unknown): Promise<void> {
     void vscode.window.showWarningMessage(
       vscode.l10n.t('Agent Tool: {0} could not be opened.', file));
   }
+}
+
+/** Webview から来た中身。形だけ確かめ、zip として正しいかは展開側が検査する。無ければファイルを選ばせる。 */
+function droppedZip(message: {name?: unknown; bytes?: unknown}): {name: string; bytes: Uint8Array} | undefined {
+  const {name, bytes} = message;
+  if (typeof name !== 'string') return undefined;
+  if (bytes instanceof ArrayBuffer) return {name, bytes: new Uint8Array(bytes)};
+  if (ArrayBuffer.isView(bytes)) return {name, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)};
+  return undefined;
 }
 
 function isItem(value: unknown): value is DashboardItem {

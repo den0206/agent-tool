@@ -125,5 +125,9 @@
   "{0} more": "{0} more",
   "AI Agents": "AI Agents",
   "This tool cannot be read. See Environment diagnostics.": "This tool cannot be read. See Environment diagnostics.",
-  "This tool needs attention. See Environment diagnostics.": "This tool needs attention. See Environment diagnostics."
+  "This tool needs attention. See Environment diagnostics.": "This tool needs attention. See Environment diagnostics.",
+  "Choose a .zip file or drop it here": "Choose a .zip file or drop it here",
+  "Agent Tool: only a .zip file up to 50 MB can be installed.": "Agent Tool: only a .zip file up to 50 MB can be installed.",
+  "Zip file": "Zip file",
+  "Choose a tool to install": "Choose a tool to install"
 }

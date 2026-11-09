@@ -4,5 +4,6 @@
   "command.addMcp": "MCPサーバーを追加",
   "command.refreshInventory": "再読み込み",
   "command.checkUpdates": "更新確認",
-  "capabilities.untrustedWorkspaces": "Agent Tool は未信頼のワークスペースでは一覧の表示だけを行います。変更にはワークスペースの信頼が必要です。"
+  "capabilities.untrustedWorkspaces": "Agent Tool は未信頼のワークスペースでは一覧の表示だけを行います。変更にはワークスペースの信頼が必要です。",
+  "command.addZip": "zipファイルからToolを導入"
 }

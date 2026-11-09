@@ -59,6 +59,11 @@
         "category": "Agent Tool"
       },
       {
+        "command": "agent-tool.addZip",
+        "title": "%command.addZip%",
+        "category": "Agent Tool"
+      },
+      {
         "command": "agent-tool.addMcp",
         "title": "%command.addMcp%",
         "category": "Agent Tool"

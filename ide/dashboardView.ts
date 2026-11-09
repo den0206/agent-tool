@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
+import { SIZE_LIMIT } from '../core/limits';
 
 export type DashboardItem = {
   name: string;
@@ -43,6 +44,7 @@ const webviewText = (): Record<string, string> => ({
   analyze: vscode.l10n.t("Analyze"),
   analyzing: vscode.l10n.t("Analyzing URL…"),
   urlLabel: vscode.l10n.t("Public GitHub URL"),
+  zipDrop: vscode.l10n.t("Choose a .zip file or drop it here"),
   updates: vscode.l10n.t("Updates available"),
   environment: vscode.l10n.t("Environment"),
   cliDetected: vscode.l10n.t("CLI detected"),
@@ -189,7 +191,9 @@ export function dashboardHtml(webview: vscode.Webview): string {
 
     /* Add tool */
     .section-label { color:var(--at-fg-mute); font-size:var(--at-fs-sm); font-weight:600; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
-    .add-form { display:flex; gap:6px; margin:0 0 16px; }
+    .add-form { display:flex; gap:6px; margin:0 0 8px; }
+    button.zip-drop { width:100%; margin:0 0 16px; padding:12px; color:var(--at-fg-mute); background:transparent; border:1px dashed var(--at-border); font-size:var(--at-fs-sm); }
+    button.zip-drop:hover, button.zip-drop.over { color:var(--vscode-foreground); background:var(--vscode-list-hoverBackground); border-color:var(--vscode-focusBorder); }
     .add-input { flex:1; position:relative; display:flex; align-items:center; }
     .add-input svg { position:absolute; left:8px; color:var(--at-fg-faint); pointer-events:none; }
     .add-input input { width:100%; }
@@ -339,6 +343,7 @@ export function dashboardHtml(webview: vscode.Webview): string {
     </div>
     <button type="submit">${text0.analyze}</button>
   </form>
+  <button type="button" class="zip-drop" id="zip-drop">${text0.zipDrop}</button>
   </div>
   <section class="detail hidden" id="preview"></section>
   <nav class="agent-nav" id="agents" aria-label="${text0.aiAgents}"></nav>
@@ -680,6 +685,17 @@ export function dashboardHtml(webview: vscode.Webview): string {
   document.querySelector('#add-toggle').onclick=()=>{ addOpen=!addOpen; render(); if (addOpen) document.querySelector('#tool-url').focus(); };
   document.querySelector('#browser-extension').onclick=()=>vscode.postMessage({type:'openBrowserExtension'});
   document.querySelector('#add-form').onsubmit=e=>{e.preventDefault(); vscode.postMessage({type:'analyzeTool',url:document.querySelector('#tool-url').value});};
+  const zipDrop=document.querySelector('#zip-drop');
+  zipDrop.onclick=()=>vscode.postMessage({type:'installZip'});
+  zipDrop.ondragover=e=>{ e.preventDefault(); zipDrop.classList.add('over'); };
+  zipDrop.ondragleave=()=>zipDrop.classList.remove('over');
+  // Checked before reading, so a huge drop never lands in memory. The host re-validates the bytes.
+  zipDrop.ondrop=async e=>{
+    e.preventDefault(); zipDrop.classList.remove('over');
+    const file=e.dataTransfer.files[0];
+    if (!file || !/\\.zip$/i.test(file.name) || file.size>${SIZE_LIMIT}) { vscode.postMessage({type:'zipRejected'}); return; }
+    vscode.postMessage({type:'installZip',name:file.name,bytes:new Uint8Array(await file.arrayBuffer())});
+  };
   window.addEventListener('message',e=>{
     if (e.data.type==='inventory') {
       loaded=true; items=e.data.items; issues=e.data.issues||[]; diagnostics=e.data.diagnostics||[]; loadError=e.data.error||'';

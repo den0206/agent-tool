@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- The IDE extension can install a Skill or Subagent from a local `.zip` file. Choose one, or drop it on the dashboard's add section, or run **Agent Tool: Install Tool from Zip File**. Tools installed this way have no source, so they are not checked for updates.
+
 ## [0.8.0] — 2026-11-05
 
 ### Fixed

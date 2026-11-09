@@ -128,6 +128,31 @@ export function activate(context: vscode.ExtensionContext): void {
     if (result.ok) void dashboard.refresh(true);
   });
 
+  // 引数なしならファイルを選ばせる。Webview にドロップされた zip は中身ごと渡ってくる。
+  command("agent-tool.addZip", async (dropped?: { name: string; bytes: Uint8Array }) => {
+    if (!await canWrite()) return;
+    const zip = dropped ?? await vscode.window.showOpenDialog({
+      canSelectMany: false, openLabel: vscode.l10n.t("Install"),
+      filters: { [vscode.l10n.t("Zip file")]: ["zip"] },
+    }).then(picked => picked?.[0] && { path: picked[0].fsPath });
+    if (!zip) return;
+    const result = await withProgress(vscode.l10n.t("Agent Tool: Installing Tool"), () => agentTool.addZip({
+      storagePath, zip,
+      choose: async candidates => {
+        const candidate = candidates.length === 1 ? candidates[0] : (await vscode.window.showQuickPick(
+          candidates.map(item => ({
+            label: item.name, detail: item.description, item,
+            description: item.kind === "skill" ? vscode.l10n.t("Skills") : vscode.l10n.t("Subagents"),
+          })),
+          { placeHolder: vscode.l10n.t("Choose a tool to install") }))?.item;
+        if (candidate === undefined) return undefined;
+        const target = await pickScope();
+        return target && { candidate, ...target };
+      },
+    }));
+    if (result.ok && result.value) void dashboard.refresh(true);
+  });
+
   // 成否を返す。Webview の「導入しています…」は、この結果でしか元に戻せない。
   command("agent-tool.installPreview", async (input: {
     url?: string; kind?: string; name?: string; selector?: string;
