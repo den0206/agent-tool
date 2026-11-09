@@ -3,11 +3,12 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { KindId } from "../core/agent";
 import { AgentToolError } from "../core/errors";
-import { ArchiveError, readTarGz } from "../core/archive";
+import { ArchiveError, readTarGz, TarEntry } from "../core/archive";
 import { PAGE_LIMIT, SIZE_LIMIT } from "../core/limits";
 import * as frontmatter from "./frontmatter";
 import { archiveUrl, GitHubSource } from "../core/github";
 import { exists as isPath, isDirectory, isInside, isValidName } from "./writeGuard";
+import { readZip, readZipFile } from "./zip";
 
 /**
  * 取得した中身の解釈結果。自動では入れない —
@@ -25,7 +26,8 @@ export type Candidate = {
 
 export type Staging = {
   readonly root: string;
-  readonly source: GitHubSource;
+  /** 手元の zip から入れるときは無い。registry に取得元を書かず、更新確認の対象外になる。 */
+  readonly source?: GitHubSource;
   readonly candidates: Candidate[];
   readonly resolvedSha?: string;
 };
@@ -84,24 +86,55 @@ export async function stage(source: GitHubSource, options: {
     const base = source.subdir === undefined ? top : join(top, source.subdir);
     if (!isPath(base)) fail(`${source.subdir ?? "/"} was not found in the archive`);
 
-    // ディレクトリ名由来の候補も含めて、最後にもう一度名前を検査する。
-    // ここを通った名前だけが `installer` でパスに使われる。
-    const candidates = identify(base)
-      .filter(candidate => isValidName(candidate.name))
-      // symlink は展開していない。含む候補を入れると、欠けたまま導入が成功したように
-      // 見える。ブラウザ拡張の `install.ts` と同じく、取り出す範囲内なら通さない。
-      .filter(candidate => !links.some(link => isInside(link, candidate.localPath)));
-    if (candidates.length === 0) {
-      const blocked = links.find(link => isInside(link, base));
-      fail(blocked === undefined
-        ? "Neither SKILL.md nor plugin.json was found; the format is not supported"
-        : `${relative(unpacked, blocked)} is a link and cannot be installed`);
-    }
-    return { root, source, candidates, resolvedSha: options.resolvedSha };
+    return { root, source, candidates: candidatesIn(base, unpacked, links), resolvedSha: options.resolvedSha };
   } catch (error) {
     discard({ root });
     throw error;
   }
+}
+
+/**
+ * 手元の zip を一時領域へ展開する。Plugin はエージェントの CLI が URL から入れるので扱わない。
+ * 直下に SKILL.md を置いた zip もあるので、展開先の名前を zip のファイル名にして
+ * frontmatter に `name` が無いときの Skill 名にする。
+ */
+export async function stageZip(input: { path: string } | { name: string; bytes: Uint8Array }): Promise<Staging> {
+  const root = mkdtempSync(join(tmpdir(), "agent-tool-zip-"));
+  try {
+    const stem = basename("path" in input ? input.path : input.name).replace(/\.zip$/i, "");
+    const unpacked = join(root, isValidName(stem) ? stem : "unpacked");
+    const entries = "path" in input ? readZipFile(input.path) : (() => {
+      const buffer = Buffer.from(input.bytes.buffer, input.bytes.byteOffset, input.bytes.byteLength);
+      return readZip(buffer.length, (offset, length) => buffer.subarray(offset, offset + length));
+    })();
+    const links = await write(entries, unpacked);
+    const candidates = candidatesIn(singleTopLevel(unpacked), unpacked, links)
+      .filter(candidate => candidate.kind === "skill" || candidate.kind === "subagent");
+    if (candidates.length === 0) fail("no Skill or Subagent was found in the zip file");
+    return { root, candidates };
+  } catch (error) {
+    discard({ root });
+    throw error;
+  }
+}
+
+/**
+ * ディレクトリ名由来の候補も含めて、最後にもう一度名前を検査する。
+ * ここを通った名前だけが `installer` でパスに使われる。
+ */
+function candidatesIn(base: string, unpacked: string, links: string[]): Candidate[] {
+  const candidates = identify(base)
+    .filter(candidate => isValidName(candidate.name))
+    // symlink は展開していない。含む候補を入れると、欠けたまま導入が成功したように
+    // 見える。ブラウザ拡張の `install.ts` と同じく、取り出す範囲内なら通さない。
+    .filter(candidate => !links.some(link => isInside(link, candidate.localPath)));
+  if (candidates.length === 0) {
+    const blocked = links.find(link => isInside(link, base));
+    fail(blocked === undefined
+      ? "Neither SKILL.md nor plugin.json was found; the format is not supported"
+      : `${relative(unpacked, blocked)} is a link and cannot be installed`);
+  }
+  return candidates;
 }
 
 /**
@@ -138,11 +171,17 @@ async function download(url: string, repo: string,
  */
 export async function extract(body: ReadableStream<Uint8Array>,
                               destination: string): Promise<string[]> {
+  return write(readTarGz(body), destination);
+}
+
+/** 検査済みのエントリを書く。tar.gz と zip で共有する。 */
+async function write(entries: AsyncIterable<TarEntry> | Iterable<TarEntry>,
+                     destination: string): Promise<string[]> {
   mkdirSync(destination, { recursive: true });
   /** 書かずに飛ばした symlink の展開先。取り出す候補の中にあれば `stage` が落とす。 */
   const links: string[] = [];
   try {
-    for await (const entry of readTarGz(body)) {
+    for await (const entry of entries) {
       const target = join(destination, ...entry.path);
       // symlink は書かずに飛ばす。リポジトリ直下の `CLAUDE.md` が symlink というだけで
       // 取得ごと諦めさせない。取り出したいものの中にあるかは `stage` が見る。
@@ -159,7 +198,7 @@ export async function extract(body: ReadableStream<Uint8Array>,
   return links;
 }
 
-/** zipball は `<repo>-<branch>/` を 1 段かぶせる。 */
+/** zipball は `<repo>-<branch>/` を 1 段かぶせる。手元の zip は 1 ファイルだけのこともある。 */
 export function singleTopLevel(dir: string): string {
   let entries: string[];
   try {
@@ -167,7 +206,7 @@ export function singleTopLevel(dir: string): string {
   } catch {
     return dir;
   }
-  return entries.length === 1 ? join(dir, entries[0]) : dir;
+  return entries.length === 1 && isDirectory(join(dir, entries[0])) ? join(dir, entries[0]) : dir;
 }
 
 /**

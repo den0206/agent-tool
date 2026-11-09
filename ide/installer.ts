@@ -55,9 +55,9 @@ export function install(candidate: Candidate, staging: Staging, env: Env, regist
   upsert(registry, {
     name: candidate.name,
     kind: candidate.kind,
-    repo: staging.source.repo,
-    branch: staging.source.branch,
-    subdir: staging.source.subdir,
+    repo: staging.source?.repo,
+    branch: staging.source?.branch,
+    subdir: staging.source?.subdir,
     sha: staging.resolvedSha,
     pinned: false,
     project,
