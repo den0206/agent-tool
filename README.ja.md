@@ -40,7 +40,7 @@ Agent Toolは、同じ検知・導入ロジックを共有する2つの拡張か
 ## 主な機能
 
 - Skill、Subagent、Rule、MCPサーバー、Pluginを1つのダッシュボードで確認
-- GitHubと対応カタログからSkill / Subagentを導入
+- GitHubと対応カタログ、または手元の`.zip`ファイル（選択かダッシュボードへのドロップ）からSkill / Subagentを導入
 - GitHubサブディレクトリ内のPluginを含むClaude Code / Codex Pluginの導入
 - 説明、呼び出し方、場所、スコープ、有効状態、更新の確認と、Skill・Subagent・Rule のファイルを開く
 - 管理対象ファイルをコピーせず、ユーザー領域とプロジェクト領域を管理

@@ -40,7 +40,7 @@ Agent Tool keeps the resources used by your coding agents discoverable from one 
 ## Features
 
 - See Skills, Subagents, Rules, MCP servers, and Plugins in one dashboard.
-- Install Skills and Subagents from GitHub and supported catalogs.
+- Install Skills and Subagents from GitHub and supported catalogs, or from a local `.zip` file (choose it or drop it on the dashboard).
 - Install Claude Code and Codex Plugins, including Plugins in GitHub subdirectories.
 - Preview descriptions, how to call each tool, locations, scopes, enabled state, and available updates, and open a Skill, Subagent, or Rule in the editor.
 - Work across user and project resources without copying managed files.

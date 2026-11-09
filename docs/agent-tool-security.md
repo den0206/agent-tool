@@ -216,6 +216,10 @@ Bearer <value>        → Bearer [REDACTED]
   エントリ名は `safeSegments` で検証し、取り出したものには `assertValidName` を適用してから移動する
 - GitHub API 応答は 2 MB、アーカイブは 50 MB、展開後は 200 MB、単一ファイルは 20 MB で打ち切る
 - アーカイブはメモリへ全量保持せず、`ReadableStream` から 1 エントリずつ一時領域へ流す
+- 利用者が手元から渡す zip は `ide/zip.ts` の `readZip` だけで読む。展開先は `agent-tool-zip-<uuid>` の一時領域で、
+  名前は同じ `safeSegments` と `assertValidName`、上限は zip 本体 50 MB と上記の展開後・単一ファイル・件数を使う。
+  ZIP64・暗号化・stored / deflate 以外は拒み、目次の申告より膨らむ deflate は展開の途中で止める。
+  symlink は書かず、取り出す候補の中にあれば導入を止める。`__MACOSX/` は捨てる
 
 ---
 
