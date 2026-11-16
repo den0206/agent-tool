@@ -98,7 +98,7 @@
   "devDependencies": {
     "@types/node": "26.6.6",
     "@types/vscode": "1.90.0",
-    "@vscode/vsce": "4.1.0",
+    "@vscode/vsce": "4.1.1",
     "playwright": "1.65.0",
     "typescript": "7.0.2"
   }
